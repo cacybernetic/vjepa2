@@ -67,13 +67,14 @@ dependencies = [
 onnx = [
     "onnx>=1.15",
     "onnxruntime>=1.16",
+    "onnxscript>=0.5",
 ]
 
 [project.scripts]
 buildh5ds = "vjepa2.entrypoints.buildds:main"
 trainvjepa = "vjepa2.entrypoints.train:main"
 evalvjepa = "vjepa2.entrypoints.evaluate:main"
-exportw = "vjepa2.entrypoints.exportmodel:main"
+exportw = "vjepa2.entrypoints.exportencoder:main"
 runs = "vjepa2.entrypoints.inference:main"
 
 [dependency-groups]
