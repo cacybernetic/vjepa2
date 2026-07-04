@@ -49,6 +49,7 @@ requires-python = ">=3.10"
 dependencies = [
     "pyyaml==6.0.3",
     "pillow==12.2.0",
+    "av==17.1.0",
     "tomli==2.4.1",
     "soundfile==0.14.0",
     "numpy==2.2.6",
@@ -68,6 +69,7 @@ onnx = [
     "onnx>=1.15",
     "onnxruntime>=1.16",
     "onnxscript>=0.5",
+    "onnxconverter-common>=1.14",
 ]
 
 [project.scripts]
