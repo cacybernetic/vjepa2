@@ -1,6 +1,6 @@
 <div align="center">
 
-# V-JEPA 2.1
+<img src="banner.png" width="720" alt="V-JEPA 2.1"/>
 
 ![](https://img.shields.io/badge/STATUS-alpha-orange)
 ![](https://img.shields.io/badge/Python-3.10-blue)
