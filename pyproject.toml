@@ -1,0 +1,106 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vjepa2"
+version = "0.1.0"
+description = "PyTorch code + training + evaluation program and models for VJEPA2.1 self-supervised learning from video."
+readme = "README.md"
+license = { text = "MIT" }
+authors = [
+    { name = "Arnold Mokira", email = "arnoldmokira3d48@gmail.com" },
+]
+maintainers = [
+    { name = "CONSOLE ART CYBERNETIC", email = "ca.cybernetic@gmail.com" },
+]
+keywords = [
+    "v-jepa",
+    "vjepa2",
+    "jepa",
+    "video",
+    "self-supervised-learning",
+    "ssl",
+    "representation-learning",
+    "masked-prediction",
+    "dense-features",
+    "world-model",
+    "video-understanding",
+    "deep-learning",
+    "pytorch",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+    "Topic :: Multimedia :: Video",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "pyyaml==6.0.3",
+    "pillow==12.2.0",
+    "tomli==2.4.1",
+    "soundfile==0.14.0",
+    "numpy==2.2.6",
+    "matplotlib==3.10.9",
+    "scipy==1.15.3",
+    "h5py==3.16.0",
+    "sympy==1.14.0",
+    "torch==2.8",
+    "torchvision==0.23.0",
+    "torchinfo==1.8.0",
+    "tqdm==4.68.3",
+    "loguru==0.7.3",
+]
+
+[project.optional-dependencies]
+onnx = [
+    "onnx>=1.15",
+    "onnxruntime>=1.16",
+]
+
+[project.scripts]
+buildh5ds = "vjepa2.entrypoints.buildds:main"
+trainvjepa = "vjepa2.entrypoints.train:main"
+evalvjepa = "vjepa2.entrypoints.evaluate:main"
+exportw = "vjepa2.entrypoints.exportmodel:main"
+runs = "vjepa2.entrypoints.inference:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+]
+
+[tool.isort]
+line_length = 120
+multi_line_output = 0
+
+[tool.yapf]
+based_on_style = "pep8"
+spaces_before_comment = 2
+column_limit = 120
+
+[project.urls]
+"Homepage" = "https://arxiv.org/html/2606.19398v1"
+#"Bug Tracker" = "https://github.com/your-username/my-python-package/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v"
+# Add the package source to the path. We do NOT add the repository root,
+# because the root logging.py would shadow the standard library logging.
+pythonpath = ["src"]
