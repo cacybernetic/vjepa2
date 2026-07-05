@@ -30,6 +30,22 @@ from tqdm import tqdm
 
 logger = logging.getLogger(__name__)
 
+
+class TqdmLoggingHandler(logging.Handler):
+    """Emit log records through ``tqdm.write`` so they don't garble the bars.
+
+    Plain ``StreamHandler`` and ``tqdm`` both write to stderr with no
+    coordination, so every log line overwrites the live progress bar.
+    ``tqdm.write`` clears the bar, prints the message, then redraws it.
+    """
+
+    def emit(self, record: logging.LogRecord) -> None:
+        try:
+            tqdm.write(self.format(record), file=sys.stderr)
+        except Exception:  # noqa: BLE001 - never let logging crash inference
+            self.handleError(record)
+
+
 # ImageNet statistics used to normalize pixels in [0, 1] (V-JEPA 2.1 recipe).
 IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
@@ -67,34 +83,63 @@ def _center_crop(arr: np.ndarray, size: int) -> np.ndarray:
 
 
 class Preprocess:
-    """Turn an image / video file into a model-ready clip ``(1, C, T, H, W)``.
+    """Turn an image / video file into model-ready clip(s) ``(1, C, T, H, W)``.
 
     Frames are resized so the shorter side equals ``crop_size``, center-cropped
-    to a square and (optionally) normalized with the ImageNet statistics. Videos
-    are sampled to exactly ``num_frames`` uniformly-spaced frames; images become
-    a single frame (``T == 1``), which selects the encoder's image pathway.
+    to a square and (optionally) normalized with the ImageNet statistics. Images
+    become a single frame (``T == 1``), which selects the encoder's image
+    pathway.
+
+    Videos yield one or more clips through :meth:`clips`:
+
+    * **subsample mode** (``chunk=False``, the default): the whole video is
+      compressed to exactly ``num_frames`` uniformly-spaced frames -> a single
+      clip. A 1250-frame video and a 16-frame one produce the same one clip.
+    * **chunk mode** (``chunk=True``): the video is cut into consecutive windows
+      of ``num_frames`` frames, hopping ``stride`` frames between windows
+      (``stride < num_frames`` overlaps them). This keeps temporal resolution:
+      a long video yields many clips, one embedding each. The final window is
+      clamped to end on the last frame so the tail is always covered.
 
     ``normalize=False`` is used when the ONNX graph bakes the normalization in
     and therefore expects raw RGB pixels in ``[0, 255]``.
     """
 
     def __init__(self, crop_size: int = 256, num_frames: int = 16,
-                 normalize: bool = True):
+                 normalize: bool = True, chunk: bool = False,
+                 stride: Optional[int] = None):
         self.crop_size = crop_size
         self.num_frames = num_frames
         self.normalize = normalize
+        self.chunk = chunk
+        # Default hop = window length -> non-overlapping consecutive clips.
+        self.stride = stride if stride and stride > 0 else num_frames
         self.mean = np.array(IMAGENET_MEAN, dtype=np.float32).reshape(3, 1, 1, 1)
         self.std = np.array(IMAGENET_STD, dtype=np.float32).reshape(3, 1, 1, 1)
 
-    def _load_image(self, path: str) -> np.ndarray:
+    def _prep_frame(self, frame: np.ndarray) -> np.ndarray:
+        """Resize (shorter side) and center-crop one ``(H, W, C)`` frame."""
+        from PIL import Image
+
+        im = _resize_shorter_side(Image.fromarray(frame), self.crop_size)
+        return _center_crop(np.asarray(im), self.crop_size)  # H W C
+
+    def _finalize(self, clip_thwc: np.ndarray) -> np.ndarray:
+        """``(T, H, W, C)`` uint8 -> normalized ``(1, C, T, H, W)`` float32."""
+        clip = clip_thwc.astype(np.float32).transpose(3, 0, 1, 2)  # C T H W
+        if self.normalize:
+            clip = clip / 255.0
+            clip = (clip - self.mean) / self.std
+        return clip[None, ...]  # (1, C, T, H, W)
+
+    def _load_image_frame(self, path: str) -> np.ndarray:
         from PIL import Image
 
         with Image.open(path) as im:
             im = _resize_shorter_side(im.convert("RGB"), self.crop_size)
-            frame = _center_crop(np.asarray(im), self.crop_size)  # H W C
-        return frame[None, ...]  # T=1 H W C
+            return _center_crop(np.asarray(im), self.crop_size)  # H W C
 
-    def _load_video(self, path: str) -> np.ndarray:
+    def _decode_video(self, path: str) -> List[np.ndarray]:
         import av
 
         frames = []
@@ -104,32 +149,69 @@ class Preprocess:
                 frames.append(frame.to_ndarray(format="rgb24"))  # H W C uint8
         if not frames:
             raise ValueError(f"no frames decoded from {path}")
+        return frames
 
-        idx = np.linspace(0, len(frames) - 1, self.num_frames)
-        idx = np.round(idx).astype(int)
+    def _window_starts(self, total: int) -> List[int]:
+        """Start frame index of each ``num_frames``-long window."""
+        n = self.num_frames
+        if total <= n:
+            return [0]
+        starts = list(range(0, total - n + 1, self.stride))
+        # Clamp a final window onto the tail so the last frames are covered.
+        if starts[-1] != total - n:
+            starts.append(total - n)
+        return starts
 
-        from PIL import Image
+    def _video_windows(self, frames: List[np.ndarray], starts: List[int]):
+        """Yield finalized clips for the given window starts (chunk mode)."""
+        total = len(frames)
+        prepped: dict = {}  # preprocess each frame at most once across windows
 
-        out = []
-        for i in idx:
-            im = _resize_shorter_side(Image.fromarray(frames[i]), self.crop_size)
-            out.append(_center_crop(np.asarray(im), self.crop_size))
-        return np.stack(out)  # T H W C
+        def prep(i: int) -> np.ndarray:
+            if i not in prepped:
+                prepped[i] = self._prep_frame(frames[i])
+            return prepped[i]
+
+        for start in starts:
+            # Videos shorter than num_frames repeat the last frame as padding.
+            idx = [min(start + k, total - 1) for k in range(self.num_frames)]
+            yield self._finalize(np.stack([prep(i) for i in idx]))
+
+    def plan_clips(self, path: str):
+        """Return ``(n_clips, iterator)`` of model-ready clips for a file.
+
+        Knowing ``n_clips`` up front lets the caller drive a determinate
+        progress bar without decoding the video twice. Each yielded clip has
+        shape ``(1, C, T, H, W)``.
+        """
+        if is_image_file(path):
+            clip = self._finalize(self._load_image_frame(path)[None, ...])
+            return 1, iter((clip,))
+
+        if is_video_file(path):
+            frames = self._decode_video(path)
+            total = len(frames)
+            if not self.chunk:
+                # Subsample the whole video to num_frames uniform frames.
+                idx = np.round(
+                    np.linspace(0, total - 1, self.num_frames)
+                ).astype(int)
+                clip = self._finalize(
+                    np.stack([self._prep_frame(frames[i]) for i in idx])
+                )
+                return 1, iter((clip,))
+            starts = self._window_starts(total)
+            return len(starts), self._video_windows(frames, starts)
+
+        raise ValueError(f"unsupported input type: {path}")
+
+    def clips(self, path: str):
+        """Yield one or more model-ready clips ``(1, C, T, H, W)`` for a file."""
+        return self.plan_clips(path)[1]
 
     def __call__(self, path: str) -> np.ndarray:
-        if is_image_file(path):
-            clip = self._load_image(path)
-        elif is_video_file(path):
-            clip = self._load_video(path)
-        else:
-            raise ValueError(f"unsupported input type: {path}")
-
-        # (T, H, W, C) -> (C, T, H, W)
-        clip = clip.astype(np.float32).transpose(3, 0, 1, 2)
-        if self.normalize:
-            clip = clip / 255.0
-            clip = (clip - self.mean) / self.std
-        return clip[None, ...]  # (1, C, T, H, W)
+        """Backward-compatible single-clip preprocessing (subsample mode)."""
+        return next(iter(self.clips(path)))
 
 
 class Postprocess:
@@ -281,8 +363,33 @@ class App:
         crop = self.args.crop_size or self.model.crop_size(256)
         num_frames = self.args.num_frames or self.model.num_frames(16)
         self.preprocess = Preprocess(
-            crop_size=crop, num_frames=num_frames, normalize=self.model.normalize()
+            crop_size=crop, num_frames=num_frames, normalize=self.model.normalize(),
+            chunk=self.args.chunk, stride=self.args.stride,
         )
+
+    def _encode(self, path: str) -> np.ndarray:
+        """Encode a file into its embedding.
+
+        Images and subsample-mode videos produce a single clip, so the result
+        keeps the plain per-clip shape (``(D,)`` pooled or ``(N, D)`` dense).
+        In ``--chunk`` mode a long video yields several clips, and the per-clip
+        embeddings are stacked along a leading axis (``(num_clips, ...)``).
+
+        When a file yields more than one clip, a nested progress bar tracks the
+        per-clip encoding (the outer bar only advances once per file).
+        """
+        n_clips, clip_iter = self.preprocess.plan_clips(path)
+        if n_clips > 1:
+            clip_iter = tqdm(
+                clip_iter, total=n_clips, desc=os.path.basename(path),
+                unit="clip", leave=False, position=1,
+            )
+        per_clip = [
+            self.postprocess(self.model.embed(clip)) for clip in clip_iter
+        ]
+        if len(per_clip) == 1:
+            return per_clip[0]
+        return np.stack(per_clip)
 
     def _output_path(self, input_path: str, fmt: OutputFormat) -> str:
         """Resolve where the embedding for ``input_path`` should be written."""
@@ -332,13 +439,14 @@ class App:
         # We compute the embeddings and save them into the output format specified in CLI argument.
         # By default, the output format is `pkle`.
         errors = 0
-        for path in tqdm(listoffiles, desc="Encoding", unit="file"):
+        for path in tqdm(listoffiles, desc="Encoding", unit="file", position=0):
             try:
-                clip = self.preprocess(path)
-                feats = self.model.embed(clip)
-                embedding = self.postprocess(feats)
+                embedding = self._encode(path)
                 out_path = self._output_path(path, output_format)
                 save_embedding(embedding, out_path, output_format)
+                logger.info(
+                    "Saved embedding %s -> %s", embedding.shape, out_path
+                )
             except Exception as exc:  # noqa: BLE001 - report and continue
                 errors += 1
                 logger.error("failed on %s: %s", path, exc)
@@ -376,6 +484,14 @@ def build_parser() -> ArgumentParser:
                    help="override crop size (default: read from ONNX metadata)")
     p.add_argument("--num-frames", type=int, default=None,
                    help="override frame count (default: read from ONNX metadata)")
+    p.add_argument("--chunk", action="store_true", default=False,
+                   help="encode a long video as consecutive num-frames clips "
+                        "instead of subsampling the whole video to num-frames; "
+                        "the output gains a leading clip axis (num_clips, ...)")
+    p.add_argument("--stride", type=int, default=None,
+                   help="hop in frames between consecutive clips in --chunk mode "
+                        "(default: num-frames, i.e. non-overlapping); a smaller "
+                        "value overlaps the clips")
     p.add_argument("--recursive", action="store_true", default=True,
                    help="recurse into subdirectories (default)")
     p.add_argument("--no-recursive", dest="recursive", action="store_false")
@@ -384,9 +500,11 @@ def build_parser() -> ArgumentParser:
 
 
 def main() -> None:
-    logging.basicConfig(
-        level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s"
+    handler = TqdmLoggingHandler()
+    handler.setFormatter(
+        logging.Formatter("%(asctime)s [%(levelname)s] %(message)s")
     )
+    logging.basicConfig(level=logging.INFO, handlers=[handler])
     parser = build_parser()
     args = parser.parse_args()
 

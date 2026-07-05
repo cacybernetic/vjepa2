@@ -84,7 +84,8 @@ features (or a pooled embedding) to hand to a small task head.
   ONNX `metadata_props`, so the inference client configures itself.
 - **Torch-free inference** — the `runs` CLI depends only on NumPy, Pillow, PyAV,
   and `onnxruntime`; no `torch` at runtime. It encodes a single file or a whole
-  directory (recursively) to pickle / NumPy / HDF5.
+  directory (recursively) to pickle / NumPy / HDF5, and can **chunk long videos**
+  into a sliding window of consecutive clips (`--chunk` / `--stride`).
 
 ## Project structure
 
@@ -342,10 +343,106 @@ flags. Useful options:
 | `-o` / `--output-dir`  | Output file (single input) / output directory (one file each).   |
 | `-f {pkle,npy,h5}`     | Serialization format (default `pkle`).                           |
 | `--pooling {mean,none}`| `mean` pools tokens into one vector; `none` keeps dense features.|
+| `--chunk`              | Cut a long video into consecutive clips instead of subsampling it (see below). |
+| `--stride N`           | Hop in frames between consecutive clips in `--chunk` mode (default: `num_frames`). |
 | `--crop-size` / `--num-frames` | Override the geometry read from the ONNX metadata.       |
 
 The output features are what you feed to a small downstream head (classification,
 detection, segmentation, ...).
+
+#### Input and output shapes
+
+The ONNX encoder takes a clip of a **fixed** geometry — `num_frames` frames at
+`crop_size × crop_size`, baked in at export time (see
+[ONNX export constraints](#onnx-export-constraints)) — laid out as `NCTHW`:
+
+```
+input clip:  (B, 3, T, crop, crop)         e.g. (1, 3, 16, 256, 256)
+raw output:  (B, N, D)                      dense token features
+             N = (T / tubelet) * (crop / patch)^2      D = encoder embed dim
+```
+
+For the shipped ViT-B (`T=16`, `crop=256`, `patch=16`, `tubelet=2`): `N =
+(16/2) * (256/16)^2 = 8 * 256 = 2048` tokens of `D = 768`, so one clip encodes to
+`(1, 2048, 768)`. `--pooling` then reduces the per-clip token axis `N`:
+
+| `--pooling` | Per-clip embedding | Meaning                          |
+|-------------|--------------------|----------------------------------|
+| `mean` *(default)* | `(D,)` — e.g. `(768,)`      | one vector per clip (token-averaged) |
+| `none`      | `(N, D)` — e.g. `(2048, 768)` | dense per-token features         |
+
+The output is always saved as a single array per input file (in the format set by
+`-f`). Its shape depends on how many clips the video produced:
+
+| Input | Mode | Clips | Saved shape (`mean` / `none`) |
+|-------|------|-------|-------------------------------|
+| image | — | 1 (`T=1` pathway) | `(768,)` / `(N, 768)` |
+| video | subsample *(default)* | 1 | `(768,)` / `(2048, 768)` |
+| video | `--chunk` | `K` | `(K, 768)` / `(K, 2048, 768)` |
+
+A single clip keeps the plain shape (no leading axis); `--chunk` adds a leading
+**clip axis** `K` (the video's temporal sequence of embeddings).
+
+#### Long videos: subsample vs. `--chunk`
+
+By default `runs` **subsamples** the whole video to exactly `num_frames`
+uniformly-spaced frames, so it always makes **one** clip regardless of length. A
+1250-frame video and a 16-frame one both collapse to a single 16-frame clip — you
+get one embedding for the entire video and lose all temporal resolution beyond
+those 16 samples.
+
+`--chunk` keeps the temporal resolution: the video is cut into **consecutive
+windows** of `num_frames` frames, each encoded into its own embedding, stacked
+along the leading axis. The **stride** is how many frames the fixed-size window
+slides between two clips — exactly like the stride of a convolution.
+
+**`--stride 16` (= `num_frames`) → no overlap (the default).** The window jumps a
+full clip length each step, so every frame belongs to exactly one clip. Cheapest.
+
+```
+Frames :  0 ......15 16 ......31 32 ......47 ...
+Clip 0 : [0 ......15]
+Clip 1 :             [16 ......31]
+Clip 2 :                         [32 ......47]
+```
+
+**`--stride 8` (< `num_frames`) → 50% overlap (a sliding window).** The window
+advances only half a clip, so consecutive clips share 8 frames. This gives finer
+temporal resolution and smoother clip-to-clip transitions, at the cost of more
+clips to encode and some redundancy.
+
+```
+Frames :  0 ...... 8 ...... 15 16 ...... 23 ...
+Clip 0 : [0 ............... 15]
+Clip 1 :          [8 ............... 23]
+Clip 2 :                   [16 ............... 31]
+```
+
+The number of clips for a `T`-frame video (`n = num_frames`, `s = stride`) is:
+
+```
+K = ceil((T - n) / s) + 1          (K = 1 when T <= n)
+```
+
+The final window is clamped onto the tail so the last frames are always covered.
+For `T = 1250`, `n = 16`:
+
+| `--stride` | Overlap | `K` clips | `--chunk` shape (`mean`) |
+|-----------|---------|-----------|--------------------------|
+| `16` *(default)* | none | 79 | `(79, 768)` |
+| `8`  | 50% | 156 | `(156, 768)` |
+| `4`  | 75% | 310 | `(310, 768)` |
+
+```bash
+# one embedding per non-overlapping 16-frame clip of a long video:
+runs -m encoder.onnx -i long_video.mp4 --chunk -f npy -o feats.npy        # -> (K, 768)
+
+# a 50%-overlapping sliding window, dense per-token features:
+runs -m encoder.onnx -i long_video.mp4 --chunk --stride 8 --pooling none -f npy -o feats.npy  # -> (K, 2048, 768)
+```
+
+> Videos shorter than `num_frames` still produce one clip; the last frame is
+> repeated to pad the window up to `num_frames`.
 
 ---
 
@@ -439,4 +536,4 @@ For questions or suggestions:
 
 - **Author**: Dr Mokira — arnoldmokira3d48@gmail.com
 - **Maintainer**: CONSOLE ART CYBERNETIC — ca.cybernetic@gmail.com
-- **GitHub**: [mokira3d48/vjepa2](https://github.com/mokira3d48/vjepa2)
+- **GitHub**: [cacybernetic/vjepa2](https://github.com/cacybernetic/vjepa2)
