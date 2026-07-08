@@ -93,8 +93,9 @@ class PredictorMultiSeqWrapper(nn.Module):
         outs_pred = [[] for _ in x]
         outs_context = [[] for _ in x]
         for i, (x_fpc, mx_fpc, my_fpc) in enumerate(zip(x, masks_x, masks_y)):
-            for xij, mx, my in zip(x_fpc, mx_fpc, my_fpc):
-                x_pred, x_context = self.backbone(xij, mx, my, mask_index=i, mod=mod)
+            for j, (xij, mx, my) in enumerate(zip(x_fpc, mx_fpc, my_fpc)):
+                # ``j`` selects a distinct learnable mask token per predict mask.
+                x_pred, x_context = self.backbone(xij, mx, my, mask_index=j, mod=mod)
                 outs_pred[i] += [x_pred]
                 outs_context[i] += [x_context]
         return outs_pred, outs_context

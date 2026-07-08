@@ -44,18 +44,43 @@ class TubeMaskCollator:
         self._rng = np.random.default_rng(seed)
 
     def __call__(self, samples: List[torch.Tensor]):
-        """Stack samples and attach the nested ``[fpc][mask]`` mask lists."""
+        """Stack samples and attach the nested ``[fpc][mask]`` mask lists.
+
+        ``cfg.num_pred_masks`` independent context/predict partitions are drawn;
+        the encoder and predictor iterate over each of them.
+        """
         clips = torch.stack(samples, dim=0)
         batch = clips.shape[0]
-        enc_idx, pred_idx = self._sample_partition()
-        enc = torch.as_tensor(enc_idx, dtype=torch.long).unsqueeze(0).repeat(batch, 1)
-        pred = torch.as_tensor(pred_idx, dtype=torch.long).unsqueeze(0).repeat(batch, 1)
-        return [clips], [[enc]], [[pred]]
+        enc_masks: List[torch.Tensor] = []
+        pred_masks: List[torch.Tensor] = []
+        for _ in range(max(1, int(self.cfg.num_pred_masks))):
+            enc_idx, pred_idx = self._sample_partition()
+            enc = torch.as_tensor(enc_idx, dtype=torch.long)
+            pred = torch.as_tensor(pred_idx, dtype=torch.long)
+            enc_masks.append(enc.unsqueeze(0).repeat(batch, 1))
+            pred_masks.append(pred.unsqueeze(0).repeat(batch, 1))
+        return [clips], [enc_masks], [pred_masks]
 
     def _sample_partition(self) -> Tuple[List[int], List[int]]:
         """Return flat (context, predict) token indices over the whole clip."""
         spatial = self._sample_spatial_mask()
+        spatial = self._enforce_min_keep(spatial)
         return self._expand_to_tube(spatial)
+
+    def _enforce_min_keep(self, mask: np.ndarray) -> np.ndarray:
+        """Free enough spatial cells so the context has at least ``min_keep``.
+
+        The mask is tube-expanded across ``grid_depth`` frames, so the number of
+        context tokens is ``grid_depth * (#unmasked cells)``. We unmask random
+        predicted cells until that product reaches ``min_keep``.
+        """
+        min_keep = max(1, int(self.cfg.min_keep))
+        min_context_cells = -(-min_keep // max(1, self.grid_depth))  # ceil div
+        flat = mask.reshape(-1)
+        while (~flat).sum() < min_context_cells and flat.any():
+            masked_cells = np.flatnonzero(flat)
+            flat[self._rng.choice(masked_cells)] = False
+        return flat.reshape(mask.shape)
 
     def _sample_spatial_mask(self) -> np.ndarray:
         """Return a boolean grid where True marks a token to predict."""

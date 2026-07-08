@@ -16,7 +16,9 @@ from typing import Dict, List, Tuple
 import torch
 import torch.nn as nn
 
-from vjepa2.config import Config, LossConfig
+from typing import Optional
+
+from vjepa2.config import Config, LossConfig, resolve_steps
 from vjepa2.dataset.masking import grid_dims
 from vjepa2.modules.losses import (
     Lambda_LinearWarmupHold,
@@ -74,8 +76,15 @@ class DensePredictiveLoss(nn.Module):
         return total, parts
 
 
-def build_loss(cfg: Config) -> DensePredictiveLoss:
-    """Build the dense predictive loss from a Config."""
+def build_loss(cfg: Config, total_steps: Optional[int] = None
+               ) -> DensePredictiveLoss:
+    """Build the dense predictive loss from a Config.
+
+    :param total_steps: total optimizer steps of the run, used to resolve a
+        fractional ``lambda_warmup_*`` against the real run length. When omitted
+        (e.g. standalone evaluation, which passes a huge ``global_iter``), the
+        warmup points are taken as absolute steps.
+    """
     grid_size, _ = grid_dims(
         cfg.dataset.crop_size,
         cfg.model.patch_size,
@@ -83,11 +92,21 @@ def build_loss(cfg: Config) -> DensePredictiveLoss:
         cfg.model.tubelet_size,
     )
     loss_cfg: LossConfig = cfg.loss
+    if total_steps is not None:
+        start = resolve_steps(loss_cfg.lambda_warmup_start, total_steps)
+        end = resolve_steps(loss_cfg.lambda_warmup_end, total_steps)
+    else:
+        # No run horizon: keep absolute values, drop fractions to an immediate
+        # ramp (evaluation applies lambda at its full hold value anyway).
+        start = int(loss_cfg.lambda_warmup_start) if loss_cfg.lambda_warmup_start >= 1 else 0
+        end = int(loss_cfg.lambda_warmup_end) if loss_cfg.lambda_warmup_end >= 1 else 0
+    if end <= start:
+        end = start + 1
     return DensePredictiveLoss(
         grid_size=grid_size,
         loss_exp=loss_cfg.loss_exp,
         context_lambda=loss_cfg.context_lambda,
-        warmup_start=loss_cfg.lambda_warmup_start,
-        warmup_end=loss_cfg.lambda_warmup_end,
+        warmup_start=start,
+        warmup_end=end,
         offset_context_loss=loss_cfg.offset_context_loss,
     )

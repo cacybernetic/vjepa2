@@ -54,27 +54,21 @@ def compute_mask_distance(masks_pred, masks_enc, grid_size, offset_context_loss=
     for masks_pred_i, masks_enc_i in zip(masks_pred, masks_enc):
         row_distances = []
         for masks_pred_ij, masks_enc_ij in zip(masks_pred_i, masks_enc_i):
-            N_enc_tokens = masks_enc_ij.shape[1]
             d_enc, h_enc, w_enc = separate_positions(masks_enc_ij, grid_size)
             d_pred, h_pred, w_pred = separate_positions(masks_pred_ij, grid_size)
+            enc = torch.stack([d_enc, h_enc, w_enc], dim=-1)  # (B, N_enc, 3)
             pred = torch.stack([d_pred, h_pred, w_pred], dim=-1)  # (B, N_pred, 3)
-            enc_distances = []
-            for enc_token in range(N_enc_tokens):
-                enc_position = torch.stack(
-                    [d_enc[:, enc_token], h_enc[:, enc_token], w_enc[:, enc_token]],
-                    dim=-1,
-                ).unsqueeze(1)  # (B, 1, 3)
-                dist = torch.cdist(enc_position, pred, p=2)
-                dmin, _ = dist.min(dim=-1)
-                if offset_context_loss:
-                    # Guard against grids smaller than the reference 16x16
-                    # (grid_size // 16 == 0 would divide by zero).
-                    coeff = max(grid_size // 16, 1)
-                    dmin = dmin * (1.0 / coeff)
-                dmin = dmin**0.5
-                enc_distances.append(dmin)
-            enc_distances = torch.stack(enc_distances, dim=-1).squeeze(1)
-            row_distances.append(enc_distances)
+            # One batched cdist over all context tokens at once, instead of a
+            # Python loop with one cdist per token (orders of magnitude faster).
+            dist = torch.cdist(enc, pred, p=2)  # (B, N_enc, N_pred)
+            dmin, _ = dist.min(dim=-1)  # (B, N_enc)
+            if offset_context_loss:
+                # Guard against grids smaller than the reference 16x16
+                # (grid_size // 16 == 0 would divide by zero).
+                coeff = max(grid_size // 16, 1)
+                dmin = dmin * (1.0 / coeff)
+            dmin = dmin**0.5
+            row_distances.append(dmin)
         distances.append(row_distances)
     return distances
 

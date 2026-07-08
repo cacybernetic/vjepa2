@@ -29,7 +29,28 @@ __all__ = [
     "Config",
     "load_yaml",
     "resolve_device",
+    "resolve_steps",
 ]
+
+
+def resolve_steps(value: float, total_steps: int) -> int:
+    """Resolve a schedule length that may be absolute or a fraction of a run.
+
+    This removes the classic footgun where a warmup / lambda-warmup expressed in
+    absolute steps (e.g. ``2000``) silently never fires on a short run.
+
+    Convention:
+      * ``0 < value < 1``  -> a fraction of ``total_steps`` (e.g. ``0.1`` = 10%);
+      * ``value >= 1``     -> an absolute number of optimizer steps;
+      * ``value <= 0``     -> ``0`` (fires immediately).
+    """
+    total_steps = max(1, int(total_steps))
+    v = float(value)
+    if v <= 0.0:
+        return 0
+    if v < 1.0:
+        return max(0, int(round(v * total_steps)))
+    return int(round(v))
 
 
 def load_yaml(path: str) -> Dict[str, Any]:
@@ -218,8 +239,11 @@ class LossConfig:
 
     loss_exp: float = 1.0
     context_lambda: float = 0.5
-    lambda_warmup_start: int = 15000
-    lambda_warmup_end: int = 30000
+    # Fraction of the run (0<v<1) or absolute optimizer steps (v>=1); see
+    # ``resolve_steps``. Fractions are recommended so the warmup scales with the
+    # actual run length instead of silently never firing on short runs.
+    lambda_warmup_start: float = 0.1
+    lambda_warmup_end: float = 0.4
     offset_context_loss: bool = False
 
     @classmethod
@@ -228,8 +252,8 @@ class LossConfig:
         return cls(
             loss_exp=float(_get(data, "loss_exp", 1.0)),
             context_lambda=float(_get(data, "context_lambda", 0.5)),
-            lambda_warmup_start=int(_get(data, "lambda_warmup_start", 15000)),
-            lambda_warmup_end=int(_get(data, "lambda_warmup_end", 30000)),
+            lambda_warmup_start=float(_get(data, "lambda_warmup_start", 0.1)),
+            lambda_warmup_end=float(_get(data, "lambda_warmup_end", 0.4)),
             offset_context_loss=bool(_get(data, "offset_context_loss", False)),
         )
 
@@ -263,7 +287,9 @@ class SchedulerConfig:
     """Learning-rate schedule settings."""
 
     name: str = "warmup_hold"
-    warmup_steps: int = 12000
+    # Fraction of the run (0<v<1) or absolute optimizer steps (v>=1); see
+    # ``resolve_steps``. A fraction keeps the warmup within reach on short runs.
+    warmup_steps: float = 0.1
     start_lr: float = 1.0e-4
     ref_lr: float = 5.25e-4
     final_lr: float = 1.0e-6
@@ -273,7 +299,7 @@ class SchedulerConfig:
         data = data or {}
         return cls(
             name=str(_get(data, "name", "warmup_hold")).lower(),
-            warmup_steps=int(_get(data, "warmup_steps", 12000)),
+            warmup_steps=float(_get(data, "warmup_steps", 0.1)),
             start_lr=float(_get(data, "start_lr", 1.0e-4)),
             ref_lr=float(_get(data, "ref_lr", 5.25e-4)),
             final_lr=float(_get(data, "final_lr", 1.0e-6)),

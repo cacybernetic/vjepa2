@@ -39,6 +39,7 @@ masking:
   spatial_scale: [0.15, 0.7]
   aspect_ratio: [0.75, 1.5]
   num_pred_masks: 1
+  min_keep: 4                 # guarantee at least this many context tokens
 
 model:
   name: vit_large            # scale up to vit_giant / vit_gigantic on big GPUs
@@ -55,8 +56,12 @@ model:
 loss:
   loss_exp: 1.0
   context_lambda: 0.5        # 0.5 for video, 0.7 for image
-  lambda_warmup_start: 15000
-  lambda_warmup_end: 30000
+  # 0<v<1 => fraction of total_steps (see the note above `train:`);
+  # v>=1 => absolute optimizer steps. Fractions keep the context-loss warmup
+  # within reach on short runs (with absolute 1000+, lambda would stay 0 and
+  # the whole dense/context objective of V-JEPA 2.1 would never activate).
+  lambda_warmup_start: 0.1   # start ramping lambda at 10% of total_steps
+  lambda_warmup_end: 0.4     # reach full lambda at 40% of total_steps
   offset_context_loss: false
 
 optim:
@@ -68,11 +73,26 @@ optim:
 
 scheduler:
   name: warmup_hold
-  warmup_steps: 12000
+  # 0<v<1 => fraction of total_steps (see the note above `train:`);
+  # v>=1 => absolute steps. A fraction lets the LR warmup actually
+  # complete regardless of dataset size / epoch count.
+  warmup_steps: 0.1          # warm up over the first 10% of total_steps
   start_lr: 1.0e-6
   ref_lr: 5.25e-4
   final_lr: 1.0e-5
 
+# ---------------------------------------------------------------------------
+# Run length. There is NO `total_steps` key in this file: it is DERIVED at
+# startup from the three values below plus the number of training samples:
+#   steps_per_epoch = ceil(ceil(num_train / batch_size) / grad_accum)
+#   total_steps     = steps_per_epoch * epochs
+# The fractional `scheduler.warmup_steps` and `loss.lambda_warmup_*` above are
+# resolved against this total_steps (see resolve_steps in config.py), so they
+# scale automatically with the dataset size and epoch count. total_steps is
+# printed in the run summary as "total optimizer steps".
+# Example: num_train=200000, batch_size=16, grad_accum=8, epochs=100
+#   -> ceil(200000/16)=12500, ceil(12500/8)=1563, 1563*100 = 156300 steps.
+# ---------------------------------------------------------------------------
 train:
   epochs: 100
   batch_size: 16

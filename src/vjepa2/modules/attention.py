@@ -42,10 +42,15 @@ def rotate_queries_or_keys(x, pos, n_registers=0, has_cls_first=False):
     x_ctx = x[..., start_ctx:end_ctx, :]
     x_reg = x[..., end_ctx:, :] if n_registers > 0 else None
 
+    # The sin/cos tables must be built on the *same* token slice that gets
+    # rotated (``x_ctx``); slicing ``pos`` here keeps the last two dimensions
+    # aligned when a leading CLS token and/or trailing registers are present.
+    pos_ctx = pos[..., start_ctx:end_ctx]
+
     omega = torch.arange(D // 2, dtype=x.dtype, device=x.device)
     omega /= D / 2.0
     omega = 1.0 / 10000**omega
-    freq = torch.einsum("..., f -> ... f", pos, omega)
+    freq = torch.einsum("..., f -> ... f", pos_ctx, omega)
 
     emb_sin = freq.sin()
     emb_cos = freq.cos()

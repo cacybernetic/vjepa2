@@ -16,7 +16,7 @@ from typing import Any, Dict
 
 import torch
 
-from vjepa2.config import SchedulerConfig
+from vjepa2.config import SchedulerConfig, resolve_steps
 
 __all__ = ["WarmupHold", "WarmupCosine", "build_scheduler"]
 
@@ -102,12 +102,16 @@ class WarmupCosine(_BaseSchedule):
 def build_scheduler(optimizer: torch.optim.Optimizer, cfg: SchedulerConfig,
                     total_steps: int) -> _BaseSchedule:
     """Build a scheduler from config and the planned total step count."""
+    # Resolve the (possibly fractional) warmup against the real run length and
+    # cap it so the warmup always completes within the run.
+    warmup = resolve_steps(cfg.warmup_steps, total_steps)
+    warmup = min(max(1, warmup), max(1, int(total_steps)))
     name = cfg.name.lower()
     if name in ("warmup_hold", "hold", "constant"):
-        return WarmupHold(optimizer, cfg.start_lr, cfg.ref_lr, cfg.warmup_steps)
+        return WarmupHold(optimizer, cfg.start_lr, cfg.ref_lr, warmup)
     if name in ("warmup_cosine", "cosine"):
         return WarmupCosine(
             optimizer, cfg.start_lr, cfg.ref_lr, cfg.final_lr,
-            cfg.warmup_steps, total_steps,
+            warmup, total_steps,
         )
     raise ValueError(f"Unknown scheduler name: {cfg.name}")

@@ -152,21 +152,47 @@ class VJEPA21(nn.Module):
     unmasked input, with the dense L1 + weighted-context loss.
     """
 
-    def __init__(self, encoder, predictor, target_encoder=None):
+    def __init__(self, encoder, predictor, target_encoder=None,
+                 distillation_teacher=None):
         super().__init__()
+        import copy
+
         self.encoder = encoder
         self.predictor = predictor
-        if target_encoder is None:
-            import copy
-
-            target_encoder = copy.deepcopy(encoder)
-        self.target_encoder = target_encoder
+        self.is_distillation = distillation_teacher is not None
+        if self.is_distillation:
+            # Distillation recipe: the loss target is a *frozen* teacher encoder
+            # (e.g. ViT-G, producing ``teacher_embed_dim`` features). We keep an
+            # EMA copy of the online student as the final exported model, but it
+            # never contributes to the loss.
+            self.target_encoder = distillation_teacher
+            self.ema_encoder = copy.deepcopy(encoder)
+            for p in self.ema_encoder.parameters():
+                p.requires_grad = False
+        else:
+            # Pretraining: the target is an EMA of the online encoder, so it
+            # shares the student's embedding dimension.
+            if target_encoder is None:
+                target_encoder = copy.deepcopy(encoder)
+            self.target_encoder = target_encoder
+            self.ema_encoder = None
         for p in self.target_encoder.parameters():
             p.requires_grad = False
+        # Dimension of *one* level of the target: drives the per-level LayerNorm
+        # and must match the predictor's per-level output width.
+        self.target_embed_dim = self.target_encoder.embed_dim
 
     @property
     def embed_dim(self):
         return self.encoder.embed_dim
+
+    def ema_target(self):
+        """Return the module the EMA updater should write into.
+
+        In distillation the frozen teacher must not move, so the EMA is applied
+        to the student copy instead.
+        """
+        return self.ema_encoder if self.is_distillation else self.target_encoder
 
     def forward(self, clips, masks_enc, masks_pred, mod="video", training_mode=True):
         """Run the JEPA forward pass.
@@ -182,9 +208,22 @@ class VJEPA21(nn.Module):
         with torch.no_grad():
             h_target = self.target_encoder(clips, training_mode=training_mode)
             # Per-level LayerNorm of the targets before the loss, matching the
-            # reference ``forward_target``: each ``embed_dim`` chunk of the
-            # concatenated multi-level output is normalized independently.
-            h_target = [self._normalize_target(h, self.embed_dim) for h in h_target]
+            # reference ``forward_target``: each ``target_embed_dim`` chunk of
+            # the concatenated multi-level output is normalized independently.
+            h_target = [
+                self._normalize_target(h, self.target_embed_dim) for h in h_target
+            ]
+        # Fail loudly (and early) on a predictor/target width mismatch instead of
+        # letting the loss raise a cryptic broadcasting error further down.
+        pred_dim = z_pred[0][0].shape[-1]
+        tgt_dim = h_target[0].shape[-1]
+        if pred_dim != tgt_dim:
+            raise ValueError(
+                "Predictor output width does not match the target encoder: "
+                f"predictor produces {pred_dim}-d, target produces {tgt_dim}-d. "
+                "For distillation pass a `distillation_teacher` whose embedding "
+                "dimension equals the predictor's `teacher_embed_dim`."
+            )
         return z_pred, z_context, h_target
 
     @staticmethod
@@ -205,7 +244,11 @@ class VJEPA21(nn.Module):
         :param clips: single tensor or list of tensors.
         :param use_ema: use the target (EMA) encoder rather than the online one.
         """
-        enc = self.target_encoder if use_ema else self.encoder
+        if use_ema:
+            # In distillation the EMA student is the deliverable, not the teacher.
+            enc = self.ema_encoder if self.is_distillation else self.target_encoder
+        else:
+            enc = self.encoder
         single = not isinstance(clips, (list, tuple))
         if single:
             clips = [clips]
@@ -227,9 +270,14 @@ class VJEPA21(nn.Module):
         tgt_key = "ema_encoder" if "ema_encoder" in checkpoint else "target_encoder"
         if tgt_key in checkpoint:
             tgt_sd = _strip_prefix(checkpoint[tgt_key])
-            msgs["target_encoder"] = self.target_encoder.load_state_dict(
-                tgt_sd, strict=strict
+            # The EMA-student weights of a distilled checkpoint belong in
+            # ``ema_encoder``; otherwise they are the pretraining EMA target.
+            dest = (
+                self.ema_encoder
+                if (self.is_distillation and tgt_key == "ema_encoder")
+                else self.target_encoder
             )
+            msgs["target_encoder"] = dest.load_state_dict(tgt_sd, strict=strict)
         return msgs
 
 

@@ -61,7 +61,7 @@ class TrainApp:
             self.model, self.cfg, self.total_steps
         )
         self.ema = build_ema(self.cfg)
-        self.loss_fn = build_loss(self.cfg)
+        self.loss_fn = build_loss(self.cfg, self.total_steps)
 
     def _warm_start(self) -> None:
         """Load init weights only when there is no checkpoint to resume from."""

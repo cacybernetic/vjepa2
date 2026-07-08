@@ -10,6 +10,26 @@ def small_model():
     return build_vjepa2_1_vitb(use_sdpa=False, crop_size=64, max_num_frames=4).eval()
 
 
+def small_distill_model():
+    """A coherent (small) distillation model: ViT-B student, ViT-tiny teacher.
+
+    The predictor projects to the teacher's 192-d space and the frozen teacher
+    produces 192-d targets, so the JEPA forward + loss line up end to end.
+    """
+    common = dict(
+        crop_size=64,
+        max_num_frames=4,
+        use_sdpa=False,
+        n_output_distillation_encoder=1,
+        n_output_distillation_predictor=1,
+    )
+    encoder, predictor = init_video_model(
+        model_name="vit_base", teacher_embed_dim=192, **common
+    )
+    teacher, _ = init_video_model(model_name="vit_tiny", **common)
+    return VJEPA21(encoder, predictor, distillation_teacher=teacher).eval()
+
+
 def test_build_returns_vjepa21():
     m = small_model()
     assert isinstance(m, VJEPA21)
@@ -41,7 +61,9 @@ def test_feature_extraction_video_and_image():
 
 
 def test_full_jepa_forward_shapes():
-    m = small_model()
+    # A coherent distillation model: predictor and (frozen) teacher share the
+    # 192-d target space, so the forward produces matching widths.
+    m = small_distill_model()
     N = 2 * 4 * 4
     perm = torch.randperm(N)
     ctx = perm[:20].sort().values.unsqueeze(0)
@@ -49,15 +71,29 @@ def test_full_jepa_forward_shapes():
     z_pred, z_ctx, h = m(
         [torch.randn(1, 3, 4, 64, 64)], [[ctx]], [[tgt]], mod="video"
     )
-    assert z_pred[0][0].shape == (1, tgt.shape[1], 1664)
-    assert z_ctx[0][0].shape == (1, ctx.shape[1], 1664)
-    assert h[0].shape == (1, N, 768)
+    assert z_pred[0][0].shape == (1, tgt.shape[1], 192)
+    assert z_ctx[0][0].shape == (1, ctx.shape[1], 192)
+    assert h[0].shape == (1, N, 192)
+
+
+def test_inference_model_forward_guards_dim_mismatch():
+    # ``build_vjepa2_1_vitb`` is an inference builder: its predictor targets the
+    # 1664-d teacher, but the EMA target is a 768-d ViT-B. Running the training
+    # forward must fail loudly rather than silently broadcasting.
+    import pytest
+
+    m = small_model()
+    N = 2 * 4 * 4
+    ctx = torch.arange(20).unsqueeze(0)
+    tgt = torch.arange(20, N).unsqueeze(0)
+    with pytest.raises(ValueError, match="does not match the target encoder"):
+        m([torch.randn(1, 3, 4, 64, 64)], [[ctx]], [[tgt]], mod="video")
 
 
 def test_dense_loss_end_to_end():
     from vjepa2.modules.losses import compute_mask_distance, jepa_loss
 
-    m = small_model()
+    m = small_distill_model()
     N = 2 * 4 * 4
     perm = torch.randperm(N)
     ctx = perm[:20].sort().values.unsqueeze(0)
@@ -66,11 +102,10 @@ def test_dense_loss_end_to_end():
     z_pred, z_ctx, h = m(
         [torch.randn(1, 3, 4, 64, 64)], masks_enc, masks_pred, mod="video"
     )
-    # predictor targets live in the 1664-d teacher space; use a matching target
-    h_tgt = [torch.randn(1, N, 1664)]
-    loss_pred = jepa_loss(z_pred, h_tgt, masks_pred)
+    # The teacher target now lines up with the predictor width (no fabrication).
+    loss_pred = jepa_loss(z_pred, h, masks_pred)
     d = compute_mask_distance(masks_pred, masks_enc, grid_size=4)
-    loss_ctx = jepa_loss(z_ctx, h_tgt, masks_enc, d_weights=d)
+    loss_ctx = jepa_loss(z_ctx, h, masks_enc, d_weights=d)
     total = loss_pred + 0.5 * loss_ctx
     assert torch.isfinite(total)
 

@@ -140,11 +140,14 @@ class Trainer:
         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                                     self.cfg.grad_clip_norm)
         self._last_grad_norm = float(grad_norm)
+        # Set the learning rate for *this* update before applying it, so the
+        # first step uses the scheduler's ``start_lr`` rather than the
+        # optimizer's construction-time lr.
+        self.scheduler.step()
         self.scaler.step(self.optimizer)
         self.scaler.update()
         self.optimizer.zero_grad(set_to_none=True)
-        self.scheduler.step()
-        self.ema.update(self.model.encoder, self.model.target_encoder)
+        self.ema.update(self.model.encoder, self.model.ema_target())
         self._pending = False
         self.state.global_step += 1
         self._after_step()
@@ -202,9 +205,14 @@ class Trainer:
         clips = utils.move_clips(clips, self.device)
         masks_enc = utils.move_masks(masks_enc, self.device)
         masks_pred = utils.move_masks(masks_pred, self.device)
+        # Route the batch through the correct tokenizer / modality embedding:
+        # a single temporal step (or a 4D tensor) is an image, otherwise video.
+        c0 = clips[0]
+        is_image = c0.ndim == 4 or (c0.ndim == 5 and c0.shape[2] == 1)
+        mod = "image" if is_image else "video"
         with self._autocast():
             z_pred, z_ctx, target = self.model(
-                clips, masks_enc, masks_pred, mod="video", training_mode=True
+                clips, masks_enc, masks_pred, mod=mod, training_mode=True
             )
             loss, parts = self.loss_fn(
                 z_pred, z_ctx, target, masks_enc, masks_pred, self.state.global_step

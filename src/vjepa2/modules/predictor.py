@@ -301,13 +301,29 @@ class VisionTransformerPredictor(nn.Module):
             else:
                 x = x + self.video_mod_embed.repeat(B, 1, 1)
 
+        # Decode RoPE positions on the predictor's own token grid. Passing the
+        # geometry explicitly (rather than letting the attention fall back to
+        # the init-time ``grid_size``) keeps positions correct when the encoder
+        # runs at a resolution other than the pretraining one (e.g. cool-down).
         for blk in self.predictor_blocks:
             if self.use_activation_checkpointing:
                 x, attn = torch.utils.checkpoint.checkpoint(
-                    blk, x, masks, use_reentrant=False
+                    blk,
+                    x,
+                    masks,
+                    T=self.grid_depth,
+                    H_patches=self.grid_height,
+                    W_patches=self.grid_width,
+                    use_reentrant=False,
                 )
             else:
-                x, attn = blk(x, mask=masks)
+                x, attn = blk(
+                    x,
+                    mask=masks,
+                    T=self.grid_depth,
+                    H_patches=self.grid_height,
+                    W_patches=self.grid_width,
+                )
         x = self.predictor_norm(x)
 
         # -- undo the sort and split context / masked predictions
