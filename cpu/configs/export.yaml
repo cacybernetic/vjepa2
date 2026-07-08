@@ -1,0 +1,34 @@
+# V-JEPA 2.1 ONNX export reference (CPU).
+#
+# The export command `exportw` uses command line flags, not this YAML file.
+# This file documents the recommended values so you can copy them onto the
+# command line. Example:
+#
+#   exportw runs/vjepa2_1_cpu/train/weights/best.pt \
+#       -o exports/encoder.onnx \
+#       --weights ema \
+#       --model-name vit_tiny --crop-size 128 --num-frames 16 \
+#       --tubelet-size 2 --patch-size 16 \
+#       --sdpa --dynamic-batch --single-file
+#
+# Notes (see the ONNX export constraints):
+#   - one export serves images OR videos, not both (set num-frames to 1 for
+#     the image pathway);
+#   - frames and resolution are baked in; only the batch can be dynamic;
+#   - --dynamic-batch needs --sdpa.
+
+export:
+  checkpoint: runs/vjepa2_1_cpu/train/weights/best.pt
+  output: exports/encoder.onnx
+  weights: ema                # ema (target encoder) or online
+  model_name: vit_tiny
+  crop_size: 128
+  num_frames: 16              # use 1 to export the image pathway
+  tubelet_size: 2
+  patch_size: 16
+  opset: 18
+  sdpa: true
+  dynamic_batch: true
+  bake_normalization: false
+  fp16: false
+  single_file: true

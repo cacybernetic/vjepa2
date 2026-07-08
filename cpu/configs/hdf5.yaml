@@ -1,0 +1,31 @@
+# V-JEPA 2.1 HDF5 build configuration for a CPU machine.
+# It decodes and transforms every clip once and stores the result, so training
+# and evaluation can read ready-to-use clips and run faster.
+
+run_name: vjepa2_1_cpu
+seed: 42
+device: cpu
+
+dataset:
+  use_hdf5: false            # the build reads raw videos and writes the h5 files
+  validate: true
+  train_path: data/train.zip
+  test_path: data/test.zip
+  train_h5: data/train.h5    # output file for the train split
+  test_h5: data/test.h5      # output file for the test split
+  max_train_samples: null
+  max_test_samples: null
+  num_frames: 16
+  frames_per_second: 4.0
+  crop_size: 128
+  transform:
+    normalize: true
+    random_resized_crop: true
+  augment:
+    enabled: true
+    horizontal_flip_prob: 0.5
+    color_jitter: 0.4
+
+# HDF5-only options.
+hdf5:
+  augment_copies: 0          # extra augmented copies stored per train clip

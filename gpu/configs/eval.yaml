@@ -1,0 +1,42 @@
+# V-JEPA 2.1 evaluation configuration for a GPU machine (NVIDIA or AMD).
+
+run_name: vjepa2_1_gpu
+seed: 42
+device: cuda         # cuda (NVIDIA) | rocm (AMD)
+
+dataset:
+  use_hdf5: false
+  validate: true
+  test_path: data/test.zip
+  test_h5: data/test.h5
+  max_test_samples: null
+  num_frames: 16
+  frames_per_second: 4.0
+  crop_size: 256
+  transform:
+    normalize: true
+  augment:
+    enabled: false
+
+masking:
+  spatial_scale: [0.15, 0.7]
+  aspect_ratio: [0.75, 1.5]
+
+model:
+  name: vit_large
+  patch_size: 16
+  tubelet_size: 2
+  pred_depth: 24
+  pred_embed_dim: 384
+  num_mask_tokens: 8
+  n_output_distillation: 4
+
+loss:
+  context_lambda: 0.5
+
+eval:
+  weights: runs/vjepa2_1_gpu/train/weights/best.pt
+  batch_size: 8
+  num_workers: 8
+  num_render: 8
+  runs_dir: runs

@@ -92,30 +92,35 @@ features (or a pooled embedding) to hand to a small task head.
 ```
 .
 ├── README.md
+├── docs/                       # beginner guides (en_concepts.md, fr_concepts.md)
 ├── Makefile                    # install (CPU/CUDA/ROCm), test
 ├── pyproject.toml              # package metadata + CLI entry points
+├── cpu/configs/                # CPU YAML configs (hdf5, train, eval, export)
+├── gpu/configs/                # GPU (NVIDIA/AMD) YAML configs
 ├── assets/                     # sample clip.mp4 and pic.png
 ├── weights/                    # pretrained checkpoints (.pt), not tracked
 ├── src/
 │   └── vjepa2/
 │       ├── model.py            # VJEPA21, init_video_model, build_vjepa2_1_vitb
-│       ├── logging.py          # logging setup
-│       ├── modules/
-│       │   ├── vision_transformer.py  # the RoPE ViT encoder
-│       │   ├── predictor.py           # the multi-level predictor
-│       │   ├── attention.py           # RoPE / SDPA attention
-│       │   ├── blocks.py              # transformer blocks
-│       │   ├── mlp.py                 # MLP / SiLU feed-forward
-│       │   ├── patch_embed.py         # 3D tokenizer
-│       │   ├── pos_embs.py            # rotary / sincos position embeddings
-│       │   ├── losses.py              # dense prediction loss
-│       │   ├── tensors.py            # masking / gather helpers
-│       │   └── wrappers.py           # multi-sequence encoder/predictor wrappers
-│       ├── training/           # training engine (work in progress)
+│       ├── config.py           # typed configuration objects (YAML -> dataclasses)
+│       ├── lossfn.py           # DensePredictiveLoss (predict + weighted context)
+│       ├── optimizers.py       # optimizer + weight-decay parameter groups
+│       ├── lr_shedulers.py     # warmup-hold / warmup-cosine schedulers
+│       ├── logging.py          # loguru logging + tqdm progress bars
+│       ├── plotting.py         # train vs validation history curves
+│       ├── onnx_export.py      # reusable ONNX export helpers
+│       ├── metrics/            # meters + self-supervised quality signals
+│       ├── dataset/            # discovery, cleaning/cache, transforms, masking,
+│       │                       # HDF5, and the resumable data loader
+│       ├── modules/            # the model components (ViT, predictor, ...)
+│       ├── training/           # runs, checkpoints, EMA, Trainer, Evaluator
 │       └── entrypoints/
-│           ├── exportencoder.py       # exportw: export the encoder to ONNX
-│           └── inference.py           # runs: standalone ONNX inference
-└── tests/                      # unit tests (model, modules, predictor, export, ...)
+│           ├── buildds.py            # buildh5ds: build HDF5 datasets
+│           ├── train.py             # trainvjepa: training program
+│           ├── evaluate.py          # evalvjepa: evaluation program
+│           ├── exportencoder.py     # exportw: export the encoder to ONNX
+│           └── inference.py         # runs: standalone ONNX inference
+└── tests/                      # unit tests (dataset, metrics, training, ...)
 ```
 
 ---
@@ -253,10 +258,178 @@ instead of producing a silently wrong graph.
 
 ## Usage
 
-| Command   | Job                                       | Example                                            |
-|-----------|-------------------------------------------|----------------------------------------------------|
-| `exportw` | Export the encoder to ONNX                | `exportw weights/vjepa2_1_vitb_dist_vitG_384.pt -o encoder.onnx` |
-| `runs`    | Standalone ONNX inference on files        | `runs -m encoder.onnx -i assets/clip.mp4 -o clip.pkl` |
+| Command     | Job                                          | Example                                            |
+|-------------|----------------------------------------------|----------------------------------------------------|
+| `buildh5ds` | Build HDF5 datasets from videos              | `buildh5ds --config cpu/configs/hdf5.yaml`         |
+| `trainvjepa`| Train the model (train + val + final test)   | `trainvjepa --config cpu/configs/train.yaml`       |
+| `evalvjepa` | Evaluate a trained model on the full test set| `evalvjepa --config cpu/configs/eval.yaml`         |
+| `exportw`   | Export the encoder to ONNX                   | `exportw weights/vjepa2_1_vitb_dist_vitG_384.pt -o encoder.onnx` |
+| `runs`      | Standalone ONNX inference on files           | `runs -m encoder.onnx -i assets/clip.mp4 -o clip.pkl` |
+
+---
+
+## Training and evaluation
+
+New to the project? Read the beginner guides first:
+[`docs/en_concepts.md`](docs/en_concepts.md) (English) and
+[`docs/fr_concepts.md`](docs/fr_concepts.md) (Français). They explain the model
+and the whole pipeline with simple words and analogies.
+
+### Dataset layout
+
+A dataset is a folder or a `.zip` archive that holds video files. Files may sit
+at the root or in any sub-folder, in any common format. Point the config at your
+train and test sources:
+
+```yaml
+dataset:
+  train_path: /path/to/train.zip   # or a folder
+  test_path:  /path/to/test.zip
+  val_prob: 0.5                     # fraction of test used for validation
+```
+
+The first run **scans and validates** every file (dropping corrupt ones) and
+writes a `train.cache.json` / `test.cache.json` next to the dataset. Later runs
+reuse the cache, so the slow scan happens only once.
+
+### 1. (Optional) Build HDF5 files for speed
+
+Decoding video is slow. You can pre-process every clip once and store the result:
+
+```bash
+buildh5ds --config cpu/configs/hdf5.yaml   # writes train.h5 and test.h5
+```
+
+Then set `dataset.use_hdf5: true` in the train/eval config to read ready clips.
+
+### 2. Train
+
+```bash
+trainvjepa --config cpu/configs/train.yaml     # CPU
+trainvjepa --config gpu/configs/train.yaml     # GPU (device: cuda or rocm)
+```
+
+Each epoch runs **training** then **validation** (on a fraction of the test set);
+after the last epoch the model is **evaluated on the full test set**. The program
+prints a run summary, a model summary, and two progress bars (epoch + step).
+
+Key training features, all controlled from the config:
+
+- **Gradient accumulation** (`grad_accum`) to simulate a large batch; any
+  leftover accumulation at the end of an epoch is still applied.
+- **Checkpointing** every `ckpt_step` optimizer steps into `checkpoints/`, keeping
+  at most `max_checkpoint` files. Save contents: model, optimizer, scheduler,
+  data-loader positions, partial meters and the run state.
+- **Resume** (`resume: true`): if a checkpoint exists, the run reuses the latest
+  `runs/<name>/train*/` folder and continues at the exact same batch (in-epoch
+  checkpointing), for all three passes. Priority is **checkpoint first**, then a
+  `init_weights` file only when there is no checkpoint.
+- **Best model**: after each validation, `best.pt` is saved when the chosen
+  `best_metric` improves (`best_mode: min|max`). `last.pt` is always the latest.
+- **History plots**: `plotes/training_history.jpg` shows train vs validation
+  curves to spot overfitting.
+
+Outputs land in `runs/<run_name>/train/` (then `train2`, `train3`, ... for new
+runs):
+
+```
+runs/<run_name>/train/
+  history.csv  config_used.yaml
+  weights/{best.pt,last.pt}
+  checkpoints/epoch_000.pth ...
+  plotes/training_history.jpg
+  logs/train_YYYY-MM-DD_HH-MM-SS.log
+```
+
+#### The context-loss weight `lambda` (important!)
+
+V-JEPA 2.1's key idea is the **dense loss**: on top of predicting the *masked*
+tokens, it also checks the *visible* (context) tokens. The total loss is:
+
+```
+total = predict_loss  +  lambda * context_loss
+        (masked tokens)          (visible/context tokens)
+```
+
+`lambda` is **not constant**. It follows a **linear warmup**, measured in
+**optimizer steps** (not epochs, not micro-batches):
+
+| step range                                  | value of `lambda`                 |
+|---------------------------------------------|-----------------------------------|
+| `step < lambda_warmup_start`                | `0`                               |
+| `lambda_warmup_start .. lambda_warmup_end`  | ramps `0 -> context_lambda`       |
+| `step >= lambda_warmup_end`                 | `context_lambda` (e.g. `0.5`)     |
+
+The warmup exists on purpose: turning the context loss on too strongly, too
+early, lets the model cheat (just copy the visible features) and lose global
+understanding. Ramping it up slowly keeps training stable (this follows the
+paper).
+
+> **Why is my `lambda` stuck at `0.0000` in the logs?**
+>
+> Because the run has **fewer optimizer steps than `lambda_warmup_start`**. The
+> warmup never even begins, so `lambda` stays `0` the whole time. The context
+> loss is still *computed* (you see `context=...` in the logs) but it is
+> multiplied by `0`, so it has **no effect on the gradients** — you are then
+> training a plain "predict-only" V-JEPA and missing the whole 2.1 contribution.
+>
+> This is common on tiny / demo datasets. Example: `100` train samples,
+> `batch_size=2`, `grad_accum=8`, `epochs=10` gives
+> `optimizer_steps/epoch = ceil(ceil(100/2)/8) = 7`, so only **70** optimizer
+> steps in total. With the default `lambda_warmup_start: 1000`, step 1000 is
+> never reached and `lambda` never leaves `0`.
+
+**How to size the warmup.** First read `optimizer_steps/epoch` and
+`total optimizer steps` from the run summary the program prints, or compute:
+
+```
+optimizer_steps/epoch = ceil(ceil(num_train / batch_size) / grad_accum)
+total optimizer steps = optimizer_steps/epoch * epochs
+```
+
+Then set `lambda_warmup_start` / `lambda_warmup_end` **well below** the total.
+Examples:
+
+```yaml
+# Small / demo run (a few dozen steps): turn the context loss on almost at once
+loss:
+  context_lambda: 0.5
+  lambda_warmup_start: 0     # active from the first step
+  lambda_warmup_end: 30      # reaches 0.5 by step 30
+
+# Full-scale run (~135k steps, paper-like): a gentle early ramp
+loss:
+  context_lambda: 0.5
+  lambda_warmup_start: 15000
+  lambda_warmup_end: 30000
+```
+
+Rule of thumb: `lambda_warmup_end` should be a small fraction of
+`total optimizer steps` so `lambda` actually reaches `context_lambda` and the
+dense loss does its job.
+
+### 3. Evaluate
+
+```bash
+evalvjepa --config cpu/configs/eval.yaml
+```
+
+This measures the frozen model on the **whole** test set, writes `results.csv`,
+and saves a few PCA feature-map renders under `renders/`, into a new
+`runs/<run_name>/eval*/` folder.
+
+### 4. Export the encoder to ONNX
+
+```bash
+exportw weights/vjepa2_1_vitb_dist_vitG_384.pt -o encoder.onnx
+```
+
+See `cpu/configs/export.yaml` / `gpu/configs/export.yaml` for the recommended
+flags for a model you trained yourself.
+
+---
+
+## Encoder export details
 
 ### 1. Export the encoder to ONNX
 

@@ -1,0 +1,32 @@
+# V-JEPA 2.1 ONNX export reference (GPU-trained model).
+#
+# The export command `exportw` uses command line flags, not this YAML file.
+# This file documents the recommended values. Example:
+#
+#   exportw runs/vjepa2_1_gpu/train/weights/best.pt \
+#       -o exports/encoder.onnx \
+#       --weights ema \
+#       --model-name vit_large --crop-size 256 --num-frames 16 \
+#       --tubelet-size 2 --patch-size 16 \
+#       --sdpa --dynamic-batch --single-file
+#
+# Notes (see the ONNX export constraints):
+#   - one export serves images OR videos, not both (num-frames 1 = image path);
+#   - frames and resolution are baked in; only the batch can be dynamic;
+#   - --dynamic-batch needs --sdpa.
+
+export:
+  checkpoint: runs/vjepa2_1_gpu/train/weights/best.pt
+  output: exports/encoder.onnx
+  weights: ema
+  model_name: vit_large
+  crop_size: 256
+  num_frames: 16
+  tubelet_size: 2
+  patch_size: 16
+  opset: 18
+  sdpa: true
+  dynamic_batch: true
+  bake_normalization: false
+  fp16: true
+  single_file: true

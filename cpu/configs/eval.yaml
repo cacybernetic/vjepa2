@@ -1,0 +1,44 @@
+# V-JEPA 2.1 evaluation configuration for a CPU machine.
+# It measures the frozen model on the whole test set and saves a few PCA
+# feature-map renders.
+
+run_name: vjepa2_1_cpu
+seed: 42
+device: cpu
+
+dataset:
+  use_hdf5: false
+  validate: true
+  test_path: data/test.zip
+  test_h5: data/test.h5
+  max_test_samples: null
+  num_frames: 16
+  frames_per_second: 4.0
+  crop_size: 128
+  transform:
+    normalize: true
+  augment:
+    enabled: false           # never augment during evaluation
+
+masking:
+  spatial_scale: [0.15, 0.7]
+  aspect_ratio: [0.75, 1.5]
+
+model:
+  name: vit_tiny
+  patch_size: 16
+  tubelet_size: 2
+  pred_depth: 12
+  pred_embed_dim: 384
+  num_mask_tokens: 8
+  n_output_distillation: 4
+
+loss:
+  context_lambda: 0.5
+
+eval:
+  weights: runs/vjepa2_1_cpu/train/weights/best.pt
+  batch_size: 2
+  num_workers: 2
+  num_render: 8              # number of PCA feature-map images to save
+  runs_dir: runs

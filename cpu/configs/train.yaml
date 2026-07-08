@@ -1,0 +1,88 @@
+# V-JEPA 2.1 training configuration for a CPU machine.
+# CPU training is slow, so this uses a tiny model and small clips. It is good
+# for testing the pipeline end to end. Change the paths to your own dataset.
+
+run_name: vjepa2_1_cpu
+seed: 42
+device: cpu          # cpu | cuda | rocm | auto
+amp: false           # mixed precision is only used on cuda
+
+dataset:
+  use_hdf5: false            # read videos from a folder or zip on the fly
+  validate: true             # scan and drop broken files before training
+  train_path: data/train.zip # folder or zip with the training videos
+  test_path: data/test.zip   # folder or zip with the test videos
+  train_h5: data/train.h5    # used only when use_hdf5 is true
+  test_h5: data/test.h5
+  max_train_samples: null    # null = use all; or an integer cap
+  max_test_samples: null
+  val_prob: 0.5              # fraction of the test set used for validation
+  num_frames: 16             # frames per clip
+  frames_per_second: 4.0     # sampling rate; the stride comes from the source fps
+  crop_size: 128             # square crop side in pixels
+  transform:
+    normalize: true
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]
+    random_resized_crop: true
+    scale: [0.3, 1.0]
+    aspect_ratio: [0.75, 1.35]
+  augment:
+    enabled: true
+    horizontal_flip_prob: 0.5
+    color_jitter: 0.4
+    grayscale_prob: 0.2
+    gaussian_blur_prob: 0.5
+
+masking:
+  spatial_scale: [0.15, 0.7]  # fraction of spatial tokens to predict
+  aspect_ratio: [0.75, 1.5]
+  num_pred_masks: 1
+
+model:
+  name: vit_tiny             # vit_tiny | vit_small | vit_base | vit_large | ...
+  patch_size: 16
+  tubelet_size: 2
+  pred_depth: 12
+  pred_embed_dim: 384
+  num_mask_tokens: 8
+  n_output_distillation: 4   # 4 = deep self-supervision; 1 = single level
+  modality_embedding: true
+  use_rope: true
+  use_sdpa: true
+
+loss:
+  loss_exp: 1.0
+  context_lambda: 0.5        # base weight of the context loss (0.5 video)
+  lambda_warmup_start: 1000
+  lambda_warmup_end: 5000
+  offset_context_loss: false
+
+optim:
+  name: adamw
+  lr: 1.0e-4
+  weight_decay: 0.04
+  betas: [0.9, 0.95]
+  ema: 0.99925
+
+scheduler:
+  name: warmup_hold          # warmup_hold | warmup_cosine
+  warmup_steps: 2000
+  start_lr: 1.0e-6
+  ref_lr: 3.0e-4
+  final_lr: 1.0e-5
+
+train:
+  epochs: 10
+  batch_size: 2
+  grad_accum: 8              # effective batch size = batch_size * grad_accum
+  grad_clip_norm: 1.0
+  num_workers: 2
+  log_every: 20             # log a line every N optimizer steps
+  ckpt_step: 500            # checkpoint every N optimizer steps
+  max_checkpoint: 5         # keep at most this many checkpoint files
+  runs_dir: runs
+  resume: true              # reuse the latest run folder and continue
+  init_weights: null        # path to a .pt to warm-start (used only if no ckpt)
+  best_metric: loss         # which validation metric picks the best model
+  best_mode: min            # min for losses, max for scores
