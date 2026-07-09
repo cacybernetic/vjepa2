@@ -314,10 +314,33 @@ class Trainer:
     def _record_epoch(self, epoch: int) -> None:
         """Write the history row, plots, best and last weights for an epoch."""
         row = self._epoch_row(epoch)
+        self._log_epoch_metrics(epoch)
         self.history.append(row)
         plot_history(self.paths.plotes_dir, self.history.rows)
         self._save_best(row)
         self._save_weights(self.paths.last_pt)
+
+    def _log_epoch_metrics(self, epoch: int) -> None:
+        """Print every train / validation metric as an aligned end-of-epoch table.
+
+        The per-step log only shows the running train averages; this gives a
+        clean side-by-side of the final train and validation figures so the whole
+        epoch result is visible on the terminal at a glance.
+        """
+        train_avg = self.train_meter.averages()
+        val_avg = self.val_meter.averages()
+        has_val = self.bundle.val_loader is not None and bool(val_avg)
+        vlog.logger.info("===== Epoch {}/{} metrics =====",
+                         epoch + 1, self.cfg.epochs)
+        header = f"  {'metric':<10} {'train':>12}"
+        if has_val:
+            header += f" {'val':>12}"
+        vlog.logger.info(header)
+        for name in METRIC_NAMES:
+            line = f"  {name:<10} {train_avg.get(name, float('nan')):>12.4f}"
+            if has_val:
+                line += f" {val_avg.get(name, float('nan')):>12.4f}"
+            vlog.logger.info(line)
 
     def _epoch_row(self, epoch: int) -> Dict[str, float]:
         """Build the per-epoch metric row from the train and val meters."""
