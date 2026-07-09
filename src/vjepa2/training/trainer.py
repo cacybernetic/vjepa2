@@ -19,6 +19,7 @@ from typing import Any, Dict, Optional
 import torch
 
 from vjepa2 import logging as vlog
+from vjepa2.config import resolve_steps
 from vjepa2.metrics import MetricTracker, feature_std, prediction_cosine
 from vjepa2.metrics.ssl_metrics import METRIC_NAMES
 from vjepa2.training import utils
@@ -72,11 +73,30 @@ class Trainer:
         self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
         self.steps_per_epoch = self._steps_per_epoch()
         self.total_steps = self.steps_per_epoch * self.cfg.epochs
+        self._log_every = self._resolve_cadence(self.cfg.log_every, "log_every")
+        self._ckpt_step = self._resolve_cadence(self.cfg.ckpt_step, "ckpt_step")
 
     def _steps_per_epoch(self) -> int:
         """Optimizer steps in a full epoch, given batch size and accumulation."""
         batches = math.ceil(self.bundle.num_train / self.cfg.batch_size)
         return max(1, math.ceil(batches / self.cfg.grad_accum))
+
+    def _resolve_cadence(self, value: float, name: str) -> int:
+        """Resolve a periodic cadence (log / checkpoint) into optimizer steps.
+
+        A value in ``(0, 1)`` is a fraction of one epoch; ``>= 1`` is an absolute
+        number of steps. The result is clamped to ``steps_per_epoch`` so that a
+        periodic log and a periodic checkpoint always happen at least once per
+        epoch -- otherwise a too-large value would silently never fire.
+        """
+        wanted = max(1, resolve_steps(value, self.steps_per_epoch))
+        steps = min(wanted, self.steps_per_epoch)
+        if steps < wanted:
+            vlog.logger.warning(
+                "{} ({}) exceeds steps_per_epoch ({}); clamped to {} so it "
+                "fires at least once per epoch", name, wanted,
+                self.steps_per_epoch, steps)
+        return steps
 
     # -- public entry point --------------------------------------------------
     def run(self) -> None:
@@ -115,13 +135,13 @@ class Trainer:
         """One full pass over the training data with gradient accumulation."""
         self.model.train()
         loader = self.bundle.train_loader
-        self._prepare_loader(loader, epoch)
-        self.train_meter.reset() if not self._resumed else None
+        if self._prepare_loader(loader, epoch):
+            self.train_meter.reset()
         bar = vlog.make_step_bar(len(loader), desc=f"train e{epoch + 1}")
         for micro, batch in enumerate(loader):
             parts, n = self._train_step(batch, micro)
             self.train_meter.update(parts, n)
-            self._render_train(bar, parts)
+            self._render_train(bar)
         self._flush_accumulation()
         bar.close()
 
@@ -135,32 +155,45 @@ class Trainer:
         return parts, n
 
     def _optimizer_step(self) -> None:
-        """Clip gradients, step the optimizer, update lr and the EMA target."""
+        """Clip gradients and step the optimizer.
+
+        The learning rate, EMA target and step counter only move when a real
+        optimizer step happened. Under AMP, ``scaler.step`` skips the update on
+        inf/nan gradients (the scale then shrinks), and in that case nothing is
+        advanced -- the LR is held for the retry.
+        """
         self.scaler.unscale_(self.optimizer)
         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                                     self.cfg.grad_clip_norm)
         self._last_grad_norm = float(grad_norm)
-        # Set the learning rate for *this* update before applying it, so the
-        # first step uses the scheduler's ``start_lr`` rather than the
-        # optimizer's construction-time lr.
-        self.scheduler.step()
+        # Apply the LR of the current step before the update (first step uses
+        # ``start_lr``), but do not advance the schedule yet.
+        self.scheduler.apply()
+        scale_before = self.scaler.get_scale()
         self.scaler.step(self.optimizer)
         self.scaler.update()
         self.optimizer.zero_grad(set_to_none=True)
-        self.ema.update(self.model.encoder, self.model.ema_target())
         self._pending = False
+        if self.scaler.get_scale() < scale_before:
+            vlog.logger.debug("optimizer step skipped (inf/nan grads); "
+                              "lr and ema held")
+            return
+        self.scheduler.advance()
+        self.ema.update(self.model.encoder, self.model.ema_target())
         self.state.global_step += 1
         self._after_step()
 
     def _after_step(self) -> None:
         """Log periodically and save a checkpoint every ``ckpt_step`` steps."""
         step = self.state.global_step
-        if step % self.cfg.log_every == 0:
+        if step % self._log_every == 0:
             avg = self.train_meter.averages()
-            vlog.logger.debug("step {}/{} {} grad_norm={:.3f} lr={:.2e}", step,
-                              self.total_steps, utils.format_metrics(avg),
-                              self._last_grad_norm, self.scheduler.last_lr)
-        if step % self.cfg.ckpt_step == 0:
+            # INFO so the periodic training progress is visible on the terminal
+            # (the console sink defaults to INFO), not only in the log file.
+            vlog.logger.info("step {}/{} {} grad_norm={:.3f} lr={:.2e}", step,
+                             self.total_steps, utils.format_metrics(avg),
+                             self._last_grad_norm, self.scheduler.last_lr)
+        if step % self._ckpt_step == 0:
             self._save_checkpoint("train")
 
     def _flush_accumulation(self) -> None:
@@ -176,14 +209,13 @@ class Trainer:
         if loader is None:
             return
         self.state.phase = "val"
-        if not self._resumed:
-            self.val_meter.reset()
         self._eval_pass(loader, self.val_meter, f"val e{epoch + 1}", "val")
 
     def _eval_pass(self, loader, meter, desc: str, phase: str) -> None:
         """Shared no-grad pass used by validation and final test."""
         self.model.eval()
-        self._prepare_loader(loader, self.state.epoch)
+        if self._prepare_loader(loader, self.state.epoch):
+            meter.reset()
         bar = vlog.make_step_bar(len(loader), desc=desc)
         for batch_index, batch in enumerate(loader):
             with torch.no_grad():
@@ -230,9 +262,11 @@ class Trainer:
         return contextlib.nullcontext()
 
     # -- bars ----------------------------------------------------------------
-    def _render_train(self, bar, parts: Dict[str, float]) -> None:
+    def _render_train(self, bar) -> None:
+        # Show the accumulated running average over the epoch, not the noisy
+        # single-step value -- matching the eval bar and the periodic step log.
         bar.update(1)
-        bar.set_postfix_str(utils.format_metrics(parts))
+        bar.set_postfix_str(utils.format_metrics(self.train_meter.averages()))
 
     def _render_eval(self, bar, meter: MetricTracker) -> None:
         bar.update(1)
@@ -257,10 +291,25 @@ class Trainer:
         return f"{int(seconds // 60):02d}:{int(seconds % 60):02d}"
 
     # -- epoch bookkeeping ---------------------------------------------------
-    def _prepare_loader(self, loader, epoch: int) -> None:
-        """Start a fresh epoch on a loader unless resuming into it."""
-        if not self._resumed:
-            loader.set_epoch(epoch)
+    def _prepare_loader(self, loader, epoch: int) -> bool:
+        """Prepare a loader for ``epoch``; return True if it started fresh.
+
+        On resume we keep the restored position only when the loader was
+        genuinely part-way through *this* epoch (same epoch order, some samples
+        already consumed but not all). A checkpoint saved at an epoch boundary
+        leaves the loader exhausted for the finished epoch, so we must start the
+        next epoch fresh -- otherwise the resumed epoch would iterate an empty
+        loader and be silently skipped.
+        """
+        mid_epoch = (
+            self._resumed
+            and loader.epoch == epoch
+            and 0 < loader.position < loader.sampler.num_samples
+        )
+        if mid_epoch:
+            return False
+        loader.set_epoch(epoch)
+        return True
 
     def _record_epoch(self, epoch: int) -> None:
         """Write the history row, plots, best and last weights for an epoch."""
@@ -297,10 +346,8 @@ class Trainer:
         if loader is None:
             return
         vlog.logger.info("===== Final evaluation on full test set =====")
-        # Keep the restored partial meter when resuming into the test pass, so
-        # the averages already computed before the crash are not lost.
-        if not self._resumed:
-            self.test_meter.reset()
+        # ``_eval_pass`` resets the meter only when it starts the pass fresh, so
+        # resuming mid-test keeps the averages already computed before the crash.
         self.state.phase = "test"
         self._eval_pass(loader, self.test_meter, "test", "test")
         vlog.logger.info("Test results: {}",

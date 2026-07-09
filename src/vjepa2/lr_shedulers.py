@@ -36,11 +36,27 @@ class _BaseSchedule:
         self.last_lr = lr
         return lr
 
-    def step(self) -> float:
-        """Advance one optimizer step and return the new learning rate."""
-        lr = self.lr_at(self.step_count)
+    def apply(self) -> float:
+        """Set the LR for the current step on the optimizer (no advance).
+
+        Call this before the optimizer update so the update uses the LR of the
+        current step; it does not move the schedule forward.
+        """
+        return self._apply(self.lr_at(self.step_count))
+
+    def advance(self) -> None:
+        """Move the schedule one step forward.
+
+        Call this only after a real optimizer step actually happened, so the
+        learning rate never changes on a skipped (e.g. AMP inf/nan) step.
+        """
         self.step_count += 1
-        return self._apply(lr)
+
+    def step(self) -> float:
+        """Apply the current LR then advance (convenience for simple loops)."""
+        lr = self.apply()
+        self.advance()
+        return lr
 
     def lr_at(self, step: int) -> float:
         """Return the learning rate for a given step (subclasses override)."""

@@ -98,8 +98,10 @@ train:
   grad_accum: 8              # effective batch size = batch_size * grad_accum
   grad_clip_norm: 1.0
   num_workers: 2
-  log_every: 20             # log a line every N optimizer steps
-  ckpt_step: 500            # checkpoint every N optimizer steps
+  # 0<v<1 => fraction of one epoch; v>=1 => absolute steps. Both are clamped to
+  # at most one per epoch, so a periodic log/checkpoint always fires.
+  log_every: 0.25           # log ~4 times per epoch (INFO, shown on terminal)
+  ckpt_step: 0.5            # checkpoint ~2 times per epoch (in-epoch fault tolerance)
   max_checkpoint: 5         # keep at most this many checkpoint files
   runs_dir: runs
   resume: true              # reuse the latest run folder and continue

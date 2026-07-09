@@ -47,8 +47,15 @@ _FILE_FORMAT = (
 
 
 def _tqdm_sink(message: str) -> None:
-    """Write one log line without breaking active tqdm progress bars."""
-    tqdm.write(message, end="")
+    """Write one log line without leaving progress-bar residue.
+
+    ``tqdm.write`` moves the active bars out of the way, but a log line shorter
+    than the bar can leave leftover bar characters at the end of the line. We
+    prepend a carriage return + "erase to end of line" (``\\r\\x1b[K``) so the
+    whole line is wiped before the log text is drawn, and strip the trailing
+    newline loguru adds so ``tqdm.write`` owns the single line break.
+    """
+    tqdm.write("\r\x1b[K" + message.rstrip("\n"))
 
 
 def configure_logging(

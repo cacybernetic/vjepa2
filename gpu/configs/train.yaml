@@ -99,8 +99,9 @@ train:
   grad_accum: 8
   grad_clip_norm: 1.0
   num_workers: 8
-  log_every: 20
-  ckpt_step: 1000
+  # 0<v<1 => fraction of one epoch; v>=1 => absolute steps (clamped to <= 1/epoch).
+  log_every: 0.1            # ~10 logs per epoch (INFO, shown on terminal)
+  ckpt_step: 0.25           # ~4 checkpoints per epoch (in-epoch fault tolerance)
   max_checkpoint: 5
   runs_dir: runs
   resume: true

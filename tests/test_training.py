@@ -119,3 +119,31 @@ def test_trainer_resumes_from_checkpoint(tmp_path):
     resumed = make_trainer()
     resumed._maybe_resume()
     assert resumed.state.epoch >= 1
+
+
+def test_resume_does_not_skip_epoch(tmp_path):
+    # Regression: finishing an epoch saves a checkpoint at the epoch boundary
+    # (loader exhausted). Resuming with more epochs must run the next epoch for
+    # real -- previously it iterated the exhausted loader and skipped the epoch.
+    run_path = os.path.join(_tiny_cfg(tmp_path).train.runs_dir, "unit", "train")
+    paths = RunDirManager(_tiny_cfg(tmp_path).train.runs_dir, "unit").make_paths(
+        run_path
+    )
+
+    def make_trainer(epochs):
+        cfg = _tiny_cfg(tmp_path)
+        cfg.train.epochs = epochs
+        model = build_model(cfg, "cpu")
+        optimizer, scheduler, _ = build_optimizer_scheduler(model, cfg, 10)
+        return Trainer(model, build_loss(cfg), optimizer, scheduler,
+                       build_ema(cfg), _bundle(cfg), paths, cfg.train, "cpu")
+
+    make_trainer(1).run()          # finishes epoch 1, checkpoint at the boundary
+    resumed = make_trainer(3)
+    resumed.run()                  # must actually run epochs 2 and 3
+
+    # One optimizer step per epoch (4 samples / bs 2 / accum 2). A skipped epoch
+    # would leave global_step at 2 instead of 3.
+    assert resumed.state.global_step == 3
+    # Exactly one history row per epoch, strictly increasing, no duplicate.
+    assert [r["epoch"] for r in resumed.history.rows] == [1, 2, 3]

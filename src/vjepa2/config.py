@@ -315,8 +315,10 @@ class TrainConfig:
     grad_accum: int = 1
     grad_clip_norm: float = 1.0
     num_workers: int = 2
-    log_every: int = 16
-    ckpt_step: int = 500
+    # Periodic cadences: fraction of one epoch (0<v<1) or absolute optimizer
+    # steps (v>=1). Both are clamped to at most one per epoch by the trainer.
+    log_every: float = 0.1
+    ckpt_step: float = 0.25
     max_checkpoint: int = 5
     runs_dir: str = "runs"
     checkpoints_dirname: str = "checkpoints"
@@ -334,8 +336,8 @@ class TrainConfig:
             grad_accum=int(_get(data, "grad_accum", 1)),
             grad_clip_norm=float(_get(data, "grad_clip_norm", 1.0)),
             num_workers=int(_get(data, "num_workers", 2)),
-            log_every=int(_get(data, "log_every", 16)),
-            ckpt_step=int(_get(data, "ckpt_step", 500)),
+            log_every=float(_get(data, "log_every", 0.1)),
+            ckpt_step=float(_get(data, "ckpt_step", 0.25)),
             max_checkpoint=int(_get(data, "max_checkpoint", 5)),
             runs_dir=str(_get(data, "runs_dir", "runs")),
             checkpoints_dirname=str(_get(data, "checkpoints_dirname", "checkpoints")),
