@@ -24,6 +24,7 @@ __all__ = [
     "log_config_block",
     "log_kv",
     "log_model_summary",
+    "log_component_summaries",
     "count_parameters",
     "make_epoch_bar",
     "make_step_bar",
@@ -140,37 +141,49 @@ def _model_size_mb(model) -> float:
     return total_bytes / (1024.0 * 1024.0)
 
 
-def _log_torchinfo(model) -> bool:
-    """Log a torchinfo layer table (params only, no forward). Return success.
+def _run_torchinfo(module, input_data=None, forward_kwargs=None,
+                   device=None) -> bool:
+    """Log a torchinfo layer table for ``module``. Return True on success.
 
-    We do not pass an input because the JEPA forward takes nested mask lists
-    that torchinfo cannot build on its own. A params-only summary still gives
-    the full per-layer architecture and parameter state we want to see.
+    When ``input_data`` is given, torchinfo runs one real forward pass, so the
+    table gains an input-size and an output-size column for every layer. Without
+    it we fall back to a params-only table (no forward) that still shows the
+    whole per-layer architecture and parameter state.
     """
     try:
         from torchinfo import summary
     except Exception:
         return False
+    forward_kwargs = forward_kwargs or {}
+    with_shapes = ("input_size", "output_size", "num_params", "trainable")
     try:
-        report = summary(model, depth=3, verbose=0,
-                         col_names=("num_params", "trainable"))
-    except Exception:
-        return False
+        if input_data is None:
+            report = summary(module, depth=3, verbose=0,
+                             col_names=("num_params", "trainable"))
+        else:
+            report = summary(module, input_data=input_data, depth=3, verbose=0,
+                             col_names=with_shapes, device=device,
+                             **forward_kwargs)
+    except Exception as exc:
+        if input_data is None:
+            return False
+        logger.debug("torchinfo forward table failed ({}); params only", exc)
+        return _run_torchinfo(module)
     for line in str(report).splitlines():
         logger.info("  {}", line)
     return True
 
 
 def log_model_summary(model, name: str = "model") -> Dict[str, int]:
-    """Log a parameter / size summary of a model.
+    """Log a parameter / size summary of a model and of each component.
 
-    We first try a torchinfo layer table for the full architecture view. We
-    always log per top-level submodule counts, the total, and the memory
-    footprint, which stay correct even when torchinfo is not available.
+    We log the per-submodule parameter counts and the total size, then a
+    detailed torchinfo table (with input and output shapes) for the encoder,
+    the predictor and the target encoder. All counts stay correct even when
+    torchinfo is not installed.
     """
     counts = count_parameters(model)
     logger.info("===== {} summary =====", name)
-    _log_torchinfo(model)
     for child_name, child in model.named_children():
         child_total = sum(p.numel() for p in child.parameters())
         logger.info("  {}: {:,} params", child_name, int(child_total))
@@ -180,7 +193,139 @@ def log_model_summary(model, name: str = "model") -> Dict[str, int]:
         counts["trainable"],
         _model_size_mb(model),
     )
+    _maybe_log_components(model)
     return counts
+
+
+def _maybe_log_components(model) -> None:
+    """Log per-component summaries when the model exposes JEPA components."""
+    if not (hasattr(model, "encoder") and hasattr(model, "predictor")):
+        return
+    try:
+        log_component_summaries(model)
+    except Exception as exc:
+        logger.debug("per-component summaries skipped: {}", exc)
+
+
+def log_component_summaries(model) -> None:
+    """Log a torchinfo summary with input / output shapes per component.
+
+    Covers the online ``encoder``, the ``predictor`` and the EMA
+    ``target_encoder``. Each summary runs one dummy forward on the component so
+    the table and the logged lines show its real input and output shapes.
+    """
+    for comp_name in ("encoder", "predictor", "target_encoder"):
+        component = getattr(model, comp_name, None)
+        if component is None:
+            continue
+        backbone = getattr(component, "backbone", component)
+        _log_one_component(comp_name, backbone)
+
+
+def _log_one_component(name: str, backbone) -> None:
+    """Log the architecture, input / output shapes and size of one component."""
+    device = _module_device(backbone)
+    logger.info("===== {} architecture =====", name)
+    try:
+        input_data, forward_kwargs = _component_dummy(backbone, device)
+    except Exception as exc:
+        logger.debug("could not build dummy input for {}: {}", name, exc)
+        input_data, forward_kwargs = None, None
+    _log_io_shapes(backbone, input_data, forward_kwargs, device)
+    _run_torchinfo(backbone, input_data, forward_kwargs, device)
+    total = sum(p.numel() for p in backbone.parameters())
+    trainable = sum(p.numel() for p in backbone.parameters() if p.requires_grad)
+    logger.info("  params total {:,} | trainable {:,} | size {:.1f} MB",
+                int(total), int(trainable), _model_size_mb(backbone))
+
+
+def _module_device(module):
+    """Return the device the module parameters live on (cpu if none)."""
+    import torch
+
+    try:
+        return next(module.parameters()).device
+    except StopIteration:
+        return torch.device("cpu")
+
+
+def _component_dummy(backbone, device):
+    """Build a dummy ``(input_data, forward_kwargs)`` for one component."""
+    if hasattr(backbone, "predictor_embed"):
+        return _predictor_dummy(backbone, device)
+    return _encoder_dummy(backbone, device)
+
+
+def _encoder_dummy(backbone, device):
+    """Build a dummy clip input for an encoder / target-encoder backbone."""
+    import torch
+
+    if getattr(backbone, "is_video", False):
+        clip = torch.zeros(1, 3, backbone.num_frames, backbone.img_height,
+                           backbone.img_width, device=device)
+    else:
+        clip = torch.zeros(1, 3, backbone.img_height, backbone.img_width,
+                           device=device)
+    return clip, {"training": True}
+
+
+def _predictor_dummy(backbone, device):
+    """Build dummy context tokens and masks for a predictor backbone."""
+    import torch
+    import torch.nn as nn
+
+    embed = backbone.predictor_embed
+    linear = embed if isinstance(embed, nn.Linear) else embed[0]
+    n_patches = int(backbone.num_patches)
+    n_ctx = max(1, n_patches // 2)
+    idx = torch.arange(n_patches, device=device)
+    tokens = torch.zeros(1, n_ctx, linear.in_features, device=device)
+    masks_x = idx[:n_ctx].unsqueeze(0)
+    masks_y = idx[n_ctx:].unsqueeze(0)
+    mod = "video" if getattr(backbone, "is_video", False) else "image"
+    return [tokens, masks_x, masks_y], {"mod": mod, "mask_index": 0}
+
+
+def _log_io_shapes(backbone, input_data, forward_kwargs, device) -> None:
+    """Run one forward pass and log the component input / output shapes."""
+    if input_data is None:
+        return
+    try:
+        in_desc, out_desc = _forward_shapes(backbone, input_data,
+                                            forward_kwargs, device)
+    except Exception as exc:
+        logger.debug("input / output shape probe failed: {}", exc)
+        return
+    logger.info("  input  {}", in_desc)
+    logger.info("  output {}", out_desc)
+
+
+def _forward_shapes(backbone, input_data, forward_kwargs, device):
+    """Return ``(input_desc, output_desc)`` from one no-grad forward pass."""
+    import torch
+
+    if isinstance(input_data, (list, tuple)):
+        args = list(input_data)
+    else:
+        args = [input_data]
+    was_training = backbone.training
+    backbone.eval()
+    try:
+        with torch.no_grad():
+            out = backbone(*args, **(forward_kwargs or {}))
+    finally:
+        backbone.train(was_training)
+    in_desc = ", ".join(_describe_shape(a) for a in args)
+    return in_desc, _describe_shape(out)
+
+
+def _describe_shape(obj) -> str:
+    """Describe the shape of a tensor or a nested list / tuple of tensors."""
+    if hasattr(obj, "shape"):
+        return "x".join(str(int(d)) for d in tuple(obj.shape))
+    if isinstance(obj, (list, tuple)):
+        return "[" + ", ".join(_describe_shape(o) for o in obj) + "]"
+    return type(obj).__name__
 
 
 def make_epoch_bar(total: int, initial: int = 0, desc: str = "TRAINING") -> tqdm:

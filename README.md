@@ -6,7 +6,7 @@
 ![](https://img.shields.io/badge/Python-3.10-blue)
 ![](https://img.shields.io/badge/PyTorch-2.8.0-orange)
 ![](https://img.shields.io/badge/LICENSE-MIT-%2300557f)
-![](https://img.shields.io/badge/latest-2026--07--05-green)
+![](https://img.shields.io/badge/latest-2026--07--10-green)
 
 </div>
 
@@ -29,6 +29,13 @@ exported to ONNX for fast, framework-agnostic feature extraction.
   - [ONNX (optional)](#onnx-optional)
 - [Model weights](#model-weights)
 - [Usage](#usage)
+- [Training and evaluation](#training-and-evaluation)
+  - [Dataset layout](#dataset-layout)
+  - [1. (Optional) Build HDF5 files for speed](#1-optional-build-hdf5-files-for-speed)
+  - [2. Train](#2-train)
+  - [3. Evaluate](#3-evaluate)
+  - [4. Export the encoder to ONNX](#4-export-the-encoder-to-onnx)
+- [Encoder export details](#encoder-export-details)
   - [1. Export the encoder to ONNX](#1-export-the-encoder-to-onnx)
   - [2. Choosing the weights: `--weights {ema,online}`](#2-choosing-the-weights---weights-emaonline)
   - [3. Run inference on images or videos](#3-run-inference-on-images-or-videos)
@@ -76,6 +83,20 @@ features (or a pooled embedding) to hand to a small task head.
   reference recipe (`VJEPA21` in `model.py`).
 - **Checkpoint loader** for the distilled ViT-B / teacher ViT-G weights
   (`build_vjepa2_1_vitb`).
+- **End-to-end self-supervised training** (`trainvjepa`) — masked-prediction loop
+  with EMA target update, the dense L1 / weighted context loss, gradient
+  accumulation, gradient clipping, optional AMP, in-epoch checkpointing with
+  resume, best-model tracking, and train-vs-validation history plots.
+- **Label-free quality metrics** printed at the end of every epoch — the loss and
+  its `predict` / `context` parts, the target `feat_std` (collapse detector) and
+  the `pred_cos` prediction–target cosine — plus PCA feature-map renders.
+- **Per-component architecture summaries** — a `torchinfo` table with real input
+  and output shapes for the online encoder, the predictor and the EMA target
+  encoder, logged with loguru at startup.
+- **Config-driven data pipeline** — folder/zip discovery, a pre-flight
+  clean/validate step cached to JSON, video/image transforms and augmentation,
+  spatio-temporal block masking, and an optional pre-decoded **HDF5** dataset
+  (`buildh5ds`) for faster epochs.
 - **ONNX export** of the encoder with numerical cross-check against PyTorch,
   optional **fp16**, **dynamic batch**, **baked-in normalization**, and a
   **single-file** artifact for deployment.
@@ -97,7 +118,10 @@ features (or a pooled embedding) to hand to a small task head.
 ├── pyproject.toml              # package metadata + CLI entry points
 ├── cpu/configs/                # CPU YAML configs (hdf5, train, eval, export)
 ├── gpu/configs/                # GPU (NVIDIA/AMD) YAML configs
+├── how2sign/{cpu,gpu}/configs/ # ready-made configs for the How2Sign dataset
 ├── assets/                     # sample clip.mp4 and pic.png
+├── resources/                  # V-JEPA 2.1 paper + reference code (for study)
+├── runs/                       # training / eval outputs (logs, ckpts, plots)
 ├── weights/                    # pretrained checkpoints (.pt), not tracked
 ├── src/
 │   └── vjepa2/
@@ -136,13 +160,13 @@ repository.
 **With pip:**
 
 ```bash
-pip install git+https://github.com/mokira3d48/vjepa2
+pip install git+https://github.com/cacybernetic/vjepa2
 ```
 
 **With uv** (faster, after installing `uv`):
 
 ```bash
-uv pip install git+https://github.com/mokira3d48/vjepa2
+uv pip install git+https://github.com/cacybernetic/vjepa2
 ```
 
 > **Note for contributors**: if you plan to modify the code or contribute,
@@ -159,7 +183,7 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 **2. Clone the repository**
 
 ```bash
-git clone https://github.com/mokira3d48/vjepa2
+git clone https://github.com/cacybernetic/vjepa2
 cd vjepa2
 ```
 
@@ -310,8 +334,21 @@ trainvjepa --config gpu/configs/train.yaml     # GPU (device: cuda or rocm)
 ```
 
 Each epoch runs **training** then **validation** (on a fraction of the test set);
-after the last epoch the model is **evaluated on the full test set**. The program
-prints a run summary, a model summary, and two progress bars (epoch + step).
+after the last epoch the model is **evaluated on the full test set**. At startup
+the program prints a run summary and a per-component `torchinfo` summary (online
+encoder, predictor, EMA target encoder, with real input/output shapes), then
+shows two progress bars (epoch + step).
+
+At the **end of every epoch** it logs the full metric table for the train and the
+validation pass:
+
+| Metric     | Meaning                                                            |
+|------------|--------------------------------------------------------------------|
+| `loss`     | Total objective — `predict + lambda * context`.                    |
+| `predict`  | Dense L1 error on the **masked** tokens.                           |
+| `context`  | Dense L1 error on the **visible/context** tokens (the 2.1 term).   |
+| `feat_std` | Std of the target features — a **collapse detector** (near 0 = bad).|
+| `pred_cos` | Cosine similarity between predictions and targets (→ 1 is best).   |
 
 Key training features, all controlled from the config:
 
@@ -365,21 +402,36 @@ early, lets the model cheat (just copy the visible features) and lose global
 understanding. Ramping it up slowly keeps training stable (this follows the
 paper).
 
-> **Why is my `lambda` stuck at `0.0000` in the logs?**
->
-> Because the run has **fewer optimizer steps than `lambda_warmup_start`**. The
-> warmup never even begins, so `lambda` stays `0` the whole time. The context
-> loss is still *computed* (you see `context=...` in the logs) but it is
-> multiplied by `0`, so it has **no effect on the gradients** — you are then
-> training a plain "predict-only" V-JEPA and missing the whole 2.1 contribution.
->
-> This is common on tiny / demo datasets. Example: `100` train samples,
-> `batch_size=2`, `grad_accum=8`, `epochs=10` gives
-> `optimizer_steps/epoch = ceil(ceil(100/2)/8) = 7`, so only **70** optimizer
-> steps in total. With the default `lambda_warmup_start: 1000`, step 1000 is
-> never reached and `lambda` never leaves `0`.
+**Fractions vs. absolute steps (the key detail).** `lambda_warmup_start` and
+`lambda_warmup_end` accept two forms, and the same convention applies to
+`scheduler.warmup_steps`:
 
-**How to size the warmup.** First read `optimizer_steps/epoch` and
+| Value  | Interpretation                                                    |
+|--------|-------------------------------------------------------------------|
+| `0 < v < 1` | **Fraction of `total_steps`** — e.g. `0.1` = 10% of the whole run. |
+| `v >= 1`    | **Absolute** number of optimizer steps — e.g. `15000`.        |
+
+`total_steps` is not written in the config; it is **derived** at startup from the
+dataset size and the run length (see below) and resolved by `resolve_steps` in
+`config.py`. The shipped configs use **fractions** so the warmup scales
+automatically with any dataset:
+
+```yaml
+loss:
+  context_lambda: 0.5
+  lambda_warmup_start: 0.1   # start ramping lambda at 10% of total_steps
+  lambda_warmup_end: 0.4     # reach full lambda at 40% of total_steps
+```
+
+> **Prefer fractions on small / demo datasets.** With an *absolute*
+> `lambda_warmup_start` such as `1000`, a tiny run may never reach that step, so
+> `lambda` stays `0.0000` the whole time: the context loss is still *computed*
+> (you see `context=...` in the logs) but multiplied by `0`, so it has **no
+> effect on the gradients** — you are then training a plain "predict-only"
+> V-JEPA and missing the whole 2.1 contribution. A fraction like `0.1` can never
+> fall out of reach, which is why the default configs use it.
+
+**How `total_steps` is derived.** Read `optimizer_steps/epoch` and
 `total optimizer steps` from the run summary the program prints, or compute:
 
 ```
@@ -387,26 +439,16 @@ optimizer_steps/epoch = ceil(ceil(num_train / batch_size) / grad_accum)
 total optimizer steps = optimizer_steps/epoch * epochs
 ```
 
-Then set `lambda_warmup_start` / `lambda_warmup_end` **well below** the total.
-Examples:
+If you switch to absolute steps, keep `lambda_warmup_end` **well below**
+`total optimizer steps` so `lambda` actually reaches `context_lambda`:
 
 ```yaml
-# Small / demo run (a few dozen steps): turn the context loss on almost at once
-loss:
-  context_lambda: 0.5
-  lambda_warmup_start: 0     # active from the first step
-  lambda_warmup_end: 30      # reaches 0.5 by step 30
-
-# Full-scale run (~135k steps, paper-like): a gentle early ramp
+# Full-scale run (~135k steps, paper-like), expressed in absolute steps:
 loss:
   context_lambda: 0.5
   lambda_warmup_start: 15000
   lambda_warmup_end: 30000
 ```
-
-Rule of thumb: `lambda_warmup_end` should be a small fraction of
-`total optimizer steps` so `lambda` actually reaches `context_lambda` and the
-dense loss does its job.
 
 ### 3. Evaluate
 
@@ -639,19 +681,34 @@ export:
 
 ## Roadmap
 
-The model, the ONNX exporter (`exportw`), and the ONNX inference client (`runs`)
-are implemented and tested. The self-supervised **training pipeline is a work in
-progress**; the following entry points are declared in `pyproject.toml` but not
-yet implemented:
+The full pipeline is implemented and exercised end to end — the model, the
+self-supervised training loop (`trainvjepa`), the evaluation program
+(`evalvjepa`), the HDF5 dataset builder (`buildh5ds`), the ONNX exporter
+(`exportw`), and the torch-free ONNX inference client (`runs`) all run, with unit
+tests under `tests/`.
 
-- `buildh5ds` (`entrypoints/buildds.py`) — build a ready-to-train HDF5 dataset.
-- `trainvjepa` (`entrypoints/train.py`) — the masked-prediction training loop
-  (online encoder + predictor, EMA target, dense L1 loss).
-- `evalvjepa` (`entrypoints/evaluate.py`) — downstream evaluation of the learned
-  representations.
+**Done**
 
-The `training/` package (trainer, optimizers, schedulers, checkpointing) is
-scaffolded and being filled in.
+- Multi-modal RoPE ViT encoder, predictor and EMA target encoder (`model.py`).
+- Data pipeline: discovery, clean/validate cache, transforms/augmentation,
+  spatio-temporal masking, and the optional pre-decoded HDF5 dataset.
+- Training: dense L1 + weighted context loss with warmup, EMA update, gradient
+  accumulation and clipping, optional AMP, in-epoch checkpointing with resume,
+  best-model tracking, per-epoch metrics and history plots.
+- Evaluation on the full test set with PCA feature-map renders.
+- ONNX export (fp16, dynamic batch, baked normalization, single-file) and
+  standalone inference with long-video chunking.
+
+**In progress / next**
+
+- A meticulous consistency review of the model against the V-JEPA 2.1 paper and
+  the reference implementation in `resources/` (architecture, RoPE, masking,
+  target normalization).
+- A rigorous review of the training and evaluation loops for anything that could
+  hurt stable convergence at production quality (schedules, EMA momentum,
+  masking ratios, normalization, AMP numerics).
+- Larger-scale GPU training runs and downstream task heads on the exported
+  features.
 
 ---
 
