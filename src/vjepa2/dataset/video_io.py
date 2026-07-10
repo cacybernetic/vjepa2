@@ -63,7 +63,10 @@ def _decode_all_frames(stream: io.BytesIO, max_frames: int):
     import av
 
     frames: List[np.ndarray] = []
-    with av.open(stream) as container:
+    # metadata_errors="ignore": some files carry non-UTF-8 tags on side data
+    # streams; without this PyAV raises UnicodeDecodeError and a good video is
+    # dropped.
+    with av.open(stream, metadata_errors="ignore") as container:
         if not container.streams.video:
             raise ClipReadError("no video stream")
         video = container.streams.video[0]
@@ -87,7 +90,7 @@ def _probe_metadata(stream: io.BytesIO, max_decode: int):
     """
     import av
 
-    with av.open(stream) as container:
+    with av.open(stream, metadata_errors="ignore") as container:
         if not container.streams.video:
             raise ClipReadError("no video stream")
         video = container.streams.video[0]

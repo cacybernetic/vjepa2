@@ -15,11 +15,21 @@ from typing import Dict, List, Optional, Tuple
 
 from tqdm import tqdm
 
-from vjepa2.dataset.cache import CacheStore
+from vjepa2.dataset.cache import CacheStore, cache_path
 from vjepa2.dataset.discovery import VideoFileFinder
 from vjepa2.dataset.video_io import VideoReader, VideoSource
+from vjepa2.logging import logger
 
 __all__ = ["ScanResult", "DatasetCleaner"]
+
+
+def _describe_error(error: Optional[BaseException]) -> str:
+    """One-line reason for a rejected video (exception type + message)."""
+    if error is None:
+        return "unreadable"
+    message = str(error).strip()
+    name = type(error).__name__
+    return f"{name}: {message}" if message else name
 
 
 @dataclass
@@ -65,6 +75,9 @@ class DatasetCleaner:
         raw_meta = cached.get("meta", {}) or {}
         meta = {e: (int(v[0]), float(v[1]))
                 for e, v in raw_meta.items() if e in set(entries)}
+        logger.info("dataset cache: reusing {} videos from {} "
+                    "(delete the .cache.json to re-scan)",
+                    len(entries), cache_path(source))
         return ScanResult(
             source=source,
             is_zip=bool(cached.get("is_zip", False)),
@@ -91,26 +104,50 @@ class DatasetCleaner:
         this doubles as the corruption check. With ``validate`` off we still try
         to read the (cheap) header so clip planning has a frame count, but a
         failure only drops that file from the plan, not from the dataset.
+
+        Files that fail to read are collected with their reason and logged, so a
+        video silently vanishing from the dataset always leaves a trace.
         """
         provider = VideoSource(source, is_zip)
         desc = "validating dataset" if validate else "scanning dataset"
         good: List[str] = []
         meta: Dict[str, Tuple[int, float]] = {}
+        failures: List[Tuple[str, str]] = []
         bar = tqdm(candidates, desc=desc, leave=True, ascii="░█",
                    dynamic_ncols=True)
         for entry in bar:
-            info = self._inspect(provider, entry)
+            info, error = self._inspect(provider, entry)
             if info is not None:
                 meta[entry] = info
                 good.append(entry)
-            elif not validate:
-                good.append(entry)
+            else:
+                failures.append((entry, _describe_error(error)))
+                if not validate:
+                    good.append(entry)
         provider.close()
+        self._log_scan(len(candidates), len(good), failures, validate)
         return good, meta
 
-    def _inspect(self, provider: VideoSource, entry: str):
-        """Return ``(num_frames, fps)`` for a video, or None when unreadable."""
+    def _log_scan(self, num_found: int, num_good: int,
+                  failures: List[Tuple[str, str]], validate: bool) -> None:
+        """Log a ``found / usable / dropped`` recap and every failing file."""
+        num_dropped = len(failures) if validate else 0
+        logger.info("dataset scan: found {} videos | usable {} | dropped {}",
+                    num_found, num_good, num_dropped)
+        if not failures:
+            return
+        if validate:
+            for entry, reason in failures:
+                logger.warning("  dropped (unreadable): {} -- {}", entry, reason)
+        else:
+            for entry, reason in failures:
+                logger.info("  no metadata, kept as 1 clip: {} -- {}",
+                            entry, reason)
+
+    def _inspect(self, provider: VideoSource, entry: str
+                 ) -> Tuple[Optional[Tuple[int, float]], Optional[BaseException]]:
+        """Return ``((num_frames, fps), None)`` or ``(None, error)`` on failure."""
         try:
-            return self.reader.inspect(provider, entry)
-        except Exception:
-            return None
+            return self.reader.inspect(provider, entry), None
+        except Exception as exc:  # noqa: BLE001 - reason is reported, not hidden
+            return None, exc
