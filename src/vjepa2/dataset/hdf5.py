@@ -18,6 +18,7 @@ import torch
 from torch.utils.data import Dataset
 from tqdm import tqdm
 
+from vjepa2.dataset.clip_index import ClipWindow
 from vjepa2.dataset.transforms import ClipPipeline
 from vjepa2.dataset.video_io import ClipReadError, VideoReader, VideoSource
 
@@ -27,16 +28,20 @@ CLIPS_KEY = "clips"
 
 
 class HDF5Builder:
-    """Decode, transform and store clips into a single HDF5 file."""
+    """Decode, transform and store clip windows into a single HDF5 file."""
 
     def __init__(self, pipeline: ClipPipeline, reader: VideoReader):
         self.pipeline = pipeline
         self.reader = reader
 
-    def build(self, out_path: str, root: str, is_zip: bool, entries: List[str],
+    def build(self, out_path: str, root: str, is_zip: bool,
+              windows: List[ClipWindow],
               clip_shape: Tuple[int, int, int, int],
               augment_copies: int = 0) -> int:
-        """Write all clips (plus optional augmented copies) to ``out_path``.
+        """Write all clip windows (plus optional augmented copies) to ``out_path``.
+
+        Windows are grouped by video, so each source file is decoded only once
+        even when it contributes many overlapping clips.
 
         :param clip_shape: expected ``(C, T, H, W)`` of one preprocessed clip.
         :param augment_copies: extra augmented versions stored per source clip.
@@ -46,10 +51,10 @@ class HDF5Builder:
 
         os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
         source = VideoSource(root, is_zip)
-        total = len(entries) * (1 + max(0, augment_copies))
+        total = len(windows) * (1 + max(0, augment_copies))
         with h5py.File(out_path, "w") as handle:
             dataset = self._make_dataset(handle, total, clip_shape)
-            written = self._fill(dataset, source, entries, augment_copies)
+            written = self._fill(dataset, source, windows, augment_copies)
         source.close()
         return written
 
@@ -65,24 +70,37 @@ class HDF5Builder:
             compression_opts=4,
         )
 
-    def _fill(self, dataset, source: VideoSource, entries: List[str],
+    def _fill(self, dataset, source: VideoSource, windows: List[ClipWindow],
               augment_copies: int) -> int:
-        """Loop over entries and write each preprocessed clip in place."""
+        """Loop over clip windows and write each preprocessed clip in place."""
         cursor = 0
         rng = np.random.default_rng(0)
-        bar = tqdm(entries, desc="building hdf5", leave=True, ascii="░█",
+        cache_entry: Optional[str] = None
+        cache_frames = None
+        bar = tqdm(windows, desc="building hdf5", leave=True, ascii="░█",
                    dynamic_ncols=True)
-        for entry in bar:
-            clip = self._read_clip(source, entry, rng)
+        for window in bar:
+            if window.entry != cache_entry:
+                cache_entry = window.entry
+                cache_frames = self._decode(source, window.entry)
+            clip = self._read_clip(cache_frames, window)
             cursor = self._write_variants(dataset, cursor, clip, augment_copies, rng)
         return cursor
 
-    def _read_clip(self, source: VideoSource, entry: str,
-                   rng: np.random.Generator) -> np.ndarray:
-        """Decode one raw clip, returning zeros when the file cannot be read."""
+    def _decode(self, source: VideoSource, entry: str):
+        """Decode a whole video once, or None when it cannot be read."""
         try:
-            return self.reader.read(source, entry, random_start=False, rng=rng)
+            return self.reader.decode_all(source, entry)
         except (ClipReadError, Exception):
+            return None
+
+    def _read_clip(self, frames, window: ClipWindow) -> Optional[np.ndarray]:
+        """Slice one clip window from decoded frames, or None on failure."""
+        if not frames:
+            return None
+        try:
+            return self.reader.window_clip(frames, window.start_frame, window.step)
+        except Exception:
             return None
 
     def _write_variants(self, dataset, cursor: int, clip: Optional[np.ndarray],

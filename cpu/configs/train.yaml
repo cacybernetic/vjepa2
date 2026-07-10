@@ -20,6 +20,10 @@ dataset:
   num_frames: 16             # frames per clip
   frames_per_second: 4.0     # sampling rate; the stride comes from the source fps
   crop_size: 128             # square crop side in pixels
+  clip_sampling: chunk       # chunk = tile whole video into overlapping clips;
+                             # single = one centered clip per video
+  clip_stride: 8             # frames the clip window hops (overlap = num_frames - stride)
+  max_clips_per_video: 0     # 0 = unlimited; cap clips taken from one long video
   transform:
     normalize: true
     mean: [0.485, 0.456, 0.406]

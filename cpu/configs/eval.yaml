@@ -15,6 +15,9 @@ dataset:
   num_frames: 16
   frames_per_second: 4.0
   crop_size: 128
+  clip_sampling: chunk       # chunk = overlapping clips covering the whole video
+  clip_stride: 8             # frames the clip window hops (overlap = num_frames - stride)
+  max_clips_per_video: 0     # 0 = unlimited; cap clips from one long video
   transform:
     normalize: true
   augment:

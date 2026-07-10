@@ -312,9 +312,43 @@ dataset:
   val_prob: 0.5                     # fraction of test used for validation
 ```
 
-The first run **scans and validates** every file (dropping corrupt ones) and
-writes a `train.cache.json` / `test.cache.json` next to the dataset. Later runs
-reuse the cache, so the slow scan happens only once.
+The first run **scans and validates** every file (dropping corrupt ones), records
+each video's frame count and fps, and writes a `train.cache.json` /
+`test.cache.json` next to the dataset. Later runs reuse the cache, so the slow
+scan happens only once.
+
+#### Clips per video: full coverage vs. a single clip
+
+A video is not reduced to a single clip. By default (`clip_sampling: chunk`) each
+video is **tiled into overlapping clips** of `num_frames` sampled frames, hopping
+`clip_stride` frames between clips, so **the whole video is seen** — a long video
+yields many clips, a short one yields a few. This is the same idea as the `runs`
+inference `--chunk` / `--stride`, applied to the training/eval data.
+
+```yaml
+dataset:
+  num_frames: 16            # frames per clip (sampled at frames_per_second)
+  frames_per_second: 4.0    # temporal sub-sampling rate
+  clip_sampling: chunk      # chunk = cover the whole video; single = one clip
+  clip_stride: 8            # hop between clips; overlap = num_frames - clip_stride
+  max_clips_per_video: 0    # 0 = unlimited; cap clips from one very long video
+```
+
+The number of clips a video produces (`L` = its length in sampled frames,
+`n = num_frames`, `s = clip_stride`) is `K = ceil((L - n) / s) + 1`
+(`K = 1` when `L <= n`), and the last clip is clamped onto the tail so no clip
+runs past the end. With `clip_stride = 8` and `num_frames = 16`, consecutive
+clips overlap by 8 sampled frames.
+
+> **This changes the dataset size.** The number of training items is now the
+> total number of clips, not the number of videos, so the derived
+> `total_steps` (and the LR / `lambda` warmups that scale off it) grow
+> accordingly. Set `clip_sampling: single` to recover the old one-clip-per-video
+> behavior, or `max_clips_per_video` to bound long videos.
+
+> **Cost note.** Reading overlapping clips on the fly re-decodes parts of each
+> video; for large datasets, pre-build the HDF5 files (next section) — the
+> builder decodes every video once and slices all its clips from that.
 
 ### 1. (Optional) Build HDF5 files for speed
 

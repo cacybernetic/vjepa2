@@ -18,6 +18,7 @@ from torch.utils.data import Dataset, Subset
 
 from vjepa2.config import Config
 from vjepa2.dataset.cleaning import DatasetCleaner
+from vjepa2.dataset.clip_index import build_clip_windows
 from vjepa2.dataset.dataloader import ResumableDataLoader
 from vjepa2.dataset.hdf5 import HDF5ClipDataset
 from vjepa2.dataset.masking import TubeMaskCollator, grid_dims
@@ -75,13 +76,26 @@ def build_collator(cfg: Config, seed: Optional[int] = None) -> TubeMaskCollator:
     return TubeMaskCollator(cfg.masking, grid_size, grid_depth, seed=seed)
 
 
+def build_windows(cfg: Config, entries: List[str], meta) -> list:
+    """Expand a list of videos into the flat list of clip windows to read."""
+    return build_clip_windows(
+        entries,
+        meta,
+        num_frames=cfg.dataset.num_frames,
+        stride=cfg.dataset.clip_stride,
+        target_fps=cfg.dataset.frames_per_second,
+        sampling=cfg.dataset.clip_sampling,
+        max_clips_per_video=cfg.dataset.max_clips_per_video,
+    )
+
+
 def _make_video_dataset(cfg: Config, root: str, is_zip: bool,
-                        entries: List[str], train: bool) -> VideoClipDataset:
-    """Create an on-the-fly video dataset for one split."""
+                        entries: List[str], meta, train: bool) -> VideoClipDataset:
+    """Create an on-the-fly video dataset (one item per clip window)."""
     return VideoClipDataset(
         root=root,
         is_zip=is_zip,
-        entries=entries,
+        windows=build_windows(cfg, entries, meta),
         pipeline=build_pipeline(cfg, train),
         reader=build_reader(cfg),
         crop_size=cfg.dataset.crop_size,
@@ -90,30 +104,30 @@ def _make_video_dataset(cfg: Config, root: str, is_zip: bool,
     )
 
 
-def _scan(cfg: Config, source: str) -> Tuple[str, bool, List[str]]:
-    """Validate (or load cached) entries for a dataset source."""
+def _scan(cfg: Config, source: str) -> Tuple[str, bool, List[str], dict]:
+    """Validate (or load cached) entries and per-video metadata."""
     cleaner = DatasetCleaner(reader=build_reader(cfg))
     result = cleaner.prepare(source, validate=cfg.dataset.validate, use_cache=True)
-    return result.source, result.is_zip, result.entries
+    return result.source, result.is_zip, result.entries, result.meta
 
 
 def _build_onthefly(cfg: Config) -> Tuple[Dataset, Optional[Dataset], Optional[Dataset]]:
     """Build train, val and test datasets by reading videos on the fly."""
-    _, train_zip, train_entries = _scan(cfg, cfg.dataset.train_path)
+    _, train_zip, train_entries, train_meta = _scan(cfg, cfg.dataset.train_path)
     train_entries = cap_entries(train_entries, cfg.dataset.max_train_samples)
     train_ds = _make_video_dataset(
-        cfg, cfg.dataset.train_path, train_zip, train_entries, train=True
+        cfg, cfg.dataset.train_path, train_zip, train_entries, train_meta, train=True
     )
-    _, test_zip, test_entries = _scan(cfg, cfg.dataset.test_path)
+    _, test_zip, test_entries, test_meta = _scan(cfg, cfg.dataset.test_path)
     test_entries = cap_entries(test_entries, cfg.dataset.max_test_samples)
     val_entries, final_entries = split_val_test(
         test_entries, cfg.dataset.val_prob, seed=cfg.seed
     )
     val_ds = _make_video_dataset(
-        cfg, cfg.dataset.test_path, test_zip, val_entries, train=False
+        cfg, cfg.dataset.test_path, test_zip, val_entries, test_meta, train=False
     )
     test_ds = _make_video_dataset(
-        cfg, cfg.dataset.test_path, test_zip, final_entries, train=False
+        cfg, cfg.dataset.test_path, test_zip, final_entries, test_meta, train=False
     )
     return train_ds, val_ds, test_ds
 
@@ -177,10 +191,10 @@ def build_eval_loader(cfg: Config, batch_size: int, num_workers: int
     if cfg.dataset.use_hdf5:
         dataset = HDF5ClipDataset(cfg.dataset.test_h5)
     else:
-        _, is_zip, entries = _scan(cfg, cfg.dataset.test_path)
+        _, is_zip, entries, meta = _scan(cfg, cfg.dataset.test_path)
         entries = cap_entries(entries, cfg.dataset.max_test_samples)
         dataset = _make_video_dataset(
-            cfg, cfg.dataset.test_path, is_zip, entries, train=False
+            cfg, cfg.dataset.test_path, is_zip, entries, meta, train=False
         )
     collate = build_collator(cfg)
     loader = _make_loader(cfg, dataset, collate, False, batch_size, num_workers)

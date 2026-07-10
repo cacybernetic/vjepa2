@@ -13,11 +13,12 @@ from __future__ import annotations
 import json
 import os
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 __all__ = ["cache_path", "CacheStore"]
 
-CACHE_VERSION = 1
+# v2 adds per-entry ``meta`` (frame count + fps) used to plan clip windows.
+CACHE_VERSION = 2
 
 
 def cache_path(source: str) -> str:
@@ -44,8 +45,14 @@ class CacheStore:
         """Tell whether a cache file already exists for the source."""
         return os.path.isfile(self.path_for(source))
 
-    def save(self, source: str, entries: List[str], is_zip: bool) -> str:
-        """Write the validated entries to the cache file and return its path."""
+    def save(self, source: str, entries: List[str], is_zip: bool,
+             meta: Optional[Dict[str, Tuple[int, float]]] = None) -> str:
+        """Write the validated entries to the cache file and return its path.
+
+        :param meta: optional ``{entry: (num_frames, fps)}`` used to plan clip
+            windows without re-opening the videos on later runs.
+        """
+        meta = meta or {}
         payload = {
             "version": CACHE_VERSION,
             "source": os.path.abspath(source),
@@ -53,6 +60,8 @@ class CacheStore:
             "created": datetime.now().isoformat(timespec="seconds"),
             "num_entries": len(entries),
             "entries": list(entries),
+            "meta": {e: [int(meta[e][0]), float(meta[e][1])]
+                     for e in entries if e in meta},
         }
         target = self.path_for(source)
         with open(target, "w", encoding="utf-8") as handle:

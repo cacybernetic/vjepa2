@@ -10,8 +10,8 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import List, Optional
+from dataclasses import dataclass, field
+from typing import Dict, List, Optional, Tuple
 
 from tqdm import tqdm
 
@@ -31,6 +31,8 @@ class ScanResult:
     entries: List[str]
     num_found: int
     num_dropped: int
+    # {entry: (num_frames, fps)} used to plan clip windows.
+    meta: Dict[str, Tuple[int, float]] = field(default_factory=dict)
 
 
 class DatasetCleaner:
@@ -60,42 +62,55 @@ class DatasetCleaner:
     def _from_cache(self, source: str, cached: dict) -> ScanResult:
         """Build a scan result from a loaded cache payload."""
         entries = list(cached["entries"])
+        raw_meta = cached.get("meta", {}) or {}
+        meta = {e: (int(v[0]), float(v[1]))
+                for e, v in raw_meta.items() if e in set(entries)}
         return ScanResult(
             source=source,
             is_zip=bool(cached.get("is_zip", False)),
             entries=entries,
             num_found=len(entries),
             num_dropped=0,
+            meta=meta,
         )
 
     def scan(self, source: str, validate: bool = True) -> ScanResult:
         """Find candidate videos, optionally validate them, and cache the good ones."""
         is_zip = self.finder.is_zip(source)
         candidates = self.finder.find(source)
-        if not validate:
-            self.store.save(source, candidates, is_zip)
-            return ScanResult(source, is_zip, candidates, len(candidates), 0)
-        good = self._validate_all(source, is_zip, candidates)
-        self.store.save(source, good, is_zip)
+        good, meta = self._inspect_all(source, is_zip, candidates, validate)
+        self.store.save(source, good, is_zip, meta)
         dropped = len(candidates) - len(good)
-        return ScanResult(source, is_zip, good, len(candidates), dropped)
+        return ScanResult(source, is_zip, good, len(candidates), dropped, meta)
 
-    def _validate_all(self, source: str, is_zip: bool,
-                      candidates: List[str]) -> List[str]:
-        """Try to decode each candidate; keep only the ones that work."""
+    def _inspect_all(self, source: str, is_zip: bool, candidates: List[str],
+                     validate: bool) -> Tuple[List[str], Dict[str, Tuple[int, float]]]:
+        """Read ``(frames, fps)`` for each video; drop the ones that fail.
+
+        With ``validate`` on, a video is kept only when its metadata reads back;
+        this doubles as the corruption check. With ``validate`` off we still try
+        to read the (cheap) header so clip planning has a frame count, but a
+        failure only drops that file from the plan, not from the dataset.
+        """
         provider = VideoSource(source, is_zip)
+        desc = "validating dataset" if validate else "scanning dataset"
         good: List[str] = []
-        bar = tqdm(candidates, desc="validating dataset", leave=True,
-                   ascii="░█", dynamic_ncols=True)
+        meta: Dict[str, Tuple[int, float]] = {}
+        bar = tqdm(candidates, desc=desc, leave=True, ascii="░█",
+                   dynamic_ncols=True)
         for entry in bar:
-            if self._is_readable(provider, entry):
+            info = self._inspect(provider, entry)
+            if info is not None:
+                meta[entry] = info
+                good.append(entry)
+            elif not validate:
                 good.append(entry)
         provider.close()
-        return good
+        return good, meta
 
-    def _is_readable(self, provider: VideoSource, entry: str) -> bool:
-        """Return True when a video entry decodes at least one frame."""
+    def _inspect(self, provider: VideoSource, entry: str):
+        """Return ``(num_frames, fps)`` for a video, or None when unreadable."""
         try:
-            return self.reader.probe(provider, entry)
+            return self.reader.inspect(provider, entry)
         except Exception:
-            return False
+            return None

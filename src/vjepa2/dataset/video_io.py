@@ -77,6 +77,45 @@ def _decode_all_frames(stream: io.BytesIO, max_frames: int):
     return frames, fps
 
 
+def _probe_metadata(stream: io.BytesIO, max_decode: int):
+    """Read ``(num_frames, fps)`` from a video, decoding only when needed.
+
+    We first trust the container header (``stream.frames`` or the duration times
+    the frame rate), which is cheap. When the header is missing or zero -- common
+    for streamed / variable-frame-rate files -- we fall back to counting decoded
+    frames up to ``max_decode``.
+    """
+    import av
+
+    with av.open(stream) as container:
+        if not container.streams.video:
+            raise ClipReadError("no video stream")
+        video = container.streams.video[0]
+        fps = float(video.average_rate) if video.average_rate else 30.0
+        count = int(video.frames or 0)
+        if count <= 0:
+            count = _estimate_from_duration(container, video, fps)
+        if count <= 0:
+            count = sum(1 for _ in container.decode(video))
+            count = min(count, max_decode)
+    if count <= 0:
+        raise ClipReadError("no frames")
+    return count, fps
+
+
+def _estimate_from_duration(container, video, fps: float) -> int:
+    """Estimate a frame count from the stream / container duration."""
+    if video.duration and video.time_base:
+        seconds = float(video.duration * video.time_base)
+        return int(round(seconds * fps))
+    if container.duration:
+        import av
+
+        seconds = float(container.duration) / float(av.time_base)
+        return int(round(seconds * fps))
+    return 0
+
+
 class VideoReader:
     """Sample a fixed number of frames from a decoded video.
 
@@ -97,6 +136,15 @@ class VideoReader:
         frames, _ = _decode_all_frames(stream, max_frames=2)
         return len(frames) > 0
 
+    def inspect(self, source: VideoSource, entry: str):
+        """Return ``(num_frames, fps)`` of a video without loading every frame.
+
+        Used at scan time to plan how many clips a video can yield; the values
+        are cached so later runs never re-open the file.
+        """
+        stream = source.open(entry)
+        return _probe_metadata(stream, self.max_decode)
+
     def read(self, source: VideoSource, entry: str,
              random_start: bool = False, rng: Optional[np.random.Generator] = None,
              ) -> np.ndarray:
@@ -108,12 +156,50 @@ class VideoReader:
         """
         stream = source.open(entry)
         frames, fps = _decode_all_frames(stream, self.max_decode)
-        step = self._frame_step(fps)
+        step = self.frame_step(fps)
         indices = self._pick_indices(len(frames), step, random_start, rng)
-        clip = np.stack([frames[i] for i in indices], axis=0)
-        return clip
+        return self._gather(frames, indices)
 
-    def _frame_step(self, fps: float) -> int:
+    def read_window(self, source: VideoSource, entry: str, start_frame: int,
+                    step: int) -> np.ndarray:
+        """Read one clip that starts at raw frame ``start_frame``.
+
+        Frames are taken every ``step`` raw frames (the temporal stride). We only
+        decode up to the last frame the window needs, so early windows of a long
+        video are cheap. Missing tail frames are padded by repeating the last one.
+        """
+        step = max(1, int(step))
+        start_frame = max(0, int(start_frame))
+        need = start_frame + (self.num_frames - 1) * step + 1
+        stream = source.open(entry)
+        frames, _ = _decode_all_frames(stream, min(self.max_decode, need))
+        return self.window_clip(frames, start_frame, step)
+
+    def decode_all(self, source: VideoSource, entry: str) -> List[np.ndarray]:
+        """Decode the whole video once (capped at ``max_decode`` frames).
+
+        Handy for the HDF5 builder, which reads every clip window of a video and
+        can slice them all from a single decode.
+        """
+        stream = source.open(entry)
+        frames, _ = _decode_all_frames(stream, self.max_decode)
+        return frames
+
+    def window_clip(self, frames: List[np.ndarray], start_frame: int,
+                    step: int) -> np.ndarray:
+        """Slice one clip out of already-decoded ``frames``."""
+        step = max(1, int(step))
+        start_frame = max(0, int(start_frame))
+        total = len(frames)
+        indices = [min(start_frame + i * step, total - 1)
+                   for i in range(self.num_frames)]
+        return self._gather(frames, indices)
+
+    def _gather(self, frames: List[np.ndarray], indices: List[int]) -> np.ndarray:
+        """Stack the chosen frames into a ``(T, H, W, 3)`` clip."""
+        return np.stack([frames[i] for i in indices], axis=0)
+
+    def frame_step(self, fps: float) -> int:
         """Convert source fps and target fps into an integer frame stride."""
         if self.target_fps <= 0:
             return 1

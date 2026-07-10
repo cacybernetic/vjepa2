@@ -15,7 +15,7 @@ from typing import List, Tuple
 from vjepa2 import logging as vlog
 from vjepa2.config import Config
 from vjepa2.dataset.cleaning import DatasetCleaner
-from vjepa2.dataset.factory import build_pipeline, build_reader
+from vjepa2.dataset.factory import build_pipeline, build_reader, build_windows
 from vjepa2.dataset.hdf5 import HDF5Builder
 from vjepa2.dataset.splits import cap_entries
 from vjepa2.entrypoints import common
@@ -47,21 +47,22 @@ class BuildApp:
     def _build_one(self, source: str, out_path: str, max_samples,
                    train: bool) -> None:
         """Scan, clean and store one dataset split into an HDF5 file."""
-        is_zip, entries = self._scan(source, max_samples)
-        vlog.logger.info("Building {} clips from {} into {}",
-                         len(entries), source, out_path)
+        is_zip, entries, meta = self._scan(source, max_samples)
+        windows = build_windows(self.cfg, entries, meta)
+        vlog.logger.info("Building {} clips from {} videos in {} into {}",
+                         len(windows), len(entries), source, out_path)
         builder = HDF5Builder(build_pipeline(self.cfg, train), build_reader(self.cfg))
         copies = self.augment_copies if train else 0
         written = builder.build(
-            out_path, source, is_zip, entries, self._clip_shape(), copies
+            out_path, source, is_zip, windows, self._clip_shape(), copies
         )
         vlog.logger.info("Wrote {} clips to {}", written, out_path)
 
-    def _scan(self, source: str, max_samples) -> Tuple[bool, List[str]]:
-        """Validate (or load cached) entries and apply the sample cap."""
+    def _scan(self, source: str, max_samples) -> Tuple[bool, List[str], dict]:
+        """Validate (or load cached) entries, metadata and apply the sample cap."""
         cleaner = DatasetCleaner(reader=build_reader(self.cfg))
         result = cleaner.prepare(source, validate=self.cfg.dataset.validate)
-        return result.is_zip, cap_entries(result.entries, max_samples)
+        return result.is_zip, cap_entries(result.entries, max_samples), result.meta
 
     def _clip_shape(self) -> Tuple[int, int, int, int]:
         """Return the expected ``(C, T, H, W)`` of one preprocessed clip."""

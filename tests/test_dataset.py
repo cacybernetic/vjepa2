@@ -14,6 +14,8 @@ import torch
 
 from vjepa2.config import MaskingConfig
 from vjepa2.dataset.cache import CacheStore, cache_path
+from vjepa2.dataset.clip_index import (build_clip_windows, frame_step,
+                                       num_windows, sampled_length)
 from vjepa2.dataset.dataloader import ResumableDataLoader, ResumableSampler
 from vjepa2.dataset.discovery import VideoFileFinder
 from vjepa2.dataset.masking import TubeMaskCollator, grid_dims
@@ -53,6 +55,64 @@ def test_cache_store_roundtrip(tmp_path):
     loaded = store.load(src)
     assert loaded["entries"] == ["a.mp4", "b.mp4"]
     assert loaded["is_zip"] is True
+
+
+def test_cache_store_keeps_per_video_meta(tmp_path):
+    src = str(tmp_path / "train.zip")
+    (tmp_path / "train.zip").write_bytes(b"x")
+    store = CacheStore()
+    store.save(src, ["a.mp4", "b.mp4"], is_zip=True,
+               meta={"a.mp4": (120, 30.0), "b.mp4": (48, 24.0)})
+    loaded = store.load(src)
+    assert loaded["meta"]["a.mp4"] == [120, 30.0]
+    assert loaded["meta"]["b.mp4"] == [48, 24.0]
+
+
+def test_num_windows_tiles_with_overlap():
+    # 100 sampled frames, clips of 16 hopping 8 -> ceil((100-16)/8)+1 = 12.
+    assert num_windows(100, 16, 8) == 12
+    # A clip-or-shorter video always yields exactly one window.
+    assert num_windows(16, 16, 8) == 1
+    assert num_windows(5, 16, 8) == 1
+
+
+def test_frame_step_and_sampled_length():
+    # 30 fps down to 4 fps -> keep 1 frame every ~8.
+    assert frame_step(30.0, 4.0) == 8
+    assert frame_step(30.0, 0.0) == 1
+    # 240 raw frames at step 8 -> 30 sampled frames.
+    assert sampled_length(240, 8) == 30
+
+
+def test_build_clip_windows_covers_long_video():
+    # One 30 fps video with 240 raw frames, sampled to 4 fps (step 8) -> L=30.
+    meta = {"long.mp4": (240, 30.0)}
+    windows = build_clip_windows(["long.mp4"], meta, num_frames=16, stride=8,
+                                 target_fps=4.0, sampling="chunk")
+    assert len(windows) == num_windows(30, 16, 8)  # 3 clips
+    assert windows[0].start_frame == 0
+    assert windows[0].step == 8
+    # Windows advance by stride * step raw frames and clamp to the tail.
+    assert windows[1].start_frame == 8 * 8
+    assert all(w.entry == "long.mp4" for w in windows)
+    # The last window is clamped so its clip never runs past the video.
+    last = windows[-1]
+    assert last.start_frame + 15 * last.step <= (30 - 1) * 8 + last.step
+
+
+def test_build_clip_windows_single_mode_is_one_per_video():
+    meta = {"a.mp4": (240, 30.0), "b.mp4": (240, 30.0)}
+    windows = build_clip_windows(["a.mp4", "b.mp4"], meta, num_frames=16,
+                                 stride=8, target_fps=4.0, sampling="single")
+    assert len(windows) == 2
+
+
+def test_build_clip_windows_caps_clips_per_video():
+    meta = {"long.mp4": (4000, 30.0)}
+    windows = build_clip_windows(["long.mp4"], meta, num_frames=16, stride=8,
+                                 target_fps=4.0, sampling="chunk",
+                                 max_clips_per_video=5)
+    assert len(windows) <= 5
 
 
 def test_cap_entries_limits_count():

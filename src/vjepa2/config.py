@@ -157,6 +157,16 @@ class DatasetConfig:
     num_frames: int = 16
     frames_per_second: float = 4.0
     crop_size: int = 256
+    # How each video is turned into clips:
+    #   "chunk"  -> tile the whole video into overlapping clips of ``num_frames``
+    #               sampled frames, hopping ``clip_stride`` frames each step, so
+    #               every part of the video is seen (many clips on long videos);
+    #   "single" -> one centered clip per video (the old sub-sampling behavior).
+    clip_sampling: str = "chunk"
+    clip_stride: int = 8
+    # Cap the number of clips taken from a single video (0 = unlimited). Useful
+    # to keep one very long video from dominating the dataset.
+    max_clips_per_video: int = 0
     transform: TransformConfig = field(default_factory=TransformConfig)
     augment: AugmentConfig = field(default_factory=AugmentConfig)
 
@@ -176,6 +186,9 @@ class DatasetConfig:
             num_frames=int(_get(data, "num_frames", 16)),
             frames_per_second=float(_get(data, "frames_per_second", 4.0)),
             crop_size=int(_get(data, "crop_size", 256)),
+            clip_sampling=str(_get(data, "clip_sampling", "chunk")).lower(),
+            clip_stride=int(_get(data, "clip_stride", 8)),
+            max_clips_per_video=int(_get(data, "max_clips_per_video", 0)),
             transform=TransformConfig.from_dict(data.get("transform", {})),
             augment=AugmentConfig.from_dict(data.get("augment", {})),
         )
