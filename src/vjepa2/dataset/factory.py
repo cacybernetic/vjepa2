@@ -19,6 +19,7 @@ from torch.utils.data import Dataset, Subset
 from vjepa2.config import Config
 from vjepa2.dataset.cleaning import DatasetCleaner
 from vjepa2.dataset.clip_index import build_clip_windows
+from vjepa2.logging import logger
 from vjepa2.dataset.dataloader import ResumableDataLoader
 from vjepa2.dataset.hdf5 import HDF5ClipDataset
 from vjepa2.dataset.masking import TubeMaskCollator, grid_dims
@@ -87,6 +88,36 @@ def build_windows(cfg: Config, entries: List[str], meta) -> list:
         sampling=cfg.dataset.clip_sampling,
         max_clips_per_video=cfg.dataset.max_clips_per_video,
     )
+
+
+def log_clip_windows(dataset: Dataset) -> None:
+    """Log every clip window a dataset will read, grouped by video.
+
+    Only on-the-fly ``VideoClipDataset`` carries clip windows; for HDF5 datasets
+    (already flattened to clips on disk) there is nothing to expand, so we just
+    report the clip count.
+    """
+    windows = getattr(dataset, "windows", None)
+    if windows is None:
+        logger.info("clips: {} pre-built clips (HDF5)", len(dataset))
+        return
+    num_frames = int(getattr(dataset, "num_frames", 16))
+    from collections import OrderedDict
+
+    groups: "OrderedDict[str, list]" = OrderedDict()
+    for index, window in enumerate(windows):
+        groups.setdefault(window.entry, []).append((index, window))
+    logger.info("===== clips to evaluate: {} clips from {} videos =====",
+                len(windows), len(groups))
+    for entry, items in groups.items():
+        logger.info("  {} -- {} clips", entry, len(items))
+        for clip_i, (index, window) in enumerate(items):
+            first = window.start_frame
+            last = window.start_frame + (num_frames - 1) * window.step
+            logger.info("    [{:>5}] clip {:>3}  start={:<7} step={:<3} "
+                        "raw frames [{}..{}] ({} frames)",
+                        index, clip_i, first, window.step, first, last, num_frames)
+    logger.info("  total clips = {}", len(windows))
 
 
 def _make_video_dataset(cfg: Config, root: str, is_zip: bool,
@@ -196,6 +227,7 @@ def build_eval_loader(cfg: Config, batch_size: int, num_workers: int
         dataset = _make_video_dataset(
             cfg, cfg.dataset.test_path, is_zip, entries, meta, train=False
         )
+    log_clip_windows(dataset)
     collate = build_collator(cfg)
     loader = _make_loader(cfg, dataset, collate, False, batch_size, num_workers)
     return loader, len(dataset)
