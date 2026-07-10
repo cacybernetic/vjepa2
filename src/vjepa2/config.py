@@ -155,7 +155,10 @@ class DatasetConfig:
     max_test_samples: Optional[int] = None
     val_prob: float = 0.5
     num_frames: int = 16
-    frames_per_second: float = 4.0
+    # Temporal sub-sampling rate. ``0`` (the default) keeps EVERY frame, i.e. a
+    # sub-sampling step of 1, so clips are made of consecutive raw frames. A
+    # positive value keeps ~that many frames per second (step = round(fps / it)).
+    frames_per_second: float = 0.0
     crop_size: int = 256
     # How each video is turned into clips:
     #   "chunk"  -> tile the whole video into overlapping clips of ``num_frames``
@@ -184,7 +187,7 @@ class DatasetConfig:
             max_test_samples=data.get("max_test_samples"),
             val_prob=float(_get(data, "val_prob", 0.5)),
             num_frames=int(_get(data, "num_frames", 16)),
-            frames_per_second=float(_get(data, "frames_per_second", 4.0)),
+            frames_per_second=float(_get(data, "frames_per_second", 0.0)),
             crop_size=int(_get(data, "crop_size", 256)),
             clip_sampling=str(_get(data, "clip_sampling", "chunk")).lower(),
             clip_stride=int(_get(data, "clip_stride", 8)),

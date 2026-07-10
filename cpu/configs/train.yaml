@@ -18,7 +18,7 @@ dataset:
   max_test_samples: null
   val_prob: 0.5              # fraction of the test set used for validation
   num_frames: 16             # frames per clip
-  frames_per_second: 4.0     # sampling rate; the stride comes from the source fps
+  frames_per_second: 0          # 0 = keep every frame (sub-sampling step = 1)
   crop_size: 128             # square crop side in pixels
   clip_sampling: chunk       # chunk = tile whole video into overlapping clips;
                              # single = one centered clip per video

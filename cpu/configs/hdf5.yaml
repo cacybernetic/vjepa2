@@ -16,7 +16,7 @@ dataset:
   max_train_samples: null
   max_test_samples: null
   num_frames: 16
-  frames_per_second: 4.0
+  frames_per_second: 0          # 0 = keep every frame (sub-sampling step = 1)
   crop_size: 128
   clip_sampling: chunk       # chunk = overlapping clips covering the whole video
   clip_stride: 8             # frames the clip window hops (overlap = num_frames - stride)

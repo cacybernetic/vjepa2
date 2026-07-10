@@ -84,20 +84,33 @@ def test_frame_step_and_sampled_length():
     assert sampled_length(240, 8) == 30
 
 
+def test_build_clip_windows_no_subsampling_by_default():
+    # Default (frames_per_second=0 -> step 1): tile over the raw frames. A
+    # 32-frame video makes 2 non-overlapping clips, or 3 at stride 8.
+    meta = {"v.mp4": (32, 24.0)}
+    two = build_clip_windows(["v.mp4"], meta, num_frames=16, stride=16,
+                             target_fps=0.0, sampling="chunk")
+    assert [w.start_frame for w in two] == [0, 16]
+    assert all(w.step == 1 for w in two)
+    three = build_clip_windows(["v.mp4"], meta, num_frames=16, stride=8,
+                               target_fps=0.0, sampling="chunk")
+    assert [w.start_frame for w in three] == [0, 8, 16]
+
+
 def test_build_clip_windows_covers_long_video():
-    # One 30 fps video with 240 raw frames, sampled to 4 fps (step 8) -> L=30.
+    # One video with 240 raw frames, no sub-sampling (step 1) -> L=240.
     meta = {"long.mp4": (240, 30.0)}
     windows = build_clip_windows(["long.mp4"], meta, num_frames=16, stride=8,
-                                 target_fps=4.0, sampling="chunk")
-    assert len(windows) == num_windows(30, 16, 8)  # 3 clips
+                                 target_fps=0.0, sampling="chunk")
+    assert len(windows) == num_windows(240, 16, 8)  # 29 clips
     assert windows[0].start_frame == 0
-    assert windows[0].step == 8
-    # Windows advance by stride * step raw frames and clamp to the tail.
-    assert windows[1].start_frame == 8 * 8
+    assert windows[0].step == 1
+    # Windows advance by stride raw frames and clamp to the tail.
+    assert windows[1].start_frame == 8
     assert all(w.entry == "long.mp4" for w in windows)
     # The last window is clamped so its clip never runs past the video.
     last = windows[-1]
-    assert last.start_frame + 15 * last.step <= (30 - 1) * 8 + last.step
+    assert last.start_frame + 15 * last.step <= 240 - 1
 
 
 def test_build_clip_windows_single_mode_is_one_per_video():

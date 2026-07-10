@@ -320,25 +320,29 @@ scan happens only once.
 #### Clips per video: full coverage vs. a single clip
 
 A video is not reduced to a single clip. By default (`clip_sampling: chunk`) each
-video is **tiled into overlapping clips** of `num_frames` sampled frames, hopping
-`clip_stride` frames between clips, so **the whole video is seen** — a long video
-yields many clips, a short one yields a few. This is the same idea as the `runs`
-inference `--chunk` / `--stride`, applied to the training/eval data.
+video is **tiled into overlapping clips** of `num_frames` frames, hopping
+`clip_stride` frames between clips, so **every frame of the video is seen** — a
+long video yields many clips, a short one yields a few. This is the same idea as
+the `runs` inference `--chunk` / `--stride`, applied to the training/eval data.
 
 ```yaml
 dataset:
-  num_frames: 16            # frames per clip (sampled at frames_per_second)
-  frames_per_second: 4.0    # temporal sub-sampling rate
+  num_frames: 16            # frames per clip
+  frames_per_second: 0      # 0 = keep every frame (sub-sampling step = 1)
   clip_sampling: chunk      # chunk = cover the whole video; single = one clip
   clip_stride: 8            # hop between clips; overlap = num_frames - clip_stride
   max_clips_per_video: 0    # 0 = unlimited; cap clips from one very long video
 ```
 
-The number of clips a video produces (`L` = its length in sampled frames,
+By default no temporal sub-sampling is applied (`frames_per_second: 0` → step 1),
+so clips are made of **consecutive raw frames**. A 32-frame video therefore yields
+2 clips at `clip_stride: 16` (frames `0–15` and `16–31`) or 3 clips at
+`clip_stride: 8`. The number of clips (`L` = the video's frame count after
+sub-sampling — equal to the raw frame count when `frames_per_second: 0` —
 `n = num_frames`, `s = clip_stride`) is `K = ceil((L - n) / s) + 1`
 (`K = 1` when `L <= n`), and the last clip is clamped onto the tail so no clip
-runs past the end. With `clip_stride = 8` and `num_frames = 16`, consecutive
-clips overlap by 8 sampled frames.
+runs past the end. Set `frames_per_second` to a positive value to keep only ~that
+many frames per second before tiling.
 
 > **This changes the dataset size.** The number of training items is now the
 > total number of clips, not the number of videos, so the derived
