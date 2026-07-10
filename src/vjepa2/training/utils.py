@@ -65,5 +65,5 @@ def move_masks(masks: List[List[torch.Tensor]], device: str
 
 def format_metrics(values: Dict[str, float]) -> str:
     """Turn a metric dict into a compact ``key=value`` string for logs."""
-    parts = [f"{key}={value:.4f}" for key, value in values.items()]
+    parts = [f"{key}={value:.8f}" for key, value in values.items()]
     return " ".join(parts)

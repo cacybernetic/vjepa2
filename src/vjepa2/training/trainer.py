@@ -111,7 +111,7 @@ class Trainer:
             self._update_epoch_bar(epoch_bar)
         epoch_bar.close()
         self._final_test()
-        vlog.logger.info("Training finished. Best {} = {:.4f}",
+        vlog.logger.info("Training finished. Best {} = {:.8f}",
                          self.best.metric, self.best.best)
 
     def _run_epoch(self, epoch: int) -> None:
@@ -275,7 +275,7 @@ class Trainer:
     def _update_epoch_bar(self, bar) -> None:
         """Advance the outer bar and show avg epoch time, best score and lr."""
         self._epochs_done += 1
-        best = (f"{self.best.best:.4f}" if self.best.has_best() else "n/a")
+        best = (f"{self.best.best:.8f}" if self.best.has_best() else "n/a")
         bar.update(1)
         bar.set_postfix_str(
             f"avg_epoch={self._avg_epoch_str()} "
@@ -332,14 +332,14 @@ class Trainer:
         has_val = self.bundle.val_loader is not None and bool(val_avg)
         vlog.logger.info("===== Epoch {}/{} metrics =====",
                          epoch + 1, self.cfg.epochs)
-        header = f"  {'metric':<10} {'train':>12}"
+        header = f"  {'metric':<10} {'train':>16}"
         if has_val:
-            header += f" {'val':>12}"
+            header += f" {'val':>16}"
         vlog.logger.info(header)
         for name in METRIC_NAMES:
-            line = f"  {name:<10} {train_avg.get(name, float('nan')):>12.4f}"
+            line = f"  {name:<10} {train_avg.get(name, float('nan')):>16.8f}"
             if has_val:
-                line += f" {val_avg.get(name, float('nan')):>12.4f}"
+                line += f" {val_avg.get(name, float('nan')):>16.8f}"
             vlog.logger.info(line)
 
     def _epoch_row(self, epoch: int) -> Dict[str, float]:
@@ -359,7 +359,7 @@ class Trainer:
         value = row.get(key)
         if value is not None and self.best.consider(value):
             self._save_weights(self.paths.best_pt)
-            vlog.logger.info("New best {} = {:.4f} -> saved best.pt",
+            vlog.logger.info("New best {} = {:.8f} -> saved best.pt",
                              self.best.metric, value)
 
     # -- final evaluation ----------------------------------------------------
