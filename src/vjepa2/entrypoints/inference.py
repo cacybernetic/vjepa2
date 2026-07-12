@@ -382,7 +382,7 @@ class App:
         if n_clips > 1:
             clip_iter = tqdm(
                 clip_iter, total=n_clips, desc=os.path.basename(path),
-                unit="clip", leave=False, position=1,
+                unit="clip", leave=False, position=1, dynamic_ncols=True,
             )
         per_clip = [
             self.postprocess(self.model.embed(clip)) for clip in clip_iter
@@ -439,7 +439,8 @@ class App:
         # We compute the embeddings and save them into the output format specified in CLI argument.
         # By default, the output format is `pkle`.
         errors = 0
-        for path in tqdm(listoffiles, desc="Encoding", unit="file", position=0):
+        for path in tqdm(listoffiles, desc="Encoding", unit="file", position=0,
+                         dynamic_ncols=True):
             try:
                 embedding = self._encode(path)
                 out_path = self._output_path(path, output_format)

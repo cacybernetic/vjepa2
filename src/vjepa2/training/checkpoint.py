@@ -6,21 +6,30 @@
 #
 # Save and load full training checkpoints. A checkpoint holds everything needed
 # to continue: model, optimizer, scheduler, data loader positions, meters, and
-# the training state. We keep only the newest ``max_checkpoint`` files to save
-# disk space, and we write to a temporary file first so a crash mid-write can
-# never leave a broken checkpoint.
+# the training state. Every save goes to its own dedicated file named
+# ``checkpoint_<phase>_e<epoch>c<counter>.pth`` (e.g. ``checkpoint_train_
+# e0001c0012.pth``): no two checkpoints ever share a file, not even two saves of
+# the same epoch, and different epochs never land in the same file. We keep only
+# the newest ``max_checkpoint`` files to save disk space, and we write to a
+# temporary file first so a crash mid-write can never leave a broken checkpoint.
 
 from __future__ import annotations
 
 import os
 import re
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 
 import torch
 
 __all__ = ["CheckpointManager"]
 
-_EPOCH_RE = re.compile(r"^epoch_(\d+)\.pth$")
+# checkpoint_<phase>_e<epoch>c<counter>.pth -- one file per individual save.
+_CKPT_RE = re.compile(r"^checkpoint_(train|val|test)_e(\d+)c(\d+)\.pth$")
+# Within one epoch, train checkpoints are written before validation ones, and
+# the final-test checkpoints come last. Ranking the phases this way lets the
+# (epoch, phase, counter) tuple reproduce the real write order, so "latest" and
+# rotation stay correct even when many checkpoints share an epoch.
+_PHASE_RANK = {"train": 0, "val": 1, "test": 2}
 
 
 class CheckpointManager:
@@ -31,30 +40,37 @@ class CheckpointManager:
         self.max_checkpoint = max(1, int(max_checkpoint))
         os.makedirs(self.dir, exist_ok=True)
 
-    def _path(self, epoch: int) -> str:
-        """Return the checkpoint file path for an epoch."""
-        return os.path.join(self.dir, f"epoch_{epoch:03d}.pth")
+    def _path(self, epoch: int, counter: int, phase: str) -> str:
+        """Return the dedicated file path for one checkpoint save."""
+        return os.path.join(
+            self.dir, f"checkpoint_{phase}_e{epoch:04d}c{counter:04d}.pth")
 
-    def save(self, state: Dict[str, Any], epoch: int) -> str:
-        """Write the checkpoint for an epoch, then rotate old ones.
+    def save(self, state: Dict[str, Any], epoch: int, counter: int,
+             phase: str) -> str:
+        """Write one checkpoint to its own file, then rotate old ones.
 
-        The file is written to a temporary path and atomically renamed, so an
-        interrupted write cannot corrupt a good checkpoint.
+        ``epoch`` and ``counter`` (a within-epoch save index) keep every save in
+        a distinct file. The file is written to a temporary path and atomically
+        renamed, so an interrupted write cannot corrupt a good checkpoint.
         """
-        target = self._path(epoch)
+        target = self._path(epoch, counter, phase)
         tmp = target + ".tmp"
         torch.save(state, tmp)
         os.replace(tmp, target)
         self._rotate()
         return target
 
+    @staticmethod
+    def _sort_key(name: str) -> Tuple[int, int, int]:
+        """Order key reproducing the write order: (epoch, phase, counter)."""
+        match = _CKPT_RE.match(name)
+        phase, epoch, counter = match.group(1), match.group(2), match.group(3)
+        return (int(epoch), _PHASE_RANK[phase], int(counter))
+
     def _all_files(self) -> List[str]:
-        """Return existing checkpoint file names sorted by epoch number."""
-        files = []
-        for name in os.listdir(self.dir):
-            if _EPOCH_RE.match(name):
-                files.append(name)
-        files.sort(key=lambda n: int(_EPOCH_RE.match(n).group(1)))
+        """Return existing checkpoint file names sorted oldest to newest."""
+        files = [n for n in os.listdir(self.dir) if _CKPT_RE.match(n)]
+        files.sort(key=self._sort_key)
         return files
 
     def _rotate(self) -> None:

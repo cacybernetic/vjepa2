@@ -14,12 +14,28 @@ from vjepa2.training.runs import RunDirManager
 def test_checkpoint_manager_rotates_old_files(tmp_path):
     manager = CheckpointManager(str(tmp_path / "ckpts"), max_checkpoint=2)
     for epoch in range(4):
-        manager.save({"epoch": epoch}, epoch)
+        manager.save({"epoch": epoch}, epoch, 0, "train")
     latest = manager.load_latest()
     assert latest["epoch"] == 3
-    # Only the two newest files remain.
+    # Only the two newest files remain, each in its own dedicated file.
     kept = manager._all_files()
-    assert kept == ["epoch_002.pth", "epoch_003.pth"]
+    assert kept == ["checkpoint_train_e0002c0000.pth",
+                    "checkpoint_train_e0003c0000.pth"]
+
+
+def test_checkpoint_manager_distinct_files_within_epoch(tmp_path):
+    manager = CheckpointManager(str(tmp_path / "ckpts"), max_checkpoint=10)
+    # Several saves of the SAME epoch must never share a file.
+    manager.save({"c": 1}, 1, 1, "train")
+    manager.save({"c": 2}, 1, 2, "train")
+    manager.save({"c": 3}, 1, 1, "val")
+    files = manager._all_files()
+    assert files == ["checkpoint_train_e0001c0001.pth",
+                     "checkpoint_train_e0001c0002.pth",
+                     "checkpoint_val_e0001c0001.pth"]
+    # Within an epoch the validation checkpoint is written after the train ones,
+    # so it is the latest.
+    assert manager.load_latest()["c"] == 3
 
 
 def test_checkpoint_manager_empty(tmp_path):

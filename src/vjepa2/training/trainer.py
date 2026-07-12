@@ -38,6 +38,11 @@ class RunState:
     epoch: int = 0
     phase: str = "train"
     global_step: int = 0
+    # Within-epoch checkpoint counters, one per pass kind. They reset when a
+    # pass starts fresh and are carried in the checkpoint, so a mid-pass resume
+    # keeps counting up and never reuses a file name.
+    train_ckpt: int = 0
+    eval_ckpt: int = 0
 
 
 class Trainer:
@@ -128,7 +133,9 @@ class Trainer:
         # not repeat this epoch when it is restarted.
         self.state.epoch = epoch + 1
         self.state.phase = "train"
-        self._save_checkpoint("train")
+        # Counter 0 marks the clean start-of-next-epoch boundary checkpoint;
+        # that epoch's periodic saves then start at 1.
+        self._save_checkpoint("train", 0)
 
     # -- train pass ----------------------------------------------------------
     def _train_pass(self, epoch: int) -> None:
@@ -137,6 +144,7 @@ class Trainer:
         loader = self.bundle.train_loader
         if self._prepare_loader(loader, epoch):
             self.train_meter.reset()
+            self.state.train_ckpt = 0
         bar = vlog.make_step_bar(len(loader), desc=f"train e{epoch + 1}")
         for micro, batch in enumerate(loader):
             parts, n = self._train_step(batch, micro)
@@ -194,7 +202,8 @@ class Trainer:
                              self.total_steps, utils.format_metrics(avg),
                              self._last_grad_norm, self.scheduler.last_lr)
         if step % self._ckpt_step == 0:
-            self._save_checkpoint("train")
+            self.state.train_ckpt += 1
+            self._save_checkpoint("train", self.state.train_ckpt)
 
     def _flush_accumulation(self) -> None:
         """Apply any leftover gradients that did not fill a full accumulation."""
@@ -216,6 +225,7 @@ class Trainer:
         self.model.eval()
         if self._prepare_loader(loader, self.state.epoch):
             meter.reset()
+            self.state.eval_ckpt = 0
         bar = vlog.make_step_bar(len(loader), desc=desc)
         for batch_index, batch in enumerate(loader):
             with torch.no_grad():
@@ -228,7 +238,8 @@ class Trainer:
     def _checkpoint_eval(self, batch_index: int, phase: str) -> None:
         """Save a checkpoint during an evaluation pass for mid-pass resume."""
         if (batch_index + 1) % self.cfg.ckpt_step == 0:
-            self._save_checkpoint(phase)
+            self.state.eval_ckpt += 1
+            self._save_checkpoint(phase, self.state.eval_ckpt)
 
     # -- shared forward ------------------------------------------------------
     def _forward_loss(self, batch):
@@ -381,10 +392,18 @@ class Trainer:
         """Save only the model weights (for inference / export)."""
         torch.save({"model": self.model.state_dict()}, path)
 
-    def _save_checkpoint(self, phase: str) -> None:
-        """Write a full training checkpoint for the current epoch."""
+    def _save_checkpoint(self, phase: str, counter: int) -> None:
+        """Write a full training checkpoint to its own dedicated file.
+
+        Every save -- the periodic ones during training, the periodic ones
+        during evaluation, and the one at each epoch boundary -- goes to a
+        distinct file keyed by the 1-based epoch and the within-epoch
+        ``counter``, so no two checkpoints ever share a file, not even inside a
+        single epoch.
+        """
         self.state.phase = phase
-        self.ckpt.save(self._checkpoint_state(), self.state.epoch)
+        self.ckpt.save(self._checkpoint_state(), self.state.epoch + 1, counter,
+                       phase)
 
     def _checkpoint_state(self) -> Dict[str, Any]:
         """Collect everything needed to resume the run."""
