@@ -144,16 +144,40 @@ def test_split_val_test_is_disjoint_and_stable():
     assert val == val2
 
 
-def test_mask_collator_partitions_all_tokens():
+def test_mask_collator_masks_are_disjoint_and_stackable():
     grid_size, grid_depth = grid_dims(64, 16, 4, 2)
     collator = TubeMaskCollator(MaskingConfig(), grid_size, grid_depth, seed=0)
     clips, enc, pred = collator([torch.zeros(3, 4, 64, 64) for _ in range(3)])
     total = grid_size * grid_size * grid_depth
-    enc_idx = enc[0][0][0].tolist()
-    pred_idx = pred[0][0][0].tolist()
     assert clips[0].shape[0] == 3
-    assert set(enc_idx).isdisjoint(set(pred_idx))
-    assert len(enc_idx) + len(pred_idx) == total
+    assert enc[0][0].shape[0] == 3 and pred[0][0].shape[0] == 3
+    for b in range(3):
+        enc_idx = enc[0][0][b].tolist()
+        pred_idx = pred[0][0][b].tolist()
+        assert set(enc_idx).isdisjoint(set(pred_idx))
+        assert len(enc_idx) + len(pred_idx) <= total
+        assert all(0 <= i < total for i in enc_idx + pred_idx)
+
+
+def test_mask_collator_samples_get_different_masks():
+    grid_size, grid_depth = grid_dims(64, 16, 4, 2)
+    collator = TubeMaskCollator(MaskingConfig(), grid_size, grid_depth, seed=0)
+    _, _, pred = collator([torch.zeros(3, 4, 64, 64) for _ in range(8)])
+    rows = {tuple(row.tolist()) for row in pred[0][0]}
+    assert len(rows) > 1  # per-sample masks, not one mask repeated
+
+
+def test_mask_collator_pickled_copy_does_not_replay_masks():
+    import pickle
+
+    grid_size, grid_depth = grid_dims(64, 16, 4, 2)
+    collator = TubeMaskCollator(MaskingConfig(), grid_size, grid_depth, seed=None)
+    first = collator([torch.zeros(3, 4, 64, 64)])[2][0][0]
+    clone = pickle.loads(pickle.dumps(collator))
+    second = clone([torch.zeros(3, 4, 64, 64)])[2][0][0]
+    # The RNG state is excluded from pickling, so a worker copy reseeds itself
+    # instead of replaying the parent's mask stream.
+    assert first.shape != second.shape or not torch.equal(first, second)
 
 
 def test_resumable_sampler_order_is_stable_and_skippable():

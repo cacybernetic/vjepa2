@@ -7,6 +7,11 @@
 # Build and read HDF5 files that hold already-preprocessed clips. Doing the
 # decode + transform once and storing the result lets training and evaluation
 # skip that work and run faster. Optionally we also store augmented copies.
+#
+# Clips are stored as uint8 in [0, 255] *before* normalization (4x smaller than
+# float32 and far more compressible); the normalization parameters are kept in
+# the file attributes and applied at read time. Files written by older versions
+# (float32, already normalized) are still readable.
 
 from __future__ import annotations
 
@@ -20,7 +25,8 @@ from tqdm import tqdm
 
 from vjepa2.dataset.clip_index import ClipWindow
 from vjepa2.dataset.transforms import ClipPipeline
-from vjepa2.dataset.video_io import ClipReadError, VideoReader, VideoSource
+from vjepa2.dataset.video_io import VideoReader, VideoSource
+from vjepa2.logging import logger
 
 __all__ = ["HDF5Builder", "HDF5ClipDataset"]
 
@@ -41,7 +47,9 @@ class HDF5Builder:
         """Write all clip windows (plus optional augmented copies) to ``out_path``.
 
         Windows are grouped by video, so each source file is decoded only once
-        even when it contributes many overlapping clips.
+        even when it contributes many overlapping clips. Windows that cannot be
+        decoded are skipped (and logged), never written as fabricated data; the
+        dataset is resized down to the number of clips actually written.
 
         :param clip_shape: expected ``(C, T, H, W)`` of one preprocessed clip.
         :param augment_copies: extra augmented versions stored per source clip.
@@ -54,21 +62,34 @@ class HDF5Builder:
         total = len(windows) * (1 + max(0, augment_copies))
         with h5py.File(out_path, "w") as handle:
             dataset = self._make_dataset(handle, total, clip_shape)
+            self._write_norm_attrs(dataset)
             written = self._fill(dataset, source, windows, augment_copies)
+            if written < total:
+                dataset.resize((written, *clip_shape))
         source.close()
+        if written < total:
+            logger.warning("hdf5 build: {}/{} clips written ({} skipped as "
+                           "unreadable)", written, total, total - written)
         return written
 
     def _make_dataset(self, handle, total: int,
                       clip_shape: Tuple[int, int, int, int]):
-        """Create the compressed clips dataset inside the HDF5 file."""
+        """Create the clips dataset (uint8, resizable, fast lzf compression)."""
         return handle.create_dataset(
             CLIPS_KEY,
             shape=(total, *clip_shape),
-            dtype="float32",
+            maxshape=(None, *clip_shape),
+            dtype="uint8",
             chunks=(1, *clip_shape),
-            compression="gzip",
-            compression_opts=4,
+            compression="lzf",
         )
+
+    def _write_norm_attrs(self, dataset) -> None:
+        """Store the normalization recipe so readers can apply it lazily."""
+        norm = self.pipeline.normalize
+        dataset.attrs["normalize"] = bool(norm.enabled)
+        dataset.attrs["mean"] = np.asarray(norm.mean, dtype="float32")
+        dataset.attrs["std"] = np.asarray(norm.std, dtype="float32")
 
     def _fill(self, dataset, source: VideoSource, windows: List[ClipWindow],
               augment_copies: int) -> int:
@@ -91,7 +112,9 @@ class HDF5Builder:
         """Decode a whole video once, or None when it cannot be read."""
         try:
             return self.reader.decode_all(source, entry)
-        except (ClipReadError, Exception):
+        except Exception as error:
+            logger.warning("hdf5 build: cannot decode {} ({}); its clips will "
+                           "be skipped", entry, error)
             return None
 
     def _read_clip(self, frames, window: ClipWindow) -> Optional[np.ndarray]:
@@ -100,37 +123,65 @@ class HDF5Builder:
             return None
         try:
             return self.reader.window_clip(frames, window.start_frame, window.step)
-        except Exception:
+        except Exception as error:
+            logger.warning("hdf5 build: cannot slice window {}@{} ({}); "
+                           "skipped", window.entry, window.start_frame, error)
             return None
 
     def _write_variants(self, dataset, cursor: int, clip: Optional[np.ndarray],
                         augment_copies: int, rng: np.random.Generator) -> int:
         """Write the clean clip and any augmented copies, returning new cursor."""
         if clip is None:
-            dataset[cursor] = np.zeros(dataset.shape[1:], dtype="float32")
-            return cursor + 1
-        dataset[cursor] = self.pipeline(clip, train=False, rng=rng).numpy()
+            return cursor
+        dataset[cursor] = self._to_uint8(
+            self.pipeline(clip, train=False, rng=rng, apply_normalize=False)
+        )
         cursor += 1
         for _ in range(max(0, augment_copies)):
-            dataset[cursor] = self.pipeline(clip, train=True, rng=rng).numpy()
+            dataset[cursor] = self._to_uint8(
+                self.pipeline(clip, train=True, rng=rng, apply_normalize=False)
+            )
             cursor += 1
         return cursor
 
+    @staticmethod
+    def _to_uint8(clip: torch.Tensor) -> np.ndarray:
+        """Quantize a ``[0, 1]`` float clip to uint8 for compact storage."""
+        return (
+            clip.clamp_(0.0, 1.0).mul_(255.0).round_().to(torch.uint8).numpy()
+        )
+
 
 class HDF5ClipDataset(Dataset):
-    """Read preprocessed clips ``(C, T, H, W)`` from an HDF5 file."""
+    """Read preprocessed clips ``(C, T, H, W)`` from an HDF5 file.
+
+    New files hold uint8 clips plus normalization attributes applied at read
+    time; legacy float32 files (already normalized) are returned as-is.
+    """
 
     def __init__(self, path: str):
         self.path = path
         self._handle = None
-        self._length = self._read_length(path)
+        self._length, self._norm = self._read_meta(path)
 
-    def _read_length(self, path: str) -> int:
-        """Open the file once to read the number of stored clips."""
+    def _read_meta(self, path: str):
+        """Open the file once to read the clip count and normalization attrs."""
         import h5py
 
         with h5py.File(path, "r") as handle:
-            return int(handle[CLIPS_KEY].shape[0])
+            dataset = handle[CLIPS_KEY]
+            length = int(dataset.shape[0])
+            norm = None
+            if dataset.dtype == np.uint8 and bool(
+                dataset.attrs.get("normalize", False)
+            ):
+                mean = np.asarray(dataset.attrs["mean"], dtype="float32")
+                std = np.asarray(dataset.attrs["std"], dtype="float32")
+                norm = (
+                    torch.from_numpy(mean).view(-1, 1, 1, 1),
+                    torch.from_numpy(std).view(-1, 1, 1, 1),
+                )
+        return length, norm
 
     def _file(self):
         """Open the HDF5 file lazily, once per worker process."""
@@ -140,9 +191,21 @@ class HDF5ClipDataset(Dataset):
             self._handle = h5py.File(self.path, "r")
         return self._handle
 
+    def __getstate__(self):
+        # h5py handles are not picklable; each worker reopens the file lazily.
+        state = dict(self.__dict__)
+        state["_handle"] = None
+        return state
+
     def __len__(self) -> int:
         return self._length
 
     def __getitem__(self, index: int) -> torch.Tensor:
-        clip = self._file()[CLIPS_KEY][index]
-        return torch.from_numpy(np.asarray(clip, dtype=np.float32))
+        clip = np.asarray(self._file()[CLIPS_KEY][index])
+        if clip.dtype == np.uint8:
+            tensor = torch.from_numpy(clip).float().div_(255.0)
+            if self._norm is not None:
+                mean, std = self._norm
+                tensor = (tensor - mean) / std
+            return tensor
+        return torch.from_numpy(clip.astype(np.float32, copy=False))

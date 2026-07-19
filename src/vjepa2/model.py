@@ -186,6 +186,19 @@ class VJEPA21(nn.Module):
     def embed_dim(self):
         return self.encoder.embed_dim
 
+    def train(self, mode: bool = True):
+        """Set train/eval mode, keeping the frozen encoders in eval mode.
+
+        The EMA target (and the distillation EMA student) never trains: pinning
+        it to eval mode guards against any mode-dependent layer (dropout,
+        stochastic depth) silently perturbing the loss targets.
+        """
+        super().train(mode)
+        self.target_encoder.eval()
+        if self.ema_encoder is not None:
+            self.ema_encoder.eval()
+        return self
+
     def ema_target(self):
         """Return the module the EMA updater should write into.
 
@@ -278,7 +291,21 @@ class VJEPA21(nn.Module):
                 else self.target_encoder
             )
             msgs["target_encoder"] = dest.load_state_dict(tgt_sd, strict=strict)
+        self._warn_on_partial_load(msgs)
         return msgs
+
+    @staticmethod
+    def _warn_on_partial_load(msgs):
+        """Make a non-strict load with mismatched keys impossible to miss."""
+        for part, result in msgs.items():
+            if result.missing_keys:
+                logger.warning("%s: %d missing keys in checkpoint (e.g. %s)",
+                               part, len(result.missing_keys),
+                               result.missing_keys[:3])
+            if result.unexpected_keys:
+                logger.warning("%s: %d unexpected keys in checkpoint (e.g. %s)",
+                               part, len(result.unexpected_keys),
+                               result.unexpected_keys[:3])
 
 
 def build_vjepa2_1_vitb(checkpoint=None, device="cpu", **overrides):

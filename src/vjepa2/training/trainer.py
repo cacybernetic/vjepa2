@@ -63,6 +63,7 @@ class Trainer:
         self._pending = False
         self._resumed = False
         self._last_grad_norm = 0.0
+        self._micro_count = 0
         self._build_helpers(amp)
 
     def _build_helpers(self, amp: bool) -> None:
@@ -75,7 +76,16 @@ class Trainer:
         self.val_meter = MetricTracker(METRIC_NAMES)
         self.test_meter = MetricTracker(METRIC_NAMES)
         self.use_amp = bool(amp) and self.device == "cuda"
-        self.scaler = torch.amp.GradScaler("cuda", enabled=self.use_amp)
+        # Prefer bf16 when the hardware supports it: same dynamic range as
+        # fp32, so no GradScaler and no skipped steps. The scaler is only
+        # needed for fp16 autocast.
+        self.amp_dtype = torch.float16
+        if self.use_amp and torch.cuda.is_available() \
+                and torch.cuda.is_bf16_supported():
+            self.amp_dtype = torch.bfloat16
+        self.scaler = torch.amp.GradScaler(
+            "cuda", enabled=self.use_amp and self.amp_dtype == torch.float16
+        )
         self.steps_per_epoch = self._steps_per_epoch()
         self.total_steps = self.steps_per_epoch * self.cfg.epochs
         self._log_every = self._resolve_cadence(self.cfg.log_every, "log_every")
@@ -158,6 +168,7 @@ class Trainer:
         loss, parts, n = self._forward_loss(batch)
         self.scaler.scale(loss / self.cfg.grad_accum).backward()
         self._pending = True
+        self._micro_count += 1
         if (micro + 1) % self.cfg.grad_accum == 0:
             self._optimizer_step()
         return parts, n
@@ -171,6 +182,7 @@ class Trainer:
         advanced -- the LR is held for the retry.
         """
         self.scaler.unscale_(self.optimizer)
+        self._rescale_partial_accumulation()
         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                                     self.cfg.grad_clip_norm)
         self._last_grad_norm = float(grad_norm)
@@ -182,6 +194,7 @@ class Trainer:
         self.scaler.update()
         self.optimizer.zero_grad(set_to_none=True)
         self._pending = False
+        self._micro_count = 0
         if self.scaler.get_scale() < scale_before:
             vlog.logger.debug("optimizer step skipped (inf/nan grads); "
                               "lr and ema held")
@@ -211,6 +224,22 @@ class Trainer:
             vlog.logger.debug("flushing leftover gradient accumulation")
             self._optimizer_step()
 
+    def _rescale_partial_accumulation(self) -> None:
+        """Undo the ``1/grad_accum`` bias of a partial accumulation window.
+
+        Each micro-batch loss is scaled by ``1/grad_accum``; when fewer
+        micro-batches contributed (the end-of-epoch flush), the summed gradient
+        is under-weighted by ``micro/grad_accum``. Rescaling here -- after
+        ``unscale_`` and before clipping -- restores a proper average so the
+        flushed step has the same magnitude as a full one.
+        """
+        if 0 < self._micro_count < self.cfg.grad_accum:
+            factor = self.cfg.grad_accum / self._micro_count
+            for group in self.optimizer.param_groups:
+                for param in group["params"]:
+                    if param.grad is not None:
+                        param.grad.mul_(factor)
+
     # -- validation and test passes -----------------------------------------
     def _validate_pass(self, epoch: int) -> None:
         """Run validation on the held-out fraction of the test set."""
@@ -236,8 +265,14 @@ class Trainer:
         bar.close()
 
     def _checkpoint_eval(self, batch_index: int, phase: str) -> None:
-        """Save a checkpoint during an evaluation pass for mid-pass resume."""
-        if (batch_index + 1) % self.cfg.ckpt_step == 0:
+        """Save a checkpoint during an evaluation pass for mid-pass resume.
+
+        Uses the *resolved* cadence (``_ckpt_step``, in whole batches). The raw
+        config value may be a fraction of an epoch (e.g. ``0.25``), and an
+        integer modulo against a fraction is zero for every batch -- which
+        would write one full checkpoint per evaluation batch.
+        """
+        if (batch_index + 1) % self._ckpt_step == 0:
             self.state.eval_ckpt += 1
             self._save_checkpoint(phase, self.state.eval_ckpt)
 
@@ -257,9 +292,11 @@ class Trainer:
             z_pred, z_ctx, target = self.model(
                 clips, masks_enc, masks_pred, mod=mod, training_mode=True
             )
-            loss, parts = self.loss_fn(
-                z_pred, z_ctx, target, masks_enc, masks_pred, self.state.global_step
-            )
+        # The loss is computed outside autocast (and internally in fp32):
+        # half-precision L1 reductions over millions of tokens lose precision.
+        loss, parts = self.loss_fn(
+            z_pred, z_ctx, target, masks_enc, masks_pred, self.state.global_step
+        )
         parts["feat_std"] = feature_std(target)
         parts["pred_cos"] = prediction_cosine(z_pred, target, masks_pred)
         return loss, parts, int(clips[0].shape[0])
@@ -267,7 +304,7 @@ class Trainer:
     def _autocast(self):
         """Return an autocast context on CUDA when AMP is on, else a no-op."""
         if self.use_amp:
-            return torch.autocast("cuda", enabled=True)
+            return torch.autocast("cuda", dtype=self.amp_dtype)
         import contextlib
 
         return contextlib.nullcontext()
@@ -341,6 +378,7 @@ class Trainer:
         train_avg = self.train_meter.averages()
         val_avg = self.val_meter.averages()
         has_val = self.bundle.val_loader is not None and bool(val_avg)
+        self._warn_on_collapse(train_avg)
         vlog.logger.info("===== Epoch {}/{} metrics =====",
                          epoch + 1, self.cfg.epochs)
         header = f"  {'metric':<10} {'train':>16}"
@@ -352,6 +390,24 @@ class Trainer:
             if has_val:
                 line += f" {val_avg.get(name, float('nan')):>16.8f}"
             vlog.logger.info(line)
+
+    # Per-dimension std of the (per-level LayerNormed) targets sits near 1.0
+    # for a healthy encoder; a value this low means the representation is
+    # degenerating toward a constant.
+    _COLLAPSE_STD_THRESHOLD = 0.05
+
+    def _warn_on_collapse(self, train_avg: Dict[str, float]) -> None:
+        """Shout when the target features look collapsed.
+
+        A JEPA loss *decreases* under representation collapse, so the loss
+        alone can never reveal it -- feat_std is the canary.
+        """
+        feat_std = train_avg.get("feat_std")
+        if feat_std is not None and 0.0 < feat_std < self._COLLAPSE_STD_THRESHOLD:
+            vlog.logger.warning(
+                "feat_std={:.4f} is near zero: the representation looks "
+                "collapsed. The loss value is NOT trustworthy in this regime; "
+                "check the EMA momentum, learning rate and data.", feat_std)
 
     def _epoch_row(self, epoch: int) -> Dict[str, float]:
         """Build the per-epoch metric row from the train and val meters."""

@@ -37,6 +37,7 @@ class EvalApp:
         )
         common.save_config_used(self.cfg, self.paths.config_used)
         utils.set_seed(self.cfg.seed)
+        utils.configure_backend(self.cfg.device)
         vlog.logger.info("Starting evaluation pipeline")
         common.log_dataset_block(self.cfg)
 
@@ -56,9 +57,26 @@ class EvalApp:
         path = self.cfg.eval.weights
         if not path:
             raise ValueError("eval.weights must point to a model .pt file")
-        state = torch.load(path, map_location=self.cfg.device, weights_only=False)
-        self.model.load_state_dict(state.get("model", state), strict=False)
+        try:
+            state = torch.load(path, map_location=self.cfg.device,
+                               weights_only=True)
+        except Exception:
+            vlog.logger.warning(
+                "weights at {} are not a plain tensor file; falling back to "
+                "weights_only=False (only do this with trusted files)", path)
+            state = torch.load(path, map_location=self.cfg.device,
+                               weights_only=False)
+        result = self.model.load_state_dict(state.get("model", state),
+                                            strict=False)
         vlog.logger.info("Loaded model weights from {}", path)
+        if result.missing_keys:
+            vlog.logger.warning("eval weights: {} missing keys (e.g. {})",
+                                len(result.missing_keys),
+                                result.missing_keys[:3])
+        if result.unexpected_keys:
+            vlog.logger.warning("eval weights: {} unexpected keys (e.g. {})",
+                                len(result.unexpected_keys),
+                                result.unexpected_keys[:3])
 
     def evaluate(self) -> None:
         """Run the evaluation and save the results."""

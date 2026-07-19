@@ -153,11 +153,17 @@ class ClipPipeline:
         )
 
     def __call__(self, clip_thwc: np.ndarray, train: bool,
-                 rng: np.random.Generator) -> torch.Tensor:
-        """Return a normalized ``(3, T, H, W)`` tensor ready for the encoder."""
+                 rng: np.random.Generator,
+                 apply_normalize: bool = True) -> torch.Tensor:
+        """Return a ``(3, T, H, W)`` tensor ready for the encoder.
+
+        :param apply_normalize: set to False to keep values in ``[0, 1]`` (used
+            by the HDF5 builder, which stores uint8 and normalizes at read time).
+        """
         clip = clip_to_tensor(clip_thwc)
         clip = self.geometry(clip, train, rng)
         if train:
             clip = self.augment(clip, rng)
-        clip = self.normalize(clip)
+        if apply_normalize:
+            clip = self.normalize(clip)
         return clip.permute(1, 0, 2, 3).contiguous()

@@ -110,5 +110,7 @@ train:
   runs_dir: runs
   resume: true              # reuse the latest run folder and continue
   init_weights: null        # path to a .pt to warm-start (used only if no ckpt)
-  best_metric: loss         # which validation metric picks the best model
+  best_metric: predict      # masked-prediction L1; the total loss is not
+                            # comparable across epochs (lambda(t) ramps) and
+                            # shrinks under collapse -- watch feat_std too
   best_mode: min            # min for losses, max for scores

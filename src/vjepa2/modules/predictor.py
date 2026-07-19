@@ -191,18 +191,38 @@ class VisionTransformerPredictor(nn.Module):
                 out_embed_dim = teacher_embed_dim // len(self.hierarchical_layers)
             else:
                 out_embed_dim = embed_dim
-        self.predictor_norm = norm_layer(predictor_embed_dim)
-        self.predictor_proj = nn.Linear(
-            predictor_embed_dim,
-            len(self.hierarchical_layers) * out_embed_dim,
-            bias=True,
-        )
-        if self.return_all_tokens:
-            self.predictor_proj_context = nn.Linear(
-                predictor_embed_dim,
-                out_embed_dim * len(self.hierarchical_layers),
-                bias=True,
+        self.n_levels = len(self.hierarchical_layers)
+        # Deep self-supervision: each level's prediction is read from its own
+        # intermediate predictor block (``self.hierarchical_layers``), with a
+        # per-level norm and projection -- not from a single projection of the
+        # last block. The single-level (distillation) layout keeps the plain
+        # module names so existing checkpoints load unchanged.
+        if self.n_levels == 1:
+            self.predictor_norm = norm_layer(predictor_embed_dim)
+            self.predictor_proj = nn.Linear(
+                predictor_embed_dim, out_embed_dim, bias=True
             )
+            if self.return_all_tokens:
+                self.predictor_proj_context = nn.Linear(
+                    predictor_embed_dim, out_embed_dim, bias=True
+                )
+        else:
+            self.predictor_norm = nn.ModuleList(
+                [norm_layer(predictor_embed_dim) for _ in range(self.n_levels)]
+            )
+            self.predictor_proj = nn.ModuleList(
+                [
+                    nn.Linear(predictor_embed_dim, out_embed_dim, bias=True)
+                    for _ in range(self.n_levels)
+                ]
+            )
+            if self.return_all_tokens:
+                self.predictor_proj_context = nn.ModuleList(
+                    [
+                        nn.Linear(predictor_embed_dim, out_embed_dim, bias=True)
+                        for _ in range(self.n_levels)
+                    ]
+                )
 
         self.init_std = init_std
         if not zero_init_mask_tokens and self.mask_tokens is not None:
@@ -305,7 +325,9 @@ class VisionTransformerPredictor(nn.Module):
         # geometry explicitly (rather than letting the attention fall back to
         # the init-time ``grid_size``) keeps positions correct when the encoder
         # runs at a resolution other than the pretraining one (e.g. cool-down).
-        for blk in self.predictor_blocks:
+        taps = []
+        tap_layers = set(self.hierarchical_layers) if self.n_levels > 1 else set()
+        for i, blk in enumerate(self.predictor_blocks):
             if self.use_activation_checkpointing:
                 x, attn = torch.utils.checkpoint.checkpoint(
                     blk,
@@ -324,23 +346,32 @@ class VisionTransformerPredictor(nn.Module):
                     H_patches=self.grid_height,
                     W_patches=self.grid_width,
                 )
-        x = self.predictor_norm(x)
+            if i in tap_layers:
+                taps.append(x)
+        if self.n_levels == 1:
+            taps = [x]
 
-        # -- undo the sort and split context / masked predictions
+        # -- undo the sort, split context / masked tokens, project per level
         reverse_argsort = torch.argsort(argsort, dim=1)
-        x = torch.stack(
-            [x[i, row, :] for i, row in enumerate(reverse_argsort)], dim=0
-        )
+        preds, contexts = [], []
+        for level, feat in enumerate(taps):
+            feat = self._level_module(self.predictor_norm, level)(feat)
+            feat = torch.stack(
+                [feat[i, row, :] for i, row in enumerate(reverse_argsort)], dim=0
+            )
+            proj = self._level_module(self.predictor_proj, level)
+            preds.append(proj(feat[:, N_ctxt:, :]))
+            if self.return_all_tokens:
+                proj_ctx = self._level_module(self.predictor_proj_context, level)
+                contexts.append(proj_ctx(feat[:, :N_ctxt, :]))
+        x_pred = torch.cat(preds, dim=-1)
         if not self.return_all_tokens:
-            x = x[:, N_ctxt:, :]
-            x = self.predictor_proj(x)
-            return x, None
-        else:
-            x_pred = x[:, N_ctxt:, :]
-            x_context = x[:, :N_ctxt, :]
-            x_pred = self.predictor_proj(x_pred)
-            x_context = self.predictor_proj_context(x_context)
-            return x_pred, x_context
+            return x_pred, None
+        return x_pred, torch.cat(contexts, dim=-1)
+
+    def _level_module(self, module, level: int):
+        """Return the per-level module (single-level keeps plain modules)."""
+        return module if self.n_levels == 1 else module[level]
 
 
 def vit_predictor(**kwargs):

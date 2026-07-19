@@ -109,5 +109,9 @@ train:
   runs_dir: runs
   resume: true
   init_weights: null
-  best_metric: loss
+  # "predict" (masked-prediction L1) rather than the total loss: the total
+  # includes the context term whose weight lambda(t) ramps during training, so
+  # it is not comparable across epochs; and a collapsed representation also
+  # minimizes any JEPA loss (watch the feat_std warning in the logs).
+  best_metric: predict
   best_mode: min

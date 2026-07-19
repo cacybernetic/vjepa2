@@ -110,6 +110,11 @@ class ResumableDataLoader:
             drop_last=drop_last,
             pin_memory=pin_memory,
             worker_init_fn=worker_init_fn,
+            # Keep workers alive across epochs: avoids the per-epoch respawn
+            # (and re-pickle of dataset/collator state) and keeps decoder
+            # handles warm. The sampler lives in the main process, so
+            # set_epoch/resume still take effect with persistent workers.
+            persistent_workers=num_workers > 0,
         )
 
     @property

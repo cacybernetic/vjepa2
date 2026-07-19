@@ -45,11 +45,19 @@ class DataBundle:
 
 
 def _seed_worker(worker_id: int) -> None:
-    """Give each data-loading worker its own numpy seed."""
+    """Seed every RNG a data-loading worker may use.
+
+    ``torch.initial_seed()`` is already unique per worker and per epoch (the
+    DataLoader derives it from the global torch RNG), so it anchors numpy and
+    ``random`` to the same reproducible stream.
+    """
+    import random
+
     import torch
 
     seed = (torch.initial_seed() + worker_id) % (2 ** 32)
     np.random.seed(seed)
+    random.seed(seed)
 
 
 def build_pipeline(cfg: Config, train: bool) -> ClipPipeline:
@@ -199,7 +207,7 @@ def build_data_bundle(cfg: Config, batch_size: int,
         train_ds, val_ds, test_ds = _build_hdf5(cfg)
     else:
         train_ds, val_ds, test_ds = _build_onthefly(cfg)
-    collate = build_collator(cfg)
+    collate = build_collator(cfg, seed=cfg.seed)
     train_loader = _make_loader(cfg, train_ds, collate, True, batch_size, num_workers)
     val_loader = None
     if val_ds is not None and len(val_ds) > 0:
@@ -228,6 +236,6 @@ def build_eval_loader(cfg: Config, batch_size: int, num_workers: int
             cfg, cfg.dataset.test_path, is_zip, entries, meta, train=False
         )
     log_clip_windows(dataset)
-    collate = build_collator(cfg)
+    collate = build_collator(cfg, seed=cfg.seed)
     loader = _make_loader(cfg, dataset, collate, False, batch_size, num_workers)
     return loader, len(dataset)

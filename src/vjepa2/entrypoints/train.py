@@ -43,6 +43,7 @@ class TrainApp:
         )
         common.save_config_used(self.cfg, self.paths.config_used)
         utils.set_seed(self.cfg.seed)
+        utils.configure_backend(self.cfg.device)
         vlog.logger.info("Starting training pipeline")
         common.log_dataset_block(self.cfg)
 
@@ -73,10 +74,33 @@ class TrainApp:
             return
         init_path = self.cfg.train.init_weights
         if init_path:
-            state = torch.load(init_path, map_location=self.cfg.device,
-                               weights_only=False)
-            self.model.load_state_dict(state.get("model", state), strict=False)
+            state = self._load_init_state(init_path)
+            result = self.model.load_state_dict(
+                state.get("model", state), strict=False
+            )
             vlog.logger.info("Loaded init weights from {}", init_path)
+            # A silent partial load "converges" from a half-random model;
+            # surface any mismatch loudly instead.
+            if result.missing_keys:
+                vlog.logger.warning(
+                    "init weights: {} missing keys (e.g. {})",
+                    len(result.missing_keys), result.missing_keys[:3])
+            if result.unexpected_keys:
+                vlog.logger.warning(
+                    "init weights: {} unexpected keys (e.g. {})",
+                    len(result.unexpected_keys), result.unexpected_keys[:3])
+
+    def _load_init_state(self, path: str):
+        """Load init weights, preferring the safe ``weights_only`` path."""
+        try:
+            return torch.load(path, map_location=self.cfg.device,
+                              weights_only=True)
+        except Exception:
+            vlog.logger.warning(
+                "init weights at {} are not a plain tensor file; falling back "
+                "to weights_only=False (only do this with trusted files)", path)
+            return torch.load(path, map_location=self.cfg.device,
+                              weights_only=False)
 
     def summarize(self) -> None:
         """Print the run summary and the model architecture summary."""

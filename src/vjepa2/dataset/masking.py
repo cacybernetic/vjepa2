@@ -34,32 +34,77 @@ def grid_dims(crop_size: int, patch_size: int, num_frames: int,
 
 
 class TubeMaskCollator:
-    """Collate clips into a batch and generate shared context/predict masks."""
+    """Collate clips into a batch and generate per-sample context/predict masks.
+
+    The RNG is deliberately *not* part of the pickled state: a DataLoader
+    pickles the collator into every worker (and again at every epoch when
+    workers are not persistent), so shipping a generator state would make every
+    worker -- and every epoch -- replay the exact same mask sequence. Instead
+    each process lazily seeds its own generator: workers derive it from their
+    per-worker, per-epoch ``torch.initial_seed()``, the main process uses the
+    configured seed (or fresh entropy when none is given).
+    """
 
     def __init__(self, cfg: MaskingConfig, grid_size: int, grid_depth: int,
                  seed: Optional[int] = None):
         self.cfg = cfg
         self.grid_size = int(grid_size)
         self.grid_depth = int(grid_depth)
-        self._rng = np.random.default_rng(seed)
+        self.seed = seed
+        self._rng: Optional[np.random.Generator] = None
+
+    def __getstate__(self):
+        state = dict(self.__dict__)
+        state["_rng"] = None
+        return state
+
+    def _ensure_rng(self) -> np.random.Generator:
+        if self._rng is None:
+            worker = torch.utils.data.get_worker_info()
+            if worker is not None:
+                self._rng = np.random.default_rng(
+                    torch.initial_seed() % (2 ** 63)
+                )
+            else:
+                self._rng = np.random.default_rng(self.seed)
+        return self._rng
 
     def __call__(self, samples: List[torch.Tensor]):
         """Stack samples and attach the nested ``[fpc][mask]`` mask lists.
 
-        ``cfg.num_pred_masks`` independent context/predict partitions are drawn;
-        the encoder and predictor iterate over each of them.
+        ``cfg.num_pred_masks`` independent context/predict partitions are drawn
+        *per sample*; the encoder and predictor iterate over each of them. The
+        per-sample index lists are randomly subsampled to a common length so
+        they stack into rectangular ``(B, K)`` tensors (tokens dropped this way
+        are simply neither context nor prediction targets for that step).
         """
+        self._ensure_rng()
         clips = torch.stack(samples, dim=0)
         batch = clips.shape[0]
         enc_masks: List[torch.Tensor] = []
         pred_masks: List[torch.Tensor] = []
         for _ in range(max(1, int(self.cfg.num_pred_masks))):
-            enc_idx, pred_idx = self._sample_partition()
-            enc = torch.as_tensor(enc_idx, dtype=torch.long)
-            pred = torch.as_tensor(pred_idx, dtype=torch.long)
-            enc_masks.append(enc.unsqueeze(0).repeat(batch, 1))
-            pred_masks.append(pred.unsqueeze(0).repeat(batch, 1))
+            partitions = [self._sample_partition() for _ in range(batch)]
+            enc_lists = [p[0] for p in partitions]
+            pred_lists = [p[1] for p in partitions]
+            min_enc = min(len(e) for e in enc_lists)
+            min_pred = min(len(p) for p in pred_lists)
+            enc = torch.stack(
+                [self._subsample(e, min_enc) for e in enc_lists], dim=0
+            )
+            pred = torch.stack(
+                [self._subsample(p, min_pred) for p in pred_lists], dim=0
+            )
+            enc_masks.append(enc)
+            pred_masks.append(pred)
         return [clips], [enc_masks], [pred_masks]
+
+    def _subsample(self, indices: List[int], count: int) -> torch.Tensor:
+        """Randomly keep ``count`` indices, preserving their sorted order."""
+        if len(indices) > count:
+            keep = self._rng.choice(len(indices), size=count, replace=False)
+            indices = [indices[i] for i in sorted(keep)]
+        return torch.as_tensor(indices, dtype=torch.long)
 
     def _sample_partition(self) -> Tuple[List[int], List[int]]:
         """Return flat (context, predict) token indices over the whole clip."""

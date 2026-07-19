@@ -88,17 +88,22 @@ def jepa_loss(z, h, masks_to_apply, loss_exp=1.0, d_weights=None):
 
     h = [apply_masks(hi, mi, concat=False) for hi, mi in zip(h, masks_to_apply)]
 
+    # Accumulate in fp32 regardless of the (possibly autocast fp16/bf16)
+    # dtype of predictions and targets: half-precision means over millions of
+    # token errors lose significant precision.
     loss, n = 0.0, 0
     if d_weights is not None:
         for zi, hi, d_i in zip(z, h, d_weights):
             for zij, hij, d_ij in zip(zi, hi, d_i):
-                loss_n = torch.abs(zij - hij) ** loss_exp * (1 / d_ij.unsqueeze(2))
+                err = torch.abs(zij.float() - hij.float()) ** loss_exp
+                loss_n = err * (1 / d_ij.float().unsqueeze(2))
                 loss += torch.mean(loss_n) / loss_exp
                 n += 1
     else:
         for zi, hi in zip(z, h):
             for zij, hij in zip(zi, hi):
-                loss += torch.mean(torch.abs(zij - hij) ** loss_exp) / loss_exp
+                err = torch.abs(zij.float() - hij.float()) ** loss_exp
+                loss += torch.mean(err) / loss_exp
                 n += 1
     loss /= max(n, 1)
     return loss

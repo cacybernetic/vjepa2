@@ -47,13 +47,15 @@ def rotate_queries_or_keys(x, pos, n_registers=0, has_cls_first=False):
     # aligned when a leading CLS token and/or trailing registers are present.
     pos_ctx = pos[..., start_ctx:end_ctx]
 
-    omega = torch.arange(D // 2, dtype=x.dtype, device=x.device)
+    # Build the tables in fp32 even under autocast: fp16 sin/cos of the
+    # position frequencies degrades the positional signal.
+    omega = torch.arange(D // 2, dtype=torch.float32, device=x.device)
     omega /= D / 2.0
     omega = 1.0 / 10000**omega
-    freq = torch.einsum("..., f -> ... f", pos_ctx, omega)
+    freq = torch.einsum("..., f -> ... f", pos_ctx.float(), omega)
 
-    emb_sin = freq.sin()
-    emb_cos = freq.cos()
+    emb_sin = freq.sin().to(x.dtype)
+    emb_cos = freq.cos().to(x.dtype)
 
     emb_sin = emb_sin.repeat_interleave(2, dim=-1)
     emb_cos = emb_cos.repeat_interleave(2, dim=-1)
@@ -107,6 +109,7 @@ class RoPEAttention(nn.Module):
         self.head_dim = head_dim = dim // num_heads
         self.scale = qk_scale or head_dim**-0.5
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop_prob = attn_drop
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop_prob = proj_drop
@@ -191,8 +194,12 @@ class RoPEAttention(nn.Module):
                 H_patches = int(self.grid_size)
             if W_patches is None:
                 W_patches = int(self.grid_size)
-            h_mask = h_mask * (self.pretrained_grid_size - 1) / (H_patches - 1)
-            w_mask = w_mask * (self.pretrained_grid_size - 1) / (W_patches - 1)
+            # A 1-patch axis has a single position (0): nothing to rescale,
+            # and the formula would divide by zero.
+            if H_patches > 1:
+                h_mask = h_mask * (self.pretrained_grid_size - 1) / (H_patches - 1)
+            if W_patches > 1:
+                w_mask = w_mask * (self.pretrained_grid_size - 1) / (W_patches - 1)
 
         s = 0
         qd = rotate_queries_or_keys(
@@ -227,8 +234,12 @@ class RoPEAttention(nn.Module):
             k = torch.cat([kd, kh, kw], dim=-1)
 
         if self.use_sdpa:
+            # SDPA's dropout is *attention* dropout, and it is not gated on
+            # module mode by itself -- gate it here so eval stays deterministic.
             x = F.scaled_dot_product_attention(
-                q, k, v, dropout_p=self.proj_drop_prob, is_causal=self.is_causal
+                q, k, v,
+                dropout_p=self.attn_drop_prob if self.training else 0.0,
+                is_causal=self.is_causal,
             )
             attn = None
         else:
@@ -263,6 +274,7 @@ class Attention(nn.Module):
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim**-0.5
         self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.attn_drop_prob = attn_drop
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop_prob = proj_drop
@@ -281,7 +293,9 @@ class Attention(nn.Module):
 
         if self.use_sdpa:
             x = F.scaled_dot_product_attention(
-                q, k, v, dropout_p=self.proj_drop_prob, is_causal=self.is_causal
+                q, k, v,
+                dropout_p=self.attn_drop_prob if self.training else 0.0,
+                is_causal=self.is_causal,
             )
         else:
             attn = (q @ k.transpose(-2, -1)) * self.scale

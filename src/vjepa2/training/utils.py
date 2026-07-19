@@ -17,6 +17,7 @@ import torch
 
 __all__ = [
     "set_seed",
+    "configure_backend",
     "rng_state",
     "set_rng_state",
     "move_clips",
@@ -34,13 +35,28 @@ def set_seed(seed: int) -> None:
         torch.cuda.manual_seed_all(seed)
 
 
+def configure_backend(device: str) -> None:
+    """Enable the fast GPU math paths for fixed-shape training.
+
+    TF32 matmuls and cuDNN autotuning are safe for this workload (all input
+    shapes are constant across steps) and leave measurable speed on the table
+    when off. No-op on CPU.
+    """
+    if device == "cuda" and torch.cuda.is_available():
+        torch.backends.cudnn.benchmark = True
+        torch.set_float32_matmul_precision("high")
+
+
 def rng_state() -> Dict[str, Any]:
     """Capture the current random number generator states."""
-    return {
+    state = {
         "python": random.getstate(),
         "numpy": np.random.get_state(),
         "torch": torch.get_rng_state(),
     }
+    if torch.cuda.is_available():
+        state["torch_cuda"] = torch.cuda.get_rng_state_all()
+    return state
 
 
 def set_rng_state(state: Dict[str, Any]) -> None:
@@ -50,6 +66,13 @@ def set_rng_state(state: Dict[str, Any]) -> None:
     random.setstate(state["python"])
     np.random.set_state(state["numpy"])
     torch.set_rng_state(state["torch"])
+    if state.get("torch_cuda") and torch.cuda.is_available():
+        try:
+            torch.cuda.set_rng_state_all(state["torch_cuda"])
+        except RuntimeError:
+            # Device count changed between save and resume; skip rather than
+            # abort the whole resume for a reproducibility nicety.
+            pass
 
 
 def move_clips(clips: List[torch.Tensor], device: str) -> List[torch.Tensor]:

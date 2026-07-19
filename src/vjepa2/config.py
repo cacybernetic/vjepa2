@@ -340,7 +340,11 @@ class TrainConfig:
     checkpoints_dirname: str = "checkpoints"
     resume: bool = True
     init_weights: Optional[str] = None
-    best_metric: str = "loss"
+    # Default to the masked-prediction term rather than the total loss: the
+    # total mixes in the context term whose weight lambda(t) ramps during the
+    # run (values are not comparable across epochs), and any JEPA loss shrinks
+    # under representation collapse -- pair this with the feat_std warning.
+    best_metric: str = "predict"
     best_mode: str = "min"
 
     @classmethod
@@ -359,7 +363,7 @@ class TrainConfig:
             checkpoints_dirname=str(_get(data, "checkpoints_dirname", "checkpoints")),
             resume=bool(_get(data, "resume", True)),
             init_weights=data.get("init_weights"),
-            best_metric=str(_get(data, "best_metric", "loss")),
+            best_metric=str(_get(data, "best_metric", "predict")),
             best_mode=str(_get(data, "best_mode", "min")).lower(),
         )
 
