@@ -29,7 +29,12 @@ __all__ = [
 
 def clip_to_tensor(clip_thwc: np.ndarray) -> torch.Tensor:
     """Convert a ``(T, H, W, 3)`` uint8 array to ``(T, 3, H, W)`` float in [0,1]."""
-    tensor = torch.from_numpy(np.ascontiguousarray(clip_thwc))
+    array = np.ascontiguousarray(clip_thwc)
+    if not array.flags.writeable:
+        # Video decoders often hand out read-only frame buffers;
+        # torch.from_numpy needs a writable array.
+        array = array.copy()
+    tensor = torch.from_numpy(array)
     tensor = tensor.permute(0, 3, 1, 2).contiguous().float().div_(255.0)
     return tensor
 
