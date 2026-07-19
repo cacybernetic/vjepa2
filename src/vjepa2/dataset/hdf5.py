@@ -25,7 +25,7 @@ from tqdm import tqdm
 
 from vjepa2.dataset.clip_index import ClipWindow
 from vjepa2.dataset.transforms import ClipPipeline
-from vjepa2.dataset.video_io import VideoReader, VideoSource
+from vjepa2.dataset.video_io import VideoSource
 from vjepa2.logging import logger
 
 __all__ = ["HDF5Builder", "HDF5ClipDataset"]
@@ -34,9 +34,17 @@ CLIPS_KEY = "clips"
 
 
 class HDF5Builder:
-    """Decode, transform and store clip windows into a single HDF5 file."""
+    """Decode, transform and store clips into a single HDF5 file.
 
-    def __init__(self, pipeline: ClipPipeline, reader: VideoReader):
+    Video datasets are expanded into clip windows (``build``); image datasets
+    store one single-frame clip per file (``build_images``). Both write the
+    same uint8 ``(N, C, T, H, W)`` layout, so ``HDF5ClipDataset`` reads either.
+
+    :param reader: a ``VideoReader`` for ``build``, or any object with a
+        ``read(source, entry)`` method for ``build_images``.
+    """
+
+    def __init__(self, pipeline: ClipPipeline, reader):
         self.pipeline = pipeline
         self.reader = reader
 
@@ -71,6 +79,58 @@ class HDF5Builder:
             logger.warning("hdf5 build: {}/{} clips written ({} skipped as "
                            "unreadable)", written, total, total - written)
         return written
+
+    def build_images(self, out_path: str, root: str, is_zip: bool,
+                     entries: List[str],
+                     clip_shape: Tuple[int, int, int, int],
+                     augment_copies: int = 0) -> int:
+        """Write every image (plus optional augmented copies) to ``out_path``.
+
+        Each image becomes one preprocessed single-frame clip ``(C, 1, H, W)``.
+        Unreadable files are skipped (and logged), never written as fabricated
+        data; the dataset is resized down to the clips actually written.
+
+        :param clip_shape: expected ``(C, 1, H, W)`` of one preprocessed clip.
+        :param augment_copies: extra augmented versions stored per image.
+        :returns: the number of clips written.
+        """
+        import h5py
+
+        os.makedirs(os.path.dirname(os.path.abspath(out_path)), exist_ok=True)
+        source = VideoSource(root, is_zip)
+        total = len(entries) * (1 + max(0, augment_copies))
+        with h5py.File(out_path, "w") as handle:
+            dataset = self._make_dataset(handle, total, clip_shape)
+            self._write_norm_attrs(dataset)
+            written = self._fill_images(dataset, source, entries, augment_copies)
+            if written < total:
+                dataset.resize((written, *clip_shape))
+        source.close()
+        if written < total:
+            logger.warning("hdf5 build: {}/{} clips written ({} skipped as "
+                           "unreadable)", written, total, total - written)
+        return written
+
+    def _fill_images(self, dataset, source: VideoSource, entries: List[str],
+                     augment_copies: int) -> int:
+        """Loop over image entries and write each preprocessed clip in place."""
+        cursor = 0
+        rng = np.random.default_rng(0)
+        bar = tqdm(entries, desc="building hdf5", leave=True, ascii="░█",
+                   dynamic_ncols=True)
+        for entry in bar:
+            clip = self._read_image(source, entry)
+            cursor = self._write_variants(dataset, cursor, clip, augment_copies, rng)
+        return cursor
+
+    def _read_image(self, source: VideoSource, entry: str) -> Optional[np.ndarray]:
+        """Decode one image into a ``(1, H, W, 3)`` clip, or None on failure."""
+        try:
+            return self.reader.read(source, entry)
+        except Exception as error:
+            logger.warning("hdf5 build: cannot decode {} ({}); skipped",
+                           entry, error)
+            return None
 
     def _make_dataset(self, handle, total: int,
                       clip_shape: Tuple[int, int, int, int]):

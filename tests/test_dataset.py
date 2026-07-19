@@ -10,16 +10,22 @@ import os
 import zipfile
 
 import numpy as np
+import pytest
 import torch
 
-from vjepa2.config import MaskingConfig
+from vjepa2.config import Config, DatasetConfig, MaskingConfig
 from vjepa2.dataset.cache import CacheStore, cache_path
 from vjepa2.dataset.clip_index import (build_clip_windows, frame_step,
                                        num_windows, sampled_length)
 from vjepa2.dataset.dataloader import ResumableDataLoader, ResumableSampler
-from vjepa2.dataset.discovery import VideoFileFinder
+from vjepa2.dataset.discovery import ImageFileFinder, VideoFileFinder
+from vjepa2.dataset.factory import build_collator, build_data_bundle
+from vjepa2.dataset.image_dataset import ImageClipDataset
+from vjepa2.dataset.image_io import ImageReader
 from vjepa2.dataset.masking import TubeMaskCollator, grid_dims
 from vjepa2.dataset.splits import cap_entries, split_val_test
+from vjepa2.dataset.transforms import ClipPipeline
+from vjepa2.dataset.video_io import VideoSource
 
 
 def test_finder_walks_folder_recursively(tmp_path):
@@ -222,3 +228,115 @@ def test_resumable_loader_position_tracks_samples():
     assert loader.position == 6
     state = loader.state_dict()
     assert state["sampler"]["position"] == 6
+
+
+# -- image datasets ----------------------------------------------------------
+
+
+def _write_png(path, size=(40, 32), color=(255, 0, 0)):
+    from PIL import Image
+
+    Image.new("RGB", size, color).save(path)
+
+
+def _image_config(tmp_path, crop_size=32):
+    cfg = Config.from_dict({
+        "dataset": {
+            "type": "image",
+            "train_path": str(tmp_path / "train"),
+            "test_path": str(tmp_path / "test"),
+            "crop_size": crop_size,
+            "val_prob": 0.5,
+        },
+        "train": {"num_workers": 0},
+    })
+    return cfg
+
+
+def test_dataset_config_type_enum():
+    assert DatasetConfig.from_dict({"type": "IMAGE"}).type == "image"
+    assert DatasetConfig.from_dict({}).type == "video"
+    with pytest.raises(ValueError):
+        DatasetConfig.from_dict({"type": "audio"})
+
+
+def test_dataset_config_clip_frames_follows_type():
+    assert DatasetConfig.from_dict({"num_frames": 16}).clip_frames == 16
+    image = DatasetConfig.from_dict({"type": "image", "num_frames": 16})
+    assert image.clip_frames == 1
+
+
+def test_image_finder_walks_folder_and_zip(tmp_path):
+    (tmp_path / "sub").mkdir()
+    _write_png(tmp_path / "a.png")
+    _write_png(tmp_path / "sub" / "b.jpg")
+    (tmp_path / "clip.mp4").write_bytes(b"x")
+    entries = ImageFileFinder().find(str(tmp_path))
+    assert sorted(entries) == ["a.png", os.path.join("sub", "b.jpg")]
+    archive = tmp_path / "imgs.zip"
+    with zipfile.ZipFile(archive, "w") as zf:
+        zf.write(tmp_path / "a.png", "a.png")
+        zf.writestr("note.txt", b"x")
+    assert ImageFileFinder().find(str(archive)) == ["a.png"]
+
+
+def test_image_reader_reads_single_frame_clip(tmp_path):
+    _write_png(tmp_path / "a.png", size=(40, 32))
+    source = VideoSource(str(tmp_path), is_zip=False)
+    clip = ImageReader().read(source, "a.png")
+    assert clip.shape == (1, 32, 40, 3)
+    assert clip.dtype == np.uint8
+    assert ImageReader().inspect(source, "a.png") == (1, 0.0)
+
+
+def test_image_dataset_yields_single_frame_tensor(tmp_path):
+    _write_png(tmp_path / "a.png")
+    _write_png(tmp_path / "b.png", color=(0, 255, 0))
+    cfg = _image_config(tmp_path)
+    pipeline = ClipPipeline(cfg.dataset.transform, cfg.dataset.augment, 32)
+    ds = ImageClipDataset(str(tmp_path), False, ["a.png", "b.png"],
+                          pipeline, ImageReader(), crop_size=32, train=False)
+    assert len(ds) == 2
+    clip = ds[0]
+    assert clip.shape == (3, 1, 32, 32)
+
+
+def test_image_dataset_skips_unreadable_entry(tmp_path):
+    (tmp_path / "broken.png").write_bytes(b"not an image")
+    _write_png(tmp_path / "ok.png")
+    cfg = _image_config(tmp_path)
+    pipeline = ClipPipeline(cfg.dataset.transform, cfg.dataset.augment, 32)
+    ds = ImageClipDataset(str(tmp_path), False, ["broken.png", "ok.png"],
+                          pipeline, ImageReader(), crop_size=32, train=False)
+    assert ds[0].shape == (3, 1, 32, 32)  # falls back to the readable file
+
+
+def test_image_collator_grid_is_spatial_only(tmp_path):
+    cfg = _image_config(tmp_path, crop_size=64)
+    collator = build_collator(cfg, seed=0)
+    assert collator.grid_depth == 1
+    clips, enc, pred = collator([torch.zeros(3, 1, 64, 64) for _ in range(2)])
+    total = (64 // cfg.model.patch_size) ** 2
+    assert clips[0].shape == (2, 3, 1, 64, 64)
+    for b in range(2):
+        indices = enc[0][0][b].tolist() + pred[0][0][b].tolist()
+        assert all(0 <= i < total for i in indices)
+
+
+def test_build_data_bundle_from_image_folders(tmp_path):
+    train_dir = tmp_path / "train"
+    test_dir = tmp_path / "test"
+    train_dir.mkdir()
+    test_dir.mkdir()
+    for i in range(3):
+        _write_png(train_dir / f"t{i}.png", color=(i * 40, 10, 10))
+    for i in range(4):
+        _write_png(test_dir / f"e{i}.png", color=(10, i * 40, 10))
+    cfg = _image_config(tmp_path)
+    bundle = build_data_bundle(cfg, batch_size=2, num_workers=0)
+    assert bundle.num_train == 3
+    assert bundle.num_val + bundle.num_test == 4
+    bundle.train_loader.set_epoch(0)
+    clips, enc, pred = next(iter(bundle.train_loader))
+    assert clips[0].shape == (2, 3, 1, cfg.dataset.crop_size,
+                              cfg.dataset.crop_size)

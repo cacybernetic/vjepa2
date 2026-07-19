@@ -9,6 +9,7 @@ device: cuda         # cuda (NVIDIA) | rocm (AMD) | auto
 amp: true            # mixed precision speeds up training on a GPU
 
 dataset:
+  type: video               # image | video -- selects the loading implementation
   use_hdf5: false
   validate: true
   train_path: data/train.zip
@@ -103,8 +104,8 @@ train:
   grad_clip_norm: 1.0
   num_workers: 8
   # 0<v<1 => fraction of one epoch; v>=1 => absolute steps (clamped to <= 1/epoch).
-  log_every: 0.1            # ~10 logs per epoch (INFO, shown on terminal)
-  ckpt_step: 0.25           # ~4 checkpoints per epoch (in-epoch fault tolerance)
+  log_every: 0.05            # ~10 logs per epoch (INFO, shown on terminal)
+  ckpt_step: 0.06           # ~4 checkpoints per epoch (in-epoch fault tolerance)
   max_checkpoint: 5
   runs_dir: runs
   resume: true

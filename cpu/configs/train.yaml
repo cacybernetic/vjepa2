@@ -8,6 +8,7 @@ device: cpu          # cpu | cuda | rocm | auto
 amp: false           # mixed precision is only used on cuda
 
 dataset:
+  type: video               # image | video -- selects the loading implementation
   use_hdf5: false            # read videos from a folder or zip on the fly
   validate: true             # scan and drop broken files before training
   train_path: data/train.zip # folder or zip with the training videos
@@ -104,8 +105,8 @@ train:
   num_workers: 2
   # 0<v<1 => fraction of one epoch; v>=1 => absolute steps. Both are clamped to
   # at most one per epoch, so a periodic log/checkpoint always fires.
-  log_every: 0.25           # log ~4 times per epoch (INFO, shown on terminal)
-  ckpt_step: 0.5            # checkpoint ~2 times per epoch (in-epoch fault tolerance)
+  log_every: 0.02           # log ~4 times per epoch (INFO, shown on terminal)
+  ckpt_step: 0.03            # checkpoint ~2 times per epoch (in-epoch fault tolerance)
   max_checkpoint: 5         # keep at most this many checkpoint files
   runs_dir: runs
   resume: true              # reuse the latest run folder and continue

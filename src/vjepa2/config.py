@@ -18,6 +18,7 @@ import yaml
 __all__ = [
     "TransformConfig",
     "AugmentConfig",
+    "DATASET_TYPES",
     "DatasetConfig",
     "MaskingConfig",
     "ModelConfig",
@@ -141,10 +142,20 @@ class AugmentConfig:
         )
 
 
+# Supported dataset modalities. The type selects which loading implementation
+# is used (image files vs decoded video clips) and, downstream, which pathway
+# of the multi-modal encoder the batches are routed through.
+DATASET_TYPES = ("image", "video")
+
+
 @dataclass
 class DatasetConfig:
-    """Where the videos live and how many of them to use."""
+    """Where the samples live and how many of them to use."""
 
+    # "video" reads clips of ``num_frames`` frames from video files; "image"
+    # reads still images as single-frame clips ``(3, 1, H, W)`` that the
+    # encoder tokenizes through its image pathway (V-JEPA 2.1 multi-modal).
+    type: str = "video"
     use_hdf5: bool = False
     validate: bool = True
     train_path: Optional[str] = None
@@ -173,10 +184,27 @@ class DatasetConfig:
     transform: TransformConfig = field(default_factory=TransformConfig)
     augment: AugmentConfig = field(default_factory=AugmentConfig)
 
+    def __post_init__(self) -> None:
+        if self.type not in DATASET_TYPES:
+            raise ValueError(
+                f"dataset.type must be one of {DATASET_TYPES}, got {self.type!r}"
+            )
+
+    @property
+    def clip_frames(self) -> int:
+        """Temporal length of one training sample for this dataset type.
+
+        Images are single-frame clips regardless of ``num_frames`` (which only
+        sizes the video pathway of the model), so the masking grid and any
+        per-clip geometry must use this value instead of ``num_frames``.
+        """
+        return 1 if self.type == "image" else self.num_frames
+
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "DatasetConfig":
         data = data or {}
         return cls(
+            type=str(_get(data, "type", "video")).lower(),
             use_hdf5=bool(_get(data, "use_hdf5", False)),
             validate=bool(_get(data, "validate", True)),
             train_path=data.get("train_path"),

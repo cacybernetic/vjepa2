@@ -75,7 +75,7 @@ class DatasetCleaner:
         raw_meta = cached.get("meta", {}) or {}
         meta = {e: (int(v[0]), float(v[1]))
                 for e, v in raw_meta.items() if e in set(entries)}
-        logger.info("dataset cache: reusing {} videos from {} "
+        logger.info("dataset cache: reusing {} files from {} "
                     "(delete the .cache.json to re-scan)",
                     len(entries), cache_path(source))
         return ScanResult(
@@ -132,7 +132,7 @@ class DatasetCleaner:
                   failures: List[Tuple[str, str]], validate: bool) -> None:
         """Log a ``found / usable / dropped`` recap and every failing file."""
         num_dropped = len(failures) if validate else 0
-        logger.info("dataset scan: found {} videos | usable {} | dropped {}",
+        logger.info("dataset scan: found {} files | usable {} | dropped {}",
                     num_found, num_good, num_dropped)
         if not failures:
             return

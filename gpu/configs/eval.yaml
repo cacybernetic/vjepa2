@@ -5,6 +5,7 @@ seed: 42
 device: cuda         # cuda (NVIDIA) | rocm (AMD)
 
 dataset:
+  type: video               # image | video -- selects the loading implementation
   use_hdf5: false
   validate: true
   test_path: data/test.zip

@@ -7,6 +7,7 @@ seed: 42
 device: cpu
 
 dataset:
+  type: video               # image | video -- selects the loading implementation
   use_hdf5: false            # the build reads raw videos and writes the h5 files
   validate: true
   train_path: data/train.zip

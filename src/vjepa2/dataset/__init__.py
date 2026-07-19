@@ -10,15 +10,20 @@
 from vjepa2.dataset.cache import CacheStore, cache_path
 from vjepa2.dataset.cleaning import DatasetCleaner, ScanResult
 from vjepa2.dataset.dataloader import ResumableDataLoader, ResumableSampler
-from vjepa2.dataset.discovery import VIDEO_EXTENSIONS, VideoFileFinder
+from vjepa2.dataset.discovery import (FileFinder, IMAGE_EXTENSIONS,
+                                      ImageFileFinder, VIDEO_EXTENSIONS,
+                                      VideoFileFinder)
 from vjepa2.dataset.factory import (
     DataBundle,
+    build_cleaner,
     build_collator,
     build_data_bundle,
     build_pipeline,
     build_reader,
 )
 from vjepa2.dataset.hdf5 import HDF5Builder, HDF5ClipDataset
+from vjepa2.dataset.image_dataset import ImageClipDataset
+from vjepa2.dataset.image_io import ImageReader
 from vjepa2.dataset.masking import TubeMaskCollator, grid_dims
 from vjepa2.dataset.splits import cap_entries, split_val_test
 from vjepa2.dataset.transforms import ClipPipeline
@@ -33,14 +38,20 @@ __all__ = [
     "ResumableDataLoader",
     "ResumableSampler",
     "VIDEO_EXTENSIONS",
+    "IMAGE_EXTENSIONS",
+    "FileFinder",
     "VideoFileFinder",
+    "ImageFileFinder",
     "DataBundle",
+    "build_cleaner",
     "build_collator",
     "build_data_bundle",
     "build_pipeline",
     "build_reader",
     "HDF5Builder",
     "HDF5ClipDataset",
+    "ImageClipDataset",
+    "ImageReader",
     "TubeMaskCollator",
     "grid_dims",
     "cap_entries",

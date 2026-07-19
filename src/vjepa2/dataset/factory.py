@@ -19,6 +19,9 @@ from torch.utils.data import Dataset, Subset
 from vjepa2.config import Config
 from vjepa2.dataset.cleaning import DatasetCleaner
 from vjepa2.dataset.clip_index import build_clip_windows
+from vjepa2.dataset.discovery import ImageFileFinder
+from vjepa2.dataset.image_dataset import ImageClipDataset
+from vjepa2.dataset.image_io import ImageReader
 from vjepa2.logging import logger
 from vjepa2.dataset.dataloader import ResumableDataLoader
 from vjepa2.dataset.hdf5 import HDF5ClipDataset
@@ -28,8 +31,8 @@ from vjepa2.dataset.transforms import ClipPipeline
 from vjepa2.dataset.video_dataset import VideoClipDataset
 from vjepa2.dataset.video_io import VideoReader
 
-__all__ = ["DataBundle", "build_pipeline", "build_reader", "build_collator",
-           "build_data_bundle", "build_eval_loader"]
+__all__ = ["DataBundle", "build_pipeline", "build_reader", "build_cleaner",
+           "build_collator", "build_data_bundle", "build_eval_loader"]
 
 
 @dataclass
@@ -74,12 +77,24 @@ def build_reader(cfg: Config) -> VideoReader:
     )
 
 
+def build_cleaner(cfg: Config) -> DatasetCleaner:
+    """Build the scanner/validator matching the configured dataset type."""
+    if cfg.dataset.type == "image":
+        return DatasetCleaner(reader=ImageReader(), finder=ImageFileFinder())
+    return DatasetCleaner(reader=build_reader(cfg))
+
+
 def build_collator(cfg: Config, seed: Optional[int] = None) -> TubeMaskCollator:
-    """Build the tube-mask collator from the model / masking config."""
+    """Build the tube-mask collator from the model / masking config.
+
+    ``clip_frames`` (1 for image datasets) sizes the temporal token grid, so
+    image batches get purely spatial masks (grid_depth == 1) while the video
+    pathway keeps the paper's tube masks over ``num_frames``.
+    """
     grid_size, grid_depth = grid_dims(
         cfg.dataset.crop_size,
         cfg.model.patch_size,
-        cfg.dataset.num_frames,
+        cfg.dataset.clip_frames,
         cfg.model.tubelet_size,
     )
     return TubeMaskCollator(cfg.masking, grid_size, grid_depth, seed=seed)
@@ -101,13 +116,16 @@ def build_windows(cfg: Config, entries: List[str], meta) -> list:
 def log_clip_windows(dataset: Dataset) -> None:
     """Log every clip window a dataset will read, grouped by video.
 
-    Only on-the-fly ``VideoClipDataset`` carries clip windows; for HDF5 datasets
-    (already flattened to clips on disk) there is nothing to expand, so we just
-    report the clip count.
+    Only on-the-fly ``VideoClipDataset`` carries clip windows; image datasets
+    (one clip per file) and HDF5 datasets (already flattened to clips on disk)
+    have nothing to expand, so we just report the clip count.
     """
     windows = getattr(dataset, "windows", None)
     if windows is None:
-        logger.info("clips: {} pre-built clips (HDF5)", len(dataset))
+        if isinstance(dataset, ImageClipDataset):
+            logger.info("clips: {} single-frame clips (images)", len(dataset))
+        else:
+            logger.info("clips: {} pre-built clips (HDF5)", len(dataset))
         return
     num_frames = int(getattr(dataset, "num_frames", 16))
     from collections import OrderedDict
@@ -143,18 +161,40 @@ def _make_video_dataset(cfg: Config, root: str, is_zip: bool,
     )
 
 
+def _make_image_dataset(cfg: Config, root: str, is_zip: bool,
+                        entries: List[str], train: bool) -> ImageClipDataset:
+    """Create an on-the-fly image dataset (one single-frame clip per file)."""
+    return ImageClipDataset(
+        root=root,
+        is_zip=is_zip,
+        entries=entries,
+        pipeline=build_pipeline(cfg, train),
+        reader=ImageReader(),
+        crop_size=cfg.dataset.crop_size,
+        train=train,
+    )
+
+
+def _make_dataset(cfg: Config, root: str, is_zip: bool,
+                  entries: List[str], meta, train: bool) -> Dataset:
+    """Create the on-the-fly dataset matching the configured type."""
+    if cfg.dataset.type == "image":
+        return _make_image_dataset(cfg, root, is_zip, entries, train)
+    return _make_video_dataset(cfg, root, is_zip, entries, meta, train)
+
+
 def _scan(cfg: Config, source: str) -> Tuple[str, bool, List[str], dict]:
-    """Validate (or load cached) entries and per-video metadata."""
-    cleaner = DatasetCleaner(reader=build_reader(cfg))
+    """Validate (or load cached) entries and per-file metadata."""
+    cleaner = build_cleaner(cfg)
     result = cleaner.prepare(source, validate=cfg.dataset.validate, use_cache=True)
     return result.source, result.is_zip, result.entries, result.meta
 
 
 def _build_onthefly(cfg: Config) -> Tuple[Dataset, Optional[Dataset], Optional[Dataset]]:
-    """Build train, val and test datasets by reading videos on the fly."""
+    """Build train, val and test datasets by reading files on the fly."""
     _, train_zip, train_entries, train_meta = _scan(cfg, cfg.dataset.train_path)
     train_entries = cap_entries(train_entries, cfg.dataset.max_train_samples)
-    train_ds = _make_video_dataset(
+    train_ds = _make_dataset(
         cfg, cfg.dataset.train_path, train_zip, train_entries, train_meta, train=True
     )
     _, test_zip, test_entries, test_meta = _scan(cfg, cfg.dataset.test_path)
@@ -162,10 +202,10 @@ def _build_onthefly(cfg: Config) -> Tuple[Dataset, Optional[Dataset], Optional[D
     val_entries, final_entries = split_val_test(
         test_entries, cfg.dataset.val_prob, seed=cfg.seed
     )
-    val_ds = _make_video_dataset(
+    val_ds = _make_dataset(
         cfg, cfg.dataset.test_path, test_zip, val_entries, test_meta, train=False
     )
-    test_ds = _make_video_dataset(
+    test_ds = _make_dataset(
         cfg, cfg.dataset.test_path, test_zip, final_entries, test_meta, train=False
     )
     return train_ds, val_ds, test_ds
@@ -232,7 +272,7 @@ def build_eval_loader(cfg: Config, batch_size: int, num_workers: int
     else:
         _, is_zip, entries, meta = _scan(cfg, cfg.dataset.test_path)
         entries = cap_entries(entries, cfg.dataset.max_test_samples)
-        dataset = _make_video_dataset(
+        dataset = _make_dataset(
             cfg, cfg.dataset.test_path, is_zip, entries, meta, train=False
         )
     log_clip_windows(dataset)

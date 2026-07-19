@@ -82,7 +82,7 @@ class EvalApp:
         """Run the evaluation and save the results."""
         grid_size, grid_depth = grid_dims(
             self.cfg.dataset.crop_size, self.cfg.model.patch_size,
-            self.cfg.dataset.num_frames, self.cfg.model.tubelet_size,
+            self.cfg.dataset.clip_frames, self.cfg.model.tubelet_size,
         )
         grid = (grid_depth, grid_size, grid_size)
         evaluator = Evaluator(

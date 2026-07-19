@@ -301,12 +301,13 @@ and the whole pipeline with simple words and analogies.
 
 ### Dataset layout
 
-A dataset is a folder or a `.zip` archive that holds video files. Files may sit
-at the root or in any sub-folder, in any common format. Point the config at your
-train and test sources:
+A dataset is a folder or a `.zip` archive that holds video **or image** files.
+Files may sit at the root or in any sub-folder, in any common format. Point the
+config at your train and test sources and declare the modality:
 
 ```yaml
 dataset:
+  type: video                       # image | video — selects the loader
   train_path: /path/to/train.zip   # or a folder
   test_path:  /path/to/test.zip
   val_prob: 0.5                     # fraction of test used for validation
@@ -316,6 +317,19 @@ The first run **scans and validates** every file (dropping corrupt ones), record
 each video's frame count and fps, and writes a `train.cache.json` /
 `test.cache.json` next to the dataset. Later runs reuse the cache, so the slow
 scan happens only once.
+
+#### Image datasets
+
+With `type: image` the loader reads still images (`.jpg`, `.png`, `.webp`, …)
+instead of decoding videos. Each image becomes a **single-frame clip**
+`(3, 1, H, W)` that the multi-modal encoder tokenizes through its **image
+pathway** (2D-style tokenizer + image modality embedding), exactly as in the
+V-JEPA 2.1 recipe; the trainer routes the batches automatically. Masking is
+purely spatial (the temporal token grid has depth 1), and the clip-window keys
+(`num_frames`, `clip_sampling`, `clip_stride`, `frames_per_second`,
+`max_clips_per_video`) are ignored — one image is one training item. The HDF5
+builder (next section) also works for image datasets and stores one
+preprocessed single-frame clip per file.
 
 #### Clips per video: full coverage vs. a single clip
 
