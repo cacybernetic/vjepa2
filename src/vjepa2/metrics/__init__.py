@@ -9,6 +9,7 @@
 from vjepa2.metrics.base import AverageMeter, MetricTracker
 from vjepa2.metrics.ssl_metrics import (
     METRIC_NAMES,
+    feature_correlation,
     feature_std,
     prediction_cosine,
 )
@@ -18,5 +19,6 @@ __all__ = [
     "MetricTracker",
     "METRIC_NAMES",
     "feature_std",
+    "feature_correlation",
     "prediction_cosine",
 ]

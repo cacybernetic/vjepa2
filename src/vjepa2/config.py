@@ -259,6 +259,15 @@ class ModelConfig:
     modality_embedding: bool = True
     use_rope: bool = True
     use_sdpa: bool = True
+    # Stochastic depth: linearly ramped drop-path rate across the encoder /
+    # predictor blocks. 0.0 disables it; ~0.1-0.4 is the usual range for
+    # ViT-B/L/G to curb overfitting.
+    drop_path_rate: float = 0.0
+    # Rescale RoPE height/width positions to a fixed pretrained grid. Only makes
+    # sense when *fine-tuning* a model pretrained at another resolution; a
+    # from-scratch run at native resolution must keep this off, otherwise the
+    # positions are stretched toward a grid the model never sees.
+    interpolate_rope: bool = False
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "ModelConfig":
@@ -274,6 +283,8 @@ class ModelConfig:
             modality_embedding=bool(_get(data, "modality_embedding", True)),
             use_rope=bool(_get(data, "use_rope", True)),
             use_sdpa=bool(_get(data, "use_sdpa", True)),
+            drop_path_rate=float(_get(data, "drop_path_rate", 0.0)),
+            interpolate_rope=bool(_get(data, "interpolate_rope", False)),
         )
 
 
@@ -309,20 +320,33 @@ class OptimConfig:
     name: str = "adamw"
     lr: float = 1.0e-4
     weight_decay: float = 0.04
+    # Final weight decay. The decay group is cosine-ramped from ``weight_decay``
+    # to ``weight_decay_end`` over the run (the reference recipe grows it, e.g.
+    # 0.04 -> 0.4). Leave equal to ``weight_decay`` to keep it constant.
+    weight_decay_end: Optional[float] = None
     betas: List[float] = field(default_factory=lambda: [0.9, 0.95])
     momentum: float = 0.9
+    # EMA momentum of the target encoder. ``ema`` is the starting value and
+    # ``ema_end`` the final one; the momentum is linearly ramped from start to
+    # end over the run (the reference recipe grows it toward 1.0 so the target
+    # freezes progressively). Leave ``ema_end`` null to keep it constant.
     ema: float = 0.99925
+    ema_end: Optional[float] = None
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> "OptimConfig":
         data = data or {}
+        wd_end = data.get("weight_decay_end")
+        ema_end = data.get("ema_end")
         return cls(
             name=str(_get(data, "name", "adamw")).lower(),
             lr=float(_get(data, "lr", 1.0e-4)),
             weight_decay=float(_get(data, "weight_decay", 0.04)),
+            weight_decay_end=(None if wd_end is None else float(wd_end)),
             betas=list(_get(data, "betas", [0.9, 0.95])),
             momentum=float(_get(data, "momentum", 0.9)),
             ema=float(_get(data, "ema", 0.99925)),
+            ema_end=(None if ema_end is None else float(ema_end)),
         )
 
 

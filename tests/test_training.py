@@ -86,6 +86,38 @@ def test_dense_loss_and_forward_shapes():
     assert time.time() - start < 60.0        # a tiny forward must be quick
 
 
+def test_mask_tokens_clamped_to_num_pred_masks():
+    # num_mask_tokens must not exceed num_pred_masks: the predictor only ever
+    # trains one mask token per predict mask, so extra tokens would be dead
+    # zero-initialised parameters. build_model clamps them away.
+    cfg = Config.from_dict({
+        "dataset": {"crop_size": 64, "num_frames": 4},
+        "masking": {"num_pred_masks": 1},
+        "model": {"name": "vit_tiny", "patch_size": 16, "tubelet_size": 2,
+                  "pred_embed_dim": 96, "num_mask_tokens": 8,
+                  "n_output_distillation": 4},
+    })
+    model = build_model(cfg, "cpu")
+    assert model.predictor.backbone.num_mask_tokens == 1
+    assert len(model.predictor.backbone.mask_tokens) == 1
+
+
+def test_encoder_only_sidecar_is_written(tmp_path):
+    cfg = _tiny_cfg(tmp_path)
+    model = build_model(cfg, "cpu")
+    optimizer, scheduler, _ = build_optimizer_scheduler(model, cfg, 10)
+    paths = RunDirManager(cfg.train.runs_dir, cfg.run_name).make_paths(
+        os.path.join(cfg.train.runs_dir, cfg.run_name, "train")
+    )
+    Trainer(model, build_loss(cfg), optimizer, scheduler, build_ema(cfg),
+            _bundle(cfg), paths, cfg.train, "cpu").run()
+    enc_last = os.path.join(os.path.dirname(paths.last_pt),
+                            "encoder_" + os.path.basename(paths.last_pt))
+    assert os.path.isfile(enc_last)
+    blob = torch.load(enc_last, map_location="cpu", weights_only=False)
+    assert "encoder" in blob and blob["encoder"]        # non-empty state dict
+
+
 def test_trainer_runs_and_writes_outputs(tmp_path):
     cfg = _tiny_cfg(tmp_path)
     model = build_model(cfg, "cpu")

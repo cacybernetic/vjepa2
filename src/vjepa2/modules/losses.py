@@ -96,7 +96,10 @@ def jepa_loss(z, h, masks_to_apply, loss_exp=1.0, d_weights=None):
         for zi, hi, d_i in zip(z, h, d_weights):
             for zij, hij, d_ij in zip(zi, hi, d_i):
                 err = torch.abs(zij.float() - hij.float()) ** loss_exp
-                loss_n = err * (1 / d_ij.float().unsqueeze(2))
+                # ``+ eps`` guards against a division by zero if a context and a
+                # predicted token ever share a grid position (d_min == 0): a
+                # single inf would poison the whole loss into NaN.
+                loss_n = err * (1 / (d_ij.float().unsqueeze(2) + 1e-6))
                 loss += torch.mean(loss_n) / loss_exp
                 n += 1
     else:

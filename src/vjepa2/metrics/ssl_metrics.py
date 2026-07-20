@@ -16,10 +16,15 @@ import torch
 
 from vjepa2.modules.tensors import apply_masks
 
-__all__ = ["feature_std", "prediction_cosine", "METRIC_NAMES"]
+__all__ = [
+    "feature_std",
+    "feature_correlation",
+    "prediction_cosine",
+    "METRIC_NAMES",
+]
 
 # The scalar names tracked during training and validation.
-METRIC_NAMES = ["loss", "predict", "context", "feat_std", "pred_cos"]
+METRIC_NAMES = ["loss", "predict", "context", "feat_std", "feat_corr", "pred_cos"]
 
 
 @torch.no_grad()
@@ -35,6 +40,41 @@ def feature_std(h_target: List[torch.Tensor]) -> float:
     for level in h_target:
         flat = level.reshape(-1, level.shape[-1]).float()
         values.append(flat.std(dim=0).mean())
+    return float(torch.stack(values).mean())
+
+
+@torch.no_grad()
+def feature_correlation(h_target: List[torch.Tensor], max_dims: int = 512
+                        ) -> float:
+    """Mean absolute off-diagonal correlation of the target feature dimensions.
+
+    ``feat_std`` alone misses *dimensional* collapse: the per-token LayerNorm of
+    the targets keeps the std near 1 even when the encoder has degenerated to a
+    low-rank subspace (all dimensions carrying the same signal). This measures
+    how correlated the feature dimensions are: ~0 for a healthy, decorrelated
+    representation, approaching 1 when the features collapse onto a common
+    direction. Dimensions are capped at ``max_dims`` to bound the cost on very
+    wide encoders.
+    """
+    if not h_target:
+        return 0.0
+    values = []
+    for level in h_target:
+        flat = level.reshape(-1, level.shape[-1]).float()
+        dim = flat.shape[-1]
+        if dim > max_dims:
+            flat = flat[:, :max_dims]
+            dim = max_dims
+        if flat.shape[0] < 2 or dim < 2:
+            continue
+        flat = flat - flat.mean(dim=0, keepdim=True)
+        std = flat.std(dim=0, keepdim=True).clamp_min(1e-6)
+        flat = flat / std
+        corr = (flat.t() @ flat) / flat.shape[0]  # (D, D)
+        off_diag_sum = corr.abs().sum() - corr.diagonal().abs().sum()
+        values.append(off_diag_sum / (dim * (dim - 1)))
+    if not values:
+        return 0.0
     return float(torch.stack(values).mean())
 
 

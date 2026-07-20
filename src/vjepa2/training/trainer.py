@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import math
+import os
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
@@ -20,7 +21,12 @@ import torch
 
 from vjepa2 import logging as vlog
 from vjepa2.config import resolve_steps
-from vjepa2.metrics import MetricTracker, feature_std, prediction_cosine
+from vjepa2.metrics import (
+    MetricTracker,
+    feature_correlation,
+    feature_std,
+    prediction_cosine,
+)
 from vjepa2.metrics.ssl_metrics import METRIC_NAMES
 from vjepa2.training import utils
 from vjepa2.training.best_model import BestModelTracker
@@ -49,7 +55,8 @@ class Trainer:
     """Run training with validation, checkpointing and resume support."""
 
     def __init__(self, model, loss_fn, optimizer, scheduler, ema, bundle,
-                 paths, train_cfg, device: str, amp: bool = False):
+                 paths, train_cfg, device: str, amp: bool = False,
+                 weight_decay_end: Optional[float] = None):
         self.model = model
         self.loss_fn = loss_fn
         self.optimizer = optimizer
@@ -64,6 +71,11 @@ class Trainer:
         self._resumed = False
         self._last_grad_norm = 0.0
         self._micro_count = 0
+        # Sum of sample counts accumulated in the current optimizer window; used
+        # to average the summed gradients into a proper per-sample mean, exactly
+        # even when the last window is short or its batches are uneven.
+        self._accum_samples = 0
+        self._weight_decay_end = weight_decay_end
         self._build_helpers(amp)
 
     def _build_helpers(self, amp: bool) -> None:
@@ -75,21 +87,51 @@ class Trainer:
         self.train_meter = MetricTracker(METRIC_NAMES)
         self.val_meter = MetricTracker(METRIC_NAMES)
         self.test_meter = MetricTracker(METRIC_NAMES)
-        self.use_amp = bool(amp) and self.device == "cuda"
+        self.use_amp = bool(amp)
         # Prefer bf16 when the hardware supports it: same dynamic range as
         # fp32, so no GradScaler and no skipped steps. The scaler is only
-        # needed for fp16 autocast.
-        self.amp_dtype = torch.float16
-        if self.use_amp and torch.cuda.is_available() \
-                and torch.cuda.is_bf16_supported():
+        # needed for fp16 autocast, which is CUDA-only; CPU autocast runs bf16.
+        if self.device == "cuda":
+            self.amp_dtype = torch.float16
+            if torch.cuda.is_available() and torch.cuda.is_bf16_supported():
+                self.amp_dtype = torch.bfloat16
+        else:
             self.amp_dtype = torch.bfloat16
         self.scaler = torch.amp.GradScaler(
-            "cuda", enabled=self.use_amp and self.amp_dtype == torch.float16
+            "cuda",
+            enabled=(self.use_amp and self.device == "cuda"
+                     and self.amp_dtype == torch.float16),
         )
         self.steps_per_epoch = self._steps_per_epoch()
         self.total_steps = self.steps_per_epoch * self.cfg.epochs
+        self._build_wd_schedule()
         self._log_every = self._resolve_cadence(self.cfg.log_every, "log_every")
         self._ckpt_step = self._resolve_cadence(self.cfg.ckpt_step, "ckpt_step")
+
+    def _build_wd_schedule(self) -> None:
+        """Capture the decay groups to cosine-ramp weight decay start -> end.
+
+        Only groups that actually decay (initial ``weight_decay`` > 0) are
+        scheduled; the no-decay group stays at zero. A ``None`` or unchanged end
+        value leaves weight decay constant.
+        """
+        self._wd_groups = []
+        end = self._weight_decay_end
+        if end is None:
+            return
+        for group in self.optimizer.param_groups:
+            start = float(group.get("weight_decay", 0.0))
+            if start > 0.0 and float(end) != start:
+                self._wd_groups.append((group, start, float(end)))
+
+    def _apply_weight_decay(self, step: int) -> None:
+        """Set the cosine-ramped weight decay for the current step."""
+        if not self._wd_groups:
+            return
+        progress = min(1.0, step / max(1, self.total_steps))
+        scale = 0.5 * (1.0 + math.cos(math.pi * progress))
+        for group, start, end in self._wd_groups:
+            group["weight_decay"] = end + (start - end) * scale
 
     def _steps_per_epoch(self) -> int:
         """Optimizer steps in a full epoch, given batch size and accumulation."""
@@ -166,9 +208,15 @@ class Trainer:
     def _train_step(self, batch, micro: int):
         """Forward, scaled backward, and an optimizer step when accumulation is full."""
         loss, parts, n = self._forward_loss(batch)
-        self.scaler.scale(loss / self.cfg.grad_accum).backward()
+        # Back-propagate the *summed* (not mean) loss of the micro-batch and
+        # divide by the total sample count at the optimizer step. This yields
+        # an exact per-sample mean gradient regardless of how many micro-batches
+        # or how many samples each contributes (a short or uneven final window
+        # is weighted correctly, with no separate rescale needed).
+        self.scaler.scale(loss * n).backward()
         self._pending = True
         self._micro_count += 1
+        self._accum_samples += n
         if (micro + 1) % self.cfg.grad_accum == 0:
             self._optimizer_step()
         return parts, n
@@ -182,25 +230,28 @@ class Trainer:
         advanced -- the LR is held for the retry.
         """
         self.scaler.unscale_(self.optimizer)
-        self._rescale_partial_accumulation()
+        self._average_accumulated_grads()
         grad_norm = torch.nn.utils.clip_grad_norm_(self.model.parameters(),
                                                     self.cfg.grad_clip_norm)
         self._last_grad_norm = float(grad_norm)
-        # Apply the LR of the current step before the update (first step uses
-        # ``start_lr``), but do not advance the schedule yet.
+        # Apply the LR and weight decay of the current step before the update
+        # (first step uses ``start_lr``), but do not advance the schedule yet.
         self.scheduler.apply()
+        self._apply_weight_decay(self.state.global_step)
         scale_before = self.scaler.get_scale()
         self.scaler.step(self.optimizer)
         self.scaler.update()
         self.optimizer.zero_grad(set_to_none=True)
         self._pending = False
         self._micro_count = 0
+        self._accum_samples = 0
         if self.scaler.get_scale() < scale_before:
             vlog.logger.debug("optimizer step skipped (inf/nan grads); "
                               "lr and ema held")
             return
         self.scheduler.advance()
-        self.ema.update(self.model.encoder, self.model.ema_target())
+        self.ema.update(self.model.encoder, self.model.ema_target(),
+                        step=self.state.global_step)
         self.state.global_step += 1
         self._after_step()
 
@@ -224,21 +275,21 @@ class Trainer:
             vlog.logger.debug("flushing leftover gradient accumulation")
             self._optimizer_step()
 
-    def _rescale_partial_accumulation(self) -> None:
-        """Undo the ``1/grad_accum`` bias of a partial accumulation window.
+    def _average_accumulated_grads(self) -> None:
+        """Divide the summed gradients by the window's total sample count.
 
-        Each micro-batch loss is scaled by ``1/grad_accum``; when fewer
-        micro-batches contributed (the end-of-epoch flush), the summed gradient
-        is under-weighted by ``micro/grad_accum``. Rescaling here -- after
-        ``unscale_`` and before clipping -- restores a proper average so the
-        flushed step has the same magnitude as a full one.
+        Micro-batches back-propagate the *summed* loss (``loss * n``); dividing
+        by the accumulated sample count here -- after ``unscale_`` and before
+        clipping -- turns them into an exact per-sample mean gradient, correct
+        for full and short/uneven windows alike.
         """
-        if 0 < self._micro_count < self.cfg.grad_accum:
-            factor = self.cfg.grad_accum / self._micro_count
-            for group in self.optimizer.param_groups:
-                for param in group["params"]:
-                    if param.grad is not None:
-                        param.grad.mul_(factor)
+        if self._accum_samples <= 0:
+            return
+        inv = 1.0 / float(self._accum_samples)
+        for group in self.optimizer.param_groups:
+            for param in group["params"]:
+                if param.grad is not None:
+                    param.grad.mul_(inv)
 
     # -- validation and test passes -----------------------------------------
     def _validate_pass(self, epoch: int) -> None:
@@ -298,13 +349,19 @@ class Trainer:
             z_pred, z_ctx, target, masks_enc, masks_pred, self.state.global_step
         )
         parts["feat_std"] = feature_std(target)
+        parts["feat_corr"] = feature_correlation(target)
         parts["pred_cos"] = prediction_cosine(z_pred, target, masks_pred)
         return loss, parts, int(clips[0].shape[0])
 
     def _autocast(self):
-        """Return an autocast context on CUDA when AMP is on, else a no-op."""
+        """Return an autocast context when AMP is on, else a no-op.
+
+        Uses the CUDA autocast on GPU (fp16/bf16) and the CPU autocast (bf16)
+        elsewhere, so mixed precision also speeds up CPU training.
+        """
         if self.use_amp:
-            return torch.autocast("cuda", dtype=self.amp_dtype)
+            device_type = "cuda" if self.device == "cuda" else "cpu"
+            return torch.autocast(device_type, dtype=self.amp_dtype)
         import contextlib
 
         return contextlib.nullcontext()
@@ -391,16 +448,23 @@ class Trainer:
                 line += f" {val_avg.get(name, float('nan')):>16.8f}"
             vlog.logger.info(line)
 
-    # Per-dimension std of the (per-level LayerNormed) targets sits near 1.0
-    # for a healthy encoder; a value this low means the representation is
+    # Per-dimension std of the (per-level LayerNormed) targets sits well above
+    # zero for a healthy encoder; a value this low means the representation is
     # degenerating toward a constant.
     _COLLAPSE_STD_THRESHOLD = 0.05
+    # Mean absolute off-diagonal correlation of the target feature dimensions.
+    # A healthy, decorrelated representation stays low; a value this high means
+    # the dimensions carry the same signal (dimensional collapse) even while
+    # feat_std still looks fine because of the per-token LayerNorm.
+    _COLLAPSE_CORR_THRESHOLD = 0.5
 
     def _warn_on_collapse(self, train_avg: Dict[str, float]) -> None:
         """Shout when the target features look collapsed.
 
-        A JEPA loss *decreases* under representation collapse, so the loss
-        alone can never reveal it -- feat_std is the canary.
+        A JEPA loss *decreases* under representation collapse, so the loss alone
+        can never reveal it. feat_std catches a full collapse to a constant;
+        feat_corr catches the subtler dimensional collapse the per-token
+        LayerNorm hides from feat_std.
         """
         feat_std = train_avg.get("feat_std")
         if feat_std is not None and 0.0 < feat_std < self._COLLAPSE_STD_THRESHOLD:
@@ -408,6 +472,12 @@ class Trainer:
                 "feat_std={:.4f} is near zero: the representation looks "
                 "collapsed. The loss value is NOT trustworthy in this regime; "
                 "check the EMA momentum, learning rate and data.", feat_std)
+        feat_corr = train_avg.get("feat_corr")
+        if feat_corr is not None and feat_corr > self._COLLAPSE_CORR_THRESHOLD:
+            vlog.logger.warning(
+                "feat_corr={:.4f} is high: the feature dimensions are strongly "
+                "correlated (dimensional collapse), which feat_std can miss. "
+                "Check the EMA momentum, learning rate and data.", feat_corr)
 
     def _epoch_row(self, epoch: int) -> Dict[str, float]:
         """Build the per-epoch metric row from the train and val meters."""
@@ -445,8 +515,26 @@ class Trainer:
 
     # -- checkpoint / weights ------------------------------------------------
     def _save_weights(self, path: str) -> None:
-        """Save only the model weights (for inference / export)."""
+        """Save the full model weights, plus a compact encoder-only sidecar.
+
+        ``path`` (best.pt / last.pt) keeps the whole model so evaluation and
+        resume stay simple, while ``encoder_<name>`` next to it holds just the
+        EMA target encoder -- the JEPA deliverable -- for lightweight inference
+        and export, at a fraction of the size.
+        """
         torch.save({"model": self.model.state_dict()}, path)
+        self._save_encoder(self._encoder_path(path))
+
+    @staticmethod
+    def _encoder_path(path: str) -> str:
+        """Return the encoder-only sidecar path for a weights file."""
+        return os.path.join(os.path.dirname(path),
+                            "encoder_" + os.path.basename(path))
+
+    def _save_encoder(self, path: str) -> None:
+        """Save only the (EMA target) encoder for inference / export."""
+        encoder = self.model.ema_target()
+        torch.save({"encoder": encoder.state_dict()}, path)
 
     def _save_checkpoint(self, phase: str, counter: int) -> None:
         """Write a full training checkpoint to its own dedicated file.

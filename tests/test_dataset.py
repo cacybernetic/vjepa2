@@ -165,6 +165,18 @@ def test_mask_collator_masks_are_disjoint_and_stackable():
         assert all(0 <= i < total for i in enc_idx + pred_idx)
 
 
+def test_eval_collator_is_deterministic_across_calls():
+    grid_size, grid_depth = grid_dims(64, 16, 4, 2)
+    collator = TubeMaskCollator(MaskingConfig(), grid_size, grid_depth, seed=0,
+                                deterministic=True)
+    samples = [torch.zeros(3, 4, 64, 64) for _ in range(3)]
+    _, enc_a, pred_a = collator(samples)
+    _, enc_b, pred_b = collator(samples)
+    # Same masks on every call -> reproducible validation / test metric.
+    assert torch.equal(enc_a[0][0], enc_b[0][0])
+    assert torch.equal(pred_a[0][0], pred_b[0][0])
+
+
 def test_mask_collator_samples_get_different_masks():
     grid_size, grid_depth = grid_dims(64, 16, 4, 2)
     collator = TubeMaskCollator(MaskingConfig(), grid_size, grid_depth, seed=0)

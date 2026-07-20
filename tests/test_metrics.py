@@ -8,7 +8,29 @@
 
 import torch
 
-from vjepa2.metrics import AverageMeter, MetricTracker, feature_std, prediction_cosine
+from vjepa2.metrics import (
+    AverageMeter,
+    MetricTracker,
+    feature_correlation,
+    feature_std,
+    prediction_cosine,
+)
+
+
+def test_feature_correlation_low_for_decorrelated_features():
+    torch.manual_seed(0)
+    decorrelated = [torch.randn(2000, 16)]
+    assert feature_correlation(decorrelated) < 0.15
+
+
+def test_feature_correlation_high_under_dimensional_collapse():
+    torch.manual_seed(0)
+    # Every feature dimension carries the same signal (rank-1): feat_std stays
+    # healthy but the dimensions are perfectly correlated.
+    base = torch.randn(2000, 1)
+    collapsed = [base.repeat(1, 16) + 1e-4 * torch.randn(2000, 16)]
+    assert feature_std(collapsed) > 0.5      # not a constant -> feat_std misses it
+    assert feature_correlation(collapsed) > 0.9
 
 
 def test_average_meter_computes_weighted_mean():

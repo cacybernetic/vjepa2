@@ -51,11 +51,15 @@ model:
   tubelet_size: 2
   pred_depth: 24             # the paper uses a 24-block predictor
   pred_embed_dim: 384
-  num_mask_tokens: 8
+  num_mask_tokens: 1         # must be <= masking.num_pred_masks; extra tokens
+                             # never train (dead params) and are clamped away
   n_output_distillation: 4   # deep self-supervision
   modality_embedding: true
   use_rope: true
   use_sdpa: true
+  drop_path_rate: 0.2        # stochastic depth regularization for a large model
+  interpolate_rope: false    # true only when fine-tuning a differently-sized
+                             # pretrained model at a new resolution
 
 loss:
   loss_exp: 1.0
@@ -72,8 +76,11 @@ optim:
   name: adamw
   lr: 1.0e-4
   weight_decay: 0.04
+  weight_decay_end: 0.4      # cosine-ramped 0.04 -> 0.4 over the run; set equal
+                             # to weight_decay (or null) to keep it constant
   betas: [0.9, 0.95]
-  ema: 0.99925
+  ema: 0.99925               # EMA momentum of the target encoder (start value)
+  ema_end: 1.0               # ramped ema -> ema_end over the run; null = constant
 
 scheduler:
   name: warmup_hold

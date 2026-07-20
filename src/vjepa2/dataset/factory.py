@@ -63,10 +63,15 @@ def _seed_worker(worker_id: int) -> None:
     random.seed(seed)
 
 
-def build_pipeline(cfg: Config, train: bool) -> ClipPipeline:
-    """Build the preprocessing pipeline for a split."""
-    augment = cfg.dataset.augment
-    return ClipPipeline(cfg.dataset.transform, augment, cfg.dataset.crop_size)
+def build_pipeline(cfg: Config) -> ClipPipeline:
+    """Build the preprocessing pipeline.
+
+    The same pipeline serves every split; the train/eval distinction (random
+    vs. center crop, augmentation on/off) is made per item by the ``train`` flag
+    the dataset passes to ``ClipPipeline.__call__``.
+    """
+    return ClipPipeline(cfg.dataset.transform, cfg.dataset.augment,
+                        cfg.dataset.crop_size)
 
 
 def build_reader(cfg: Config) -> VideoReader:
@@ -84,12 +89,14 @@ def build_cleaner(cfg: Config) -> DatasetCleaner:
     return DatasetCleaner(reader=build_reader(cfg))
 
 
-def build_collator(cfg: Config, seed: Optional[int] = None) -> TubeMaskCollator:
+def build_collator(cfg: Config, seed: Optional[int] = None,
+                   deterministic: bool = False) -> TubeMaskCollator:
     """Build the tube-mask collator from the model / masking config.
 
     ``clip_frames`` (1 for image datasets) sizes the temporal token grid, so
     image batches get purely spatial masks (grid_depth == 1) while the video
-    pathway keeps the paper's tube masks over ``num_frames``.
+    pathway keeps the paper's tube masks over ``num_frames``. ``deterministic``
+    fixes the mask draw for reproducible evaluation.
     """
     grid_size, grid_depth = grid_dims(
         cfg.dataset.crop_size,
@@ -97,7 +104,8 @@ def build_collator(cfg: Config, seed: Optional[int] = None) -> TubeMaskCollator:
         cfg.dataset.clip_frames,
         cfg.model.tubelet_size,
     )
-    return TubeMaskCollator(cfg.masking, grid_size, grid_depth, seed=seed)
+    return TubeMaskCollator(cfg.masking, grid_size, grid_depth, seed=seed,
+                            deterministic=deterministic)
 
 
 def build_windows(cfg: Config, entries: List[str], meta) -> list:
@@ -153,7 +161,7 @@ def _make_video_dataset(cfg: Config, root: str, is_zip: bool,
         root=root,
         is_zip=is_zip,
         windows=build_windows(cfg, entries, meta),
-        pipeline=build_pipeline(cfg, train),
+        pipeline=build_pipeline(cfg),
         reader=build_reader(cfg),
         crop_size=cfg.dataset.crop_size,
         num_frames=cfg.dataset.num_frames,
@@ -168,7 +176,7 @@ def _make_image_dataset(cfg: Config, root: str, is_zip: bool,
         root=root,
         is_zip=is_zip,
         entries=entries,
-        pipeline=build_pipeline(cfg, train),
+        pipeline=build_pipeline(cfg),
         reader=ImageReader(),
         crop_size=cfg.dataset.crop_size,
         train=train,
@@ -247,14 +255,18 @@ def build_data_bundle(cfg: Config, batch_size: int,
         train_ds, val_ds, test_ds = _build_hdf5(cfg)
     else:
         train_ds, val_ds, test_ds = _build_onthefly(cfg)
-    collate = build_collator(cfg, seed=cfg.seed)
-    train_loader = _make_loader(cfg, train_ds, collate, True, batch_size, num_workers)
+    # Training masks vary every step (stochastic); evaluation masks are fixed
+    # so the val / test metric -- and the best-model selection built on it -- is
+    # reproducible instead of noised by the random mask draw.
+    train_collate = build_collator(cfg, seed=cfg.seed)
+    eval_collate = build_collator(cfg, seed=cfg.seed, deterministic=True)
+    train_loader = _make_loader(cfg, train_ds, train_collate, True, batch_size, num_workers)
     val_loader = None
     if val_ds is not None and len(val_ds) > 0:
-        val_loader = _make_loader(cfg, val_ds, collate, False, batch_size, num_workers)
+        val_loader = _make_loader(cfg, val_ds, eval_collate, False, batch_size, num_workers)
     test_loader = None
     if test_ds is not None and len(test_ds) > 0:
-        test_loader = _make_loader(cfg, test_ds, collate, False, batch_size, num_workers)
+        test_loader = _make_loader(cfg, test_ds, eval_collate, False, batch_size, num_workers)
     return DataBundle(
         train_loader, val_loader, test_loader,
         len(train_ds), len(val_ds) if val_ds else 0, len(test_ds) if test_ds else 0,
@@ -276,6 +288,6 @@ def build_eval_loader(cfg: Config, batch_size: int, num_workers: int
             cfg, cfg.dataset.test_path, is_zip, entries, meta, train=False
         )
     log_clip_windows(dataset)
-    collate = build_collator(cfg, seed=cfg.seed)
+    collate = build_collator(cfg, seed=cfg.seed, deterministic=True)
     loader = _make_loader(cfg, dataset, collate, False, batch_size, num_workers)
     return loader, len(dataset)

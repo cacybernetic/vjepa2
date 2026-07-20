@@ -308,8 +308,10 @@ class VisionTransformerPredictor(nn.Module):
         masks = torch.cat([masks_x, masks_y], dim=1)
 
         argsort = torch.argsort(masks, dim=1)
-        masks = torch.stack([masks[i, row] for i, row in enumerate(argsort)], dim=0)
-        x = torch.stack([x[i, row, :] for i, row in enumerate(argsort)], dim=0)
+        # Vectorised gather (batched) instead of a per-sample Python loop: same
+        # result, but no B small tensors nor the autograd-graph bloat they add.
+        masks = torch.gather(masks, 1, argsort)
+        x = torch.gather(x, 1, argsort.unsqueeze(-1).expand(-1, -1, x.size(-1)))
 
         if self.chop_last_n_tokens > 0:
             x = x[:, : -self.chop_last_n_tokens]
@@ -356,8 +358,9 @@ class VisionTransformerPredictor(nn.Module):
         preds, contexts = [], []
         for level, feat in enumerate(taps):
             feat = self._level_module(self.predictor_norm, level)(feat)
-            feat = torch.stack(
-                [feat[i, row, :] for i, row in enumerate(reverse_argsort)], dim=0
+            feat = torch.gather(
+                feat, 1,
+                reverse_argsort.unsqueeze(-1).expand(-1, -1, feat.size(-1))
             )
             proj = self._level_module(self.predictor_proj, level)
             preds.append(proj(feat[:, N_ctxt:, :]))

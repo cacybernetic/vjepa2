@@ -61,7 +61,7 @@ class TrainApp:
         self.optimizer, self.scheduler, self.counts = build_optimizer_scheduler(
             self.model, self.cfg, self.total_steps
         )
-        self.ema = build_ema(self.cfg)
+        self.ema = build_ema(self.cfg, self.total_steps)
         self.loss_fn = build_loss(self.cfg, self.total_steps)
 
     def _warm_start(self) -> None:
@@ -149,6 +149,7 @@ class TrainApp:
             self.model, self.loss_fn, self.optimizer, self.scheduler, self.ema,
             self.bundle, self.paths, self.cfg.train, self.cfg.device,
             amp=self.cfg.amp,
+            weight_decay_end=self.cfg.optim.weight_decay_end,
         )
         trainer.run()
 

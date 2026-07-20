@@ -46,11 +46,17 @@ class TubeMaskCollator:
     """
 
     def __init__(self, cfg: MaskingConfig, grid_size: int, grid_depth: int,
-                 seed: Optional[int] = None):
+                 seed: Optional[int] = None, deterministic: bool = False):
         self.cfg = cfg
         self.grid_size = int(grid_size)
         self.grid_depth = int(grid_depth)
         self.seed = seed
+        # Deterministic mode (evaluation): every call draws masks from a fresh
+        # generator seeded with ``seed``, so the masks -- and therefore the
+        # validation / test metric -- are identical across epochs, workers and
+        # runs. This makes best-model selection reproducible instead of hostage
+        # to a random mask draw. Training keeps the stochastic per-worker RNG.
+        self.deterministic = bool(deterministic)
         self._rng: Optional[np.random.Generator] = None
 
     def __getstate__(self):
@@ -59,6 +65,10 @@ class TubeMaskCollator:
         return state
 
     def _ensure_rng(self) -> np.random.Generator:
+        if self.deterministic:
+            # Reseed on every call for a fully reproducible mask stream.
+            self._rng = np.random.default_rng(self.seed)
+            return self._rng
         if self._rng is None:
             worker = torch.utils.data.get_worker_info()
             if worker is not None:
