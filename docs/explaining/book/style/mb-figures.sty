@@ -1,0 +1,283 @@
+%%%=====================================================================%%%
+%%%  mb-figures.sty — Schémas, graphiques et figures                     %%%
+%%%                                                                      %%%
+%%%  Ce livre explique par l'image avant d'expliquer par les symboles :   %%%
+%%%  ce module fournit de quoi dessiner vite et de façon *homogène*.      %%%
+%%%                                                                      %%%
+%%%  Trois familles :                                                    %%%
+%%%   1. Environnements : \begin{schema} (dessin) et \begin{graphe}      %%%
+%%%      (courbe de données) — cadre, légende et espacements réglés.     %%%
+%%%   2. Styles TikZ nommés : neurones, blocs d'algorithme, flèches,     %%%
+%%%      vecteurs, annotations, accolades.                                %%%
+%%%   3. Raccourcis tout faits : \reseauneurones, \axesxy, \vecteurfleche.%%%
+%%%                                                                      %%%
+%%%  Toutes les couleurs viennent de la charte définie dans ml4ebook.cls  %%%
+%%%  (mbBlue, mbAmber, mbTeal...) : une figure ne jure jamais avec le    %%%
+%%%  reste de la page.                                                    %%%
+%%%=====================================================================%%%
+\ProvidesPackage{style/mb-figures}[2026/07/21 Schemas et graphiques]
+
+% tikz, pgfplots, graphicx et les couleurs sont déjà chargés par la classe.
+\RequirePackage{float}
+
+%----------------------------------------------------------------------
+% Bibliothèques TikZ
+% (la classe charge déjà calc, positioning, shapes.geometric, arrows.meta,
+%  decorations.pathmorphing, backgrounds et matrix ; on complète ici)
+%----------------------------------------------------------------------
+\usetikzlibrary{
+  fit,                       % encadrer un groupe de nœuds
+  chains,                    % enchaînements automatiques
+  shapes.misc,               % rectangles à coins coupés
+  shapes.symbols,            % nuages, étoiles
+  shapes.multipart,          % nœuds en plusieurs cases
+  decorations.pathreplacing, % accolades
+  decorations.markings,      % flèches au milieu d'un chemin
+  patterns,                  % hachures
+  intersections,             % points d'intersection nommés
+  angles, quotes,            % marquer un angle et l'annoter
+  through,
+  plotmarks,
+  arrows,
+  math,
+}
+\usepgfplotslibrary{fillbetween, statistics, groupplots}
+
+%----------------------------------------------------------------------
+% Palette de tracé : l'ordre des courbes suit la charte du livre.
+% Chaque courbe change de COULEUR *et* de MARQUEUR *et* de style de
+% trait : la figure reste lisible imprimée en noir et blanc, et par un
+% lecteur daltonien.
+%----------------------------------------------------------------------
+\pgfplotscreateplotcyclelist{mbcycle}{%
+  {mbBlue,   mark=*,          mark size=1.4pt, thick},
+  {mbAmber,  mark=square*,    mark size=1.4pt, thick, dashed},
+  {mbTeal,   mark=triangle*,  mark size=1.7pt, thick, dotted},
+  {mbRose,   mark=diamond*,   mark size=1.6pt, thick, dashdotted},
+  {mbViolet, mark=pentagon*,  mark size=1.5pt, thick, densely dashed},
+  {mbAzure,  mark=x,          mark size=1.9pt, thick, densely dotted},
+  {mbGreen,  mark=o,          mark size=1.5pt, thick, loosely dashed},
+}
+
+%----------------------------------------------------------------------
+% Style d'axes par défaut : sobre, sans boîte, grille discrète.
+% Un graphique ne doit pas ressembler à une cage.
+%----------------------------------------------------------------------
+\pgfplotsset{
+  mbaxis/.style={
+    cycle list name=mbcycle,
+    width=0.82\linewidth, height=6cm,
+    axis lines=left,
+    axis line style={mbSlate, line width=0.6pt},
+    tick style={mbSlate, thin},
+    every tick label/.append style={font=\sffamily\scriptsize, color=mbSlate},
+    label style={font=\sffamily\small, color=mbInk},
+    title style={font=\sffamily\bfseries\small, color=mbInk},
+    grid=major,
+    grid style={mbMist, line width=0.5pt},
+    legend style={
+      font=\sffamily\scriptsize,
+      draw=mbSlate!30, fill=white, fill opacity=0.9, text opacity=1,
+      rounded corners=2pt, inner sep=4pt,
+    },
+    legend cell align=left,
+tick align=outside,
+  },
+  % Variante « boîte » quand on trace une surface ou une carte de chaleur
+  mbaxisboite/.style={
+    mbaxis, axis lines=box,
+    axis line style={mbSlate!60, line width=0.6pt},
+  },
+  % Repère mathématique centré en O, pour la géométrie des vecteurs
+  mbrepere/.style={
+    mbaxis, axis lines=middle, grid=both,
+    minor tick num=1,
+    axis equal image,
+    grid style={mbMist, line width=0.4pt},
+    xlabel style={anchor=north west}, ylabel style={anchor=south east},
+  },
+}
+
+%----------------------------------------------------------------------
+% Styles TikZ communs à tous les schémas du livre
+%----------------------------------------------------------------------
+\tikzset{
+  %---- Réglages généraux ----
+  mbfig/.style={
+    >={Stealth[round,length=2.6mm,width=2mm]},
+    line width=0.7pt,
+    font=\sffamily\small,
+    every node/.append style={align=center},
+  },
+  %---- Neurones et réseaux ----
+  neurone/.style={
+    circle, draw=mbSlate!70, fill=white, line width=0.7pt,
+    minimum size=7mm, inner sep=0pt, font=\sffamily\scriptsize,
+  },
+  neurone entree/.style={neurone, draw=mbAzure,  fill=mbAzure!12},
+  neurone cache/.style={ neurone, draw=mbBlue,   fill=mbBlue!12},
+  neurone sortie/.style={neurone, draw=mbAmber,  fill=mbAmber!18},
+  neurone biais/.style={ neurone, draw=mbSlate!50, fill=mbMist,
+                         font=\sffamily\tiny},
+  lien/.style={draw=mbSlate!40, line width=0.4pt},
+  lien fort/.style={draw=mbBlue!70, line width=1.1pt},
+  lien faible/.style={draw=mbSlate!25, line width=0.3pt},
+  % `text width` fixé : les noms de couches sont souvent plus larges que
+  % l'écart entre deux couches ; sans cela, ils se touchent.
+  couche titre/.style={font=\sffamily\scriptsize\bfseries, color=mbSlate,
+                       text width=2.2cm, align=center},
+  %---- Blocs d'algorithme / diagrammes de flux ----
+  bloc/.style={
+    rectangle, rounded corners=2.5pt, draw=mbBlue, fill=mbBlue!8,
+    line width=0.8pt, minimum height=9mm, minimum width=26mm,
+    inner sep=5pt, font=\sffamily\small, text=mbInk,
+  },
+  bloc accent/.style={bloc, draw=mbAmber, fill=mbAmber!12},
+  bloc calcul/.style={bloc, draw=mbTeal,  fill=mbTeal!8},
+  donnee/.style={
+    trapezium, trapezium left angle=70, trapezium right angle=110,
+    draw=mbViolet, fill=mbViolet!8, line width=0.8pt,
+    minimum height=8mm, inner sep=5pt, font=\sffamily\small, text=mbInk,
+  },
+  decision/.style={
+    diamond, aspect=1.9, draw=mbRose, fill=mbRose!8, line width=0.8pt,
+    inner sep=2pt, font=\sffamily\scriptsize, text=mbInk,
+  },
+  fleche/.style={->, draw=mbSlate, line width=0.8pt},
+  fleche accent/.style={->, draw=mbAmber!85!black, line width=1pt},
+  fleche pointillee/.style={->, draw=mbSlate!70, line width=0.7pt, dashed},
+  etiquette/.style={
+    font=\sffamily\scriptsize, text=mbSlate, fill=mbPaper,
+    inner sep=1.5pt,
+  },
+  %---- Géométrie : vecteurs, angles, repères ----
+  vecteur/.style={->, draw=mbBlue, line width=1.1pt},
+  vecteur accent/.style={->, draw=mbAmber!85!black, line width=1.1pt},
+  vecteur resultat/.style={->, draw=mbTeal, line width=1.1pt},
+  construction/.style={draw=mbSlate!45, line width=0.5pt, dashed},
+  point/.style={circle, fill=mbInk, inner sep=0pt, minimum size=2.2pt},
+  point vide/.style={circle, draw=mbInk, fill=white, line width=0.6pt,
+                     inner sep=0pt, minimum size=3pt},
+  %---- Annotations pédagogiques ----
+  annotation/.style={
+    font=\sffamily\scriptsize\itshape, text=mbAmber!75!black,
+    align=center,
+  },
+  annotation bulle/.style={
+    annotation, rectangle, rounded corners=2pt,
+    fill=mbAmber!10, draw=mbAmber!45, line width=0.5pt, inner sep=3pt,
+  },
+  trait annotation/.style={->, draw=mbAmber!65, line width=0.5pt},
+  zone/.style={
+    rectangle, rounded corners=3pt, draw=mbSlate!35, dashed,
+    line width=0.6pt, inner sep=6pt,
+  },
+  %---- Accolades ----
+  accolade/.style={
+    decorate, decoration={brace, amplitude=5pt, raise=2pt},
+    draw=mbSlate, line width=0.6pt,
+  },
+  accolade bas/.style={
+    decorate, decoration={brace, mirror, amplitude=5pt, raise=2pt},
+    draw=mbSlate, line width=0.6pt,
+  },
+}
+
+%----------------------------------------------------------------------
+% Environnements de figure
+%   \begin{schema}{Légende}[label]   ... dessin TikZ ...   \end{schema}
+%   \begin{graphe}{Légende}[label]   ... axis pgfplots ... \end{graphe}
+%
+% Ils posent le flottant, le centrage, la légende et l'étiquette d'un
+% coup : dans le corps, on ne s'occupe QUE du dessin. Le style `mbfig`
+% est déjà appliqué au tikzpicture du schéma.
+%----------------------------------------------------------------------
+\NewDocumentEnvironment{schema}{m O{}}{%
+  \begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}[mbfig]
+}{%
+  \end{tikzpicture}
+  \caption{#1}%
+  \ifblank{#2}{}{\label{fig:#2}}%
+  \end{figure}
+}
+
+\NewDocumentEnvironment{graphe}{m O{}}{%
+  \begin{figure}[htbp]
+  \centering
+  \begin{tikzpicture}
+}{%
+  \end{tikzpicture}
+  \caption{#1}%
+  \ifblank{#2}{}{\label{fig:#2}}%
+  \end{figure}
+}
+
+% Variante non flottante, pour un petit schéma qui doit rester
+% exactement là où il est écrit (dans un encadré, par exemple).
+\NewDocumentEnvironment{schemaici}{}{%
+  \par\medskip\noindent\begin{center}\begin{tikzpicture}[mbfig]
+}{%
+  \end{tikzpicture}\end{center}\par\medskip
+}
+
+%----------------------------------------------------------------------
+% Raccourci : réseau de neurones entièrement connecté
+%   \reseauneurones{3}{5}{2}
+%   \reseauneurones[Entrée][Couche cachée][Sortie]{3}{5}{2}
+% Les trois arguments obligatoires sont les tailles des couches.
+% Les optionnels renomment les légendes sous les couches (vides = aucune).
+%----------------------------------------------------------------------
+\NewDocumentCommand{\reseauneurones}{O{Entrée} O{Couche cachée} O{Sortie} mmm}{%
+  \begin{scope}[mbfig, x=2.5cm, y=0.95cm]
+    % Couche d'entrée
+    \foreach \i in {1,...,#4}{
+      \node[neurone entree] (mbE\i) at (0, {(#4-1)/2 - (\i-1)}) {};
+    }
+    % Couche cachée
+    \foreach \i in {1,...,#5}{
+      \node[neurone cache] (mbC\i) at (1, {(#5-1)/2 - (\i-1)}) {};
+    }
+    % Couche de sortie
+    \foreach \i in {1,...,#6}{
+      \node[neurone sortie] (mbS\i) at (2, {(#6-1)/2 - (\i-1)}) {};
+    }
+    % Connexions
+    \foreach \a in {1,...,#4}{\foreach \b in {1,...,#5}{
+      \draw[lien] (mbE\a) -- (mbC\b);}}
+    \foreach \a in {1,...,#5}{\foreach \b in {1,...,#6}{
+      \draw[lien] (mbC\a) -- (mbS\b);}}
+    % Légendes des couches
+    \pgfmathsetmacro{\mbbas}{-max(max(#4,#5),#6)/2 - 0.55}
+    \ifblank{#1}{}{\node[couche titre] at (0,\mbbas) {#1};}
+    \ifblank{#2}{}{\node[couche titre] at (1,\mbbas) {#2};}
+    \ifblank{#3}{}{\node[couche titre] at (2,\mbbas) {#3};}
+  \end{scope}
+}
+
+%----------------------------------------------------------------------
+% Raccourci : un repère (O, x, y) tracé à la main, pour la géométrie
+%   \axesxy{4}{3}          (axes de -0.6 à 4 et de -0.6 à 3)
+%   \axesxy[$u$][$v$]{4}{3} (noms d'axes personnalisés)
+%----------------------------------------------------------------------
+\NewDocumentCommand{\axesxy}{O{$x$} O{$y$} mm}{%
+  \draw[->, draw=mbSlate, line width=0.7pt] (-0.6,0) -- (#3,0)
+        node[right, font=\sffamily\scriptsize, text=mbSlate] {#1};
+  \draw[->, draw=mbSlate, line width=0.7pt] (0,-0.6) -- (0,#4)
+        node[above, font=\sffamily\scriptsize, text=mbSlate] {#2};
+  \node[font=\sffamily\scriptsize, text=mbSlate, below left, inner sep=1.5pt]
+        at (0,0) {$O$};
+}
+
+%----------------------------------------------------------------------
+% Raccourci : une flèche-vecteur partant de l'origine, avec son nom
+%   \vecteurfleche{3}{2}{$\vect{u}$}
+%   \vecteurfleche[vecteur accent]{3}{2}{$\vect{u}$}
+%----------------------------------------------------------------------
+\NewDocumentCommand{\vecteurfleche}{O{vecteur} mmm}{%
+  \draw[#1] (0,0) -- (#2,#3)
+        node[midway, above left=-1pt, font=\small] {#4};
+}
+
+\endinput

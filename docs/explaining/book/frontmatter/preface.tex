@@ -1,0 +1,117 @@
+\chapter*{Avant-propos}
+\addcontentsline{toc}{chapter}{Avant-propos}
+\markboth{Avant-propos}{}
+
+\begin{quote}
+\itshape « Un article de recherche ne devrait effrayer personne. »
+\end{quote}
+
+Ce livre raconte un seul article scientifique, du premier mot jusqu'à la
+dernière ligne de code : \emph{V-JEPA~2.1: Unlocking Dense Features in Video
+Self-Supervised Learning}~\parencite{murlabadia2026vjepa21}, écrit par
+l'équipe FAIR de Meta et l'Université de Saragosse. Cet article présente un
+programme qui apprend à comprendre des vidéos tout seul, sans qu'un humain
+lui explique jamais ce qu'il regarde. Il fait suite à un premier modèle,
+V-JEPA~2~\parencite{assran2025vjepa2}, dont nous parlerons beaucoup : c'est
+en corrigeant ses défauts que V-JEPA~2.1 est né.
+
+Un article de recherche est écrit par des spécialistes, pour des
+spécialistes. Il va vite. Il emploie des mots que personne ne vous a jamais
+définis. Il suppose que vous connaissez déjà dix autres articles. Résultat :
+beaucoup de gens curieux, capables, motivés, s'arrêtent à la première page.
+
+\textbf{Ici, on ne suppose rien du tout.} Chaque idée est d'abord racontée
+avec des mots de tous les jours, puis dessinée, puis seulement écrite en
+langage mathématique, puis enfin mise en pratique avec du code que vous
+pouvez faire tourner vous-même.
+
+\begin{enclair}
+Notre promesse : si vous savez compter et si vous savez lire, vous pouvez
+comprendre comment fonctionne V-JEPA~2.1. Le reste, nous le construisons
+ensemble, dans l'ordre, sans jamais sauter une marche.
+\end{enclair}
+
+\section*{Pour qui est ce livre}
+
+Pour toute personne qui veut trois choses à la fois :
+
+\begin{enumerate}
+  \item \textbf{comprendre} ce que fait V-JEPA~2.1, et pourquoi il fait
+        mieux que le modèle qui existait avant lui ;
+  \item \textbf{écrire elle-même} le modèle et le programme qui l'entraîne ;
+  \item \textbf{mettre le modèle au travail} pour de vrai, tous les jours,
+        au service d'une application.
+\end{enumerate}
+
+Aucun diplôme n'est demandé. Vous n'avez pas besoin de savoir ce qu'est un
+réseau de neurones, ni un transformeur, ni même une image numérique : tout
+cela est expliqué à partir de rien, dans les quatre premiers chapitres.
+
+\section*{Comment ce livre est fabriqué}
+
+Huit règles ont guidé chaque page, et elles ne sont pas des intentions : ce
+sont des engagements que vous pouvez vérifier.
+
+\begin{enumerate}
+  \item Aucun mot technique n'apparaît sans avoir été défini juste avant.
+  \item On commence toujours par les prérequis, jamais par la nouveauté.
+  \item Un dessin pour chaque idée qui bouge, qui circule ou qui se compare.
+  \item Un exemple après chaque notion, avec des chiffres quand c'est
+        possible.
+  \item Des mots simples, ceux de tous les jours.
+  \item Le texte vous parle et vous accompagne.
+  \item Une phrase de transition à la fin de chaque section, qui annonce la
+        suite.
+  \item Des phrases entières, comme dans un vrai livre.
+\end{enumerate}
+
+Le texte utilise quelques encadrés qui reviennent souvent, faciles à
+reconnaître à leur pictogramme :
+
+\begin{itemize}
+  \item \textbf{\faIcon{comments}~En clair} — l'idée expliquée avec des
+        mots de tous les jours.
+  \item \textbf{\faIcon{brain}~L'intuition} — l'image mentale à garder en
+        tête.
+  \item \textbf{\faIcon{robot}~À quoi ça sert en IA ?} — où cette notion
+        sert vraiment dans V-JEPA~2.1.
+  \item \textbf{\faIcon{chart-line}~Sur des données réelles} — la même idée,
+        appliquée aux chiffres réels de l'article.
+  \item \textbf{\faIcon{seedling}~Ce qu'il faut savoir avant} — les seuls
+        prérequis de la section.
+  \item \textbf{\faIcon{exclamation-triangle}~Piège à éviter} — l'erreur
+        classique que tout le monde fait.
+  \item \textbf{\faIcon{key}~À retenir} — l'essentiel, si vous ne deviez
+        garder qu'une chose.
+  \item \textbf{\faIcon{rocket}~Pour aller plus loin} — un pont vers un
+        sujet plus avancé, que vous pouvez sauter en première lecture.
+\end{itemize}
+
+Chaque chapitre se termine par des exercices, tous corrigés. Ils ne servent
+pas à vous noter : ils servent à vous montrer, à vous-même, que vous avez
+compris.
+
+\section*{Un mot d'honnêteté}
+
+L'article explique comment \emph{entraîner} le modèle et comment
+l'\emph{évaluer}. Il ne parle presque pas de sa \emph{mise en service} : pas
+de serveur, pas de temps de réponse, pas de surveillance. La dernière partie
+de ce livre sera donc de deux couleurs, et nous vous le dirons franchement à
+chaque fois :
+
+\begin{itemize}
+  \item \textbf{Ce que l'article dit} — la taille des modèles, la résolution
+        des images, la vitesse de calcul. Ce sont des résultats mesurés.
+  \item \textbf{Ce que nous ajoutons} — le serveur, la mesure du temps de
+        réponse, la surveillance. Ce sont des conseils de métier, utiles et
+        éprouvés, mais qui ne viennent pas de l'article.
+\end{itemize}
+
+Nous dirons aussi, aussi clairement que ses réussites, ce que ce modèle ne
+sait pas faire, et les tâches sur lesquelles d'autres modèles restent
+meilleurs que lui. Un livre qui ne raconte que les victoires ne vous aide
+pas à choisir.
+
+\vspace{1em}
+\hfill\textit{Bonne lecture.}
+\clearpage

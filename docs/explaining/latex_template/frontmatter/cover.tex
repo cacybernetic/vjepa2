@@ -1,0 +1,243 @@
+%%%=====================================================================%%%
+%%%  frontmatter/cover.tex — Page de titre                              %%%
+%%%                                                                      %%%
+%%%  Le titre, le sous-titre et l'auteur viennent des macros \mbTitre,   %%%
+%%%  \mbSousTitre et \mbAuteur définies en tête de ml4ebook.cls.         %%%
+%%%                                                                      %%%
+%%%  PARTI PRIS : ce livre est un livre de MATHÉMATIQUES, dont l'IA est  %%%
+%%%  le champ d'application — pas l'inverse. La couverture montre donc   %%%
+%%%  un panorama des cinq domaines traités, chacun avec sa figure ET sa  %%%
+%%%  formule, l'apprentissage n'étant que le dernier des cinq :          %%%
+%%%                                                                      %%%
+%%%     algèbre linéaire · analyse · probabilités                        %%%
+%%%              optimisation · apprentissage                            %%%
+%%%                                                                      %%%
+%%%  Composition en registres horizontaux :                              %%%
+%%%     1. la rangée haute des trois domaines fondamentaux               %%%
+%%%     2. le bandeau bleu qui porte le titre                            %%%
+%%%     3. le filet ambre, le sous-titre, la promesse                    %%%
+%%%     4. la rangée basse : optimisation et apprentissage               %%%
+%%%     5. l'auteur                                                      %%%
+%%%                                                                      %%%
+%%%  Les teintes sont NETTEMENT plus soutenues que dans le corps du      %%%
+%%%  livre : une couverture est vue de loin, souvent imprimée, parfois   %%%
+%%%  en noir et blanc. Un trait à 30 % d'opacité y disparaît.            %%%
+%%%=====================================================================%%%
+\begin{titlepage}
+\thispagestyle{empty}
+
+% Styles locaux : ils ne servent qu'ici, mais évitent de répéter dix fois
+% les mêmes réglages de police pour les formules et les intitulés.
+\tikzset{
+  cov formule/.style={font=\small, text=mbInk},
+  cov domaine/.style={font=\sffamily\scriptsize\bfseries, text=mbSlate},
+  cov courbe/.style={draw=mbBlue, line width=1.1pt},
+  cov axe/.style={draw=mbSlate!75, line width=0.6pt,
+                  -{Stealth[round,length=1.7mm,width=1.3mm]}},
+}
+
+\begin{tikzpicture}[remember picture,overlay,mbfig]
+
+  %--------------------------------------------------------------------
+  % Fond
+  %--------------------------------------------------------------------
+  \fill[mbPaper] (current page.south west) rectangle (current page.north east);
+
+  %====================================================================
+  % 1. RANGÉE HAUTE — les trois piliers mathématiques
+  %====================================================================
+  \coordinate (rhaut) at ($(current page.north)+(0cm,-4.6cm)$);
+
+  %--------------------------------------------------------------------
+  % 1a. ALGÈBRE LINÉAIRE — une matrice, avec ses coefficients et ses
+  %     crochets. Les cases colorées la rendent lisible de loin, les
+  %     nombres disent que c'est bien un objet mathématique.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rhaut)+(-4.5cm,0cm)$)}]
+    \foreach \i in {0,...,3}{
+      \foreach \j in {0,...,3}{
+        \pgfmathtruncatemacro{\val}{mod(3*\i+5*\j+7,9)-4}
+        \ifnum\i=\j
+          \fill[mbAmber!45] (-1.16+\j*0.58, 1.16-\i*0.58) rectangle ++(0.58,-0.58);
+        \else
+          \fill[mbBlue!\the\numexpr8+4*\i+5*\j\relax]
+                (-1.16+\j*0.58, 1.16-\i*0.58) rectangle ++(0.58,-0.58);
+        \fi
+        \draw[mbBlue!55, line width=0.4pt]
+              (-1.16+\j*0.58, 1.16-\i*0.58) rectangle ++(0.58,-0.58);
+        \node[font=\scriptsize, text=mbInk]
+              at (-0.87+\j*0.58, 0.87-\i*0.58) {$\val$};
+      }
+    }
+    % Crochets de matrice
+    \draw[mbInk, line width=1pt]
+      (-1.32,1.16) -- (-1.32,-1.16) (-1.32,1.16) -- (-1.10,1.16)
+      (-1.32,-1.16) -- (-1.10,-1.16);
+    \draw[mbInk, line width=1pt]
+      (1.32,1.16) -- (1.32,-1.16) (1.32,1.16) -- (1.10,1.16)
+      (1.32,-1.16) -- (1.10,-1.16);
+    \node[cov formule] at (0,-1.78) {$A\vect{x} = \vect{b}$};
+    \node[cov domaine] at (0,-2.28) {ALGÈBRE LINÉAIRE};
+  \end{scope}
+
+  %--------------------------------------------------------------------
+  % 1b. ANALYSE — une courbe et sa tangente au sommet. La tangente y est
+  %     horizontale : c'est exactement la condition f'(x) = 0, celle qui
+  %     fonde toute l'optimisation. La figure annonce la suivante.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rhaut)+(0cm,0cm)$)}]
+    \draw[cov axe] (-1.98,-0.78) -- (2.05,-0.78);
+    \draw[cov axe] (-1.8125,-0.95) -- (-1.8125,1.02);
+    \draw[cov courbe, smooth, samples=80, domain=0:2.9]
+      plot ({\x*1.25-1.8125}, {(0.75+0.5*sin(deg(1.9*\x)))*1.25-0.78});
+    % La tangente au maximum : elle est HORIZONTALE, c'est-à-dire f'(x)=0
+    \draw[draw=mbAmber!85!black, line width=1.2pt] (-1.5,0.7825) -- (-0.05,0.7825);
+    \draw[mbSlate!55, line width=0.5pt, dashed] (-0.78,0.7825) -- (-0.78,-0.78);
+    \fill[mbInk] (-0.78,0.7825) circle (2pt);
+    \node[cov formule] at (0,-1.78) {$f'(x) = 0$};
+    \node[cov domaine] at (0,-2.28) {ANALYSE};
+  \end{scope}
+
+  %--------------------------------------------------------------------
+  % 1c. PROBABILITÉS — la courbe en cloche, avec l'aire sous la courbe :
+  %     l'image même d'une probabilité.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rhaut)+(4.5cm,0cm)$)}]
+    % L'aire grisée court sur un écart-type de part et d'autre de la
+    % moyenne : c'est une probabilité, montrée comme une surface.
+    \fill[mbBlue!35]
+      (-0.7375,-0.78) --
+      plot[smooth, samples=50, domain=0.91:2.09]
+        ({\x*1.25-1.875}, {1.25*exp(-(\x-1.5)^2/0.7)*1.25-0.78}) --
+      (0.7375,-0.78) -- cycle;
+    \draw[cov axe] (-2.05,-0.78) -- (2.1,-0.78);
+    \draw[cov courbe, smooth, samples=80, domain=0:3]
+      plot ({\x*1.25-1.875}, {1.25*exp(-(\x-1.5)^2/0.7)*1.25-0.78});
+    \draw[mbAmber!85!black, line width=0.9pt, dashed] (0,-0.78) -- (0,0.78);
+    \node[font=\scriptsize, text=mbAmber!80!black, below] at (0,-0.81) {$\mu$};
+    \node[cov formule] at (0,-1.78) {$\Normale(\mu,\sigma^{2})$};
+    \node[cov domaine] at (0,-2.28) {PROBABILITÉS};
+  \end{scope}
+
+  %====================================================================
+  % 2. Bandeau du titre
+  %    ATTENTION : les deux coins doivent avoir des ordonnées DIFFÉRENTES.
+  %    La version d'origine allait de `current page.west` à
+  %    `current page.east|-current page.center` — or `west` est déjà à la
+  %    hauteur du centre : le rectangle était plat, donc invisible, et le
+  %    titre blanc se retrouvait posé sur le fond crème, illisible.
+  %====================================================================
+  \fill[mbBlue] (current page.west|-current page.center)
+        rectangle ([yshift=3.7cm]current page.east|-current page.center);
+  \fill[mbAmber] (current page.west|-current page.center)
+        rectangle ([yshift=-0.28cm]current page.east|-current page.center);
+
+  \node[anchor=west,text width=11.5cm,align=left]
+        at ([yshift=1.85cm,xshift=1.9cm]current page.west) {%
+    \sffamily\bfseries\color{white}\fontsize{34}{39}\selectfont
+    Machine Learning\\ For Engineer};
+
+  %====================================================================
+  % 3. Sous-titre et promesse, sous le filet — donc sur le fond crème
+  %====================================================================
+  \node[anchor=north west,text width=12.4cm,align=left]
+        at ([yshift=-1.05cm,xshift=1.9cm]current page.west) {%
+    \sffamily\color{mbInk}\large \mbSousTitre};
+  \node[anchor=north west,text width=12.4cm,align=left]
+        at ([yshift=-2.15cm,xshift=1.9cm]current page.west) {%
+    \sffamily\bfseries\color{mbAmber!80!black}\normalsize
+    Aucun prérequis : on part vraiment de zéro.};
+
+  %====================================================================
+  % 4. RANGÉE BASSE — ce qu'on construit avec les trois piliers
+  %====================================================================
+  \coordinate (rbas) at ($(current page.south)+(0cm,6.5cm)$);
+
+  %--------------------------------------------------------------------
+  % 4a. OPTIMISATION — lignes de niveau d'une fonction de coût et la
+  %     descente qui rejoint le minimum. Le zigzag n'est pas décoratif :
+  %     c'est le comportement réel d'une descente dans une vallée
+  %     allongée, l'amplitude décroissant à chaque pas.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rbas)+(-3.4cm,0cm)$)}]
+    \begin{scope}[rotate=20]
+      \foreach \r/\t in {1.15/34, 0.92/44, 0.69/54, 0.46/64, 0.23/74}{
+        \draw[mbBlue!\t, line width=0.8pt]
+              (0,0) ellipse ({\r*1.9cm} and {\r*1.08cm});
+      }
+      \fill[mbBlue] (0,0) circle (2pt);
+      \draw[-{Stealth[round,length=2.2mm,width=1.7mm]},
+            draw=mbAmber!85!black, line width=1.1pt]
+        (-1.95,0.55) -- (-1.03,-0.46) -- (-0.55,0.32)
+        -- (-0.27,-0.18) -- (-0.11,0.10) -- (-0.02,-0.01);
+      \foreach \p in {(-1.95,0.55), (-1.03,-0.46), (-0.55,0.32),
+                      (-0.27,-0.18), (-0.11,0.10)}{
+        \fill[mbAmber!85!black] \p circle (1.8pt);
+      }
+    \end{scope}
+    \node[cov formule] at (0,-1.85)
+         {$\params \leftarrow \params - \pas\,\grad\cout(\params)$};
+    \node[cov domaine] at (0,-2.35) {OPTIMISATION};
+  \end{scope}
+
+  %--------------------------------------------------------------------
+  % 4b. APPRENTISSAGE — le réseau de neurones. Il vient en dernier, et
+  %     il n'est qu'une application de tout ce qui précède : une
+  %     multiplication par une matrice, puis une fonction, le tout réglé
+  %     par une descente de gradient.
+  %--------------------------------------------------------------------
+  % `minimum size` doit être posé APRÈS le style `neurone`, dans la liste
+  % d'options du nœud : passé par `every node`, il serait écrasé par le
+  % 7 mm du style — plus large que l'espacement, et les neurones se
+  % chevaucheraient.
+  \begin{scope}[shift={($(rbas)+(3.4cm,0cm)$)}]
+    \foreach \i in {0,1,2}
+      \node[neurone entree, draw=mbAzure, fill=mbAzure!25, line width=0.8pt,
+            minimum size=4.4mm]
+            (re\i) at (-1.5, {0.62*(1-\i)}) {};
+    \foreach \i in {0,1,2,3}
+      \node[neurone cache, draw=mbBlue, fill=mbBlue!20, line width=0.8pt,
+            minimum size=4.4mm]
+            (rc\i) at (0, {0.62*(1.5-\i)}) {};
+    \foreach \i in {0,1}
+      \node[neurone sortie, draw=mbAmber!85!black, fill=mbAmber!45,
+            line width=0.8pt, minimum size=4.4mm]
+            (rs\i) at (1.5, {0.62*(0.5-\i)}) {};
+    \foreach \a in {0,1,2} \foreach \b in {0,1,2,3}
+      \draw[mbSlate!45, line width=0.45pt] (re\a) -- (rc\b);
+    \foreach \a in {0,1,2,3} \foreach \b in {0,1}
+      \draw[mbSlate!45, line width=0.45pt] (rc\a) -- (rs\b);
+    \node[cov formule] at (0,-1.85)
+         {$\vect{y} = \sigma(W\vect{x} + \vect{b})$};
+    \node[cov domaine] at (0,-2.35) {APPRENTISSAGE};
+  \end{scope}
+
+  %====================================================================
+  % 5. Auteur
+  %====================================================================
+  \node[anchor=south west,text width=12.4cm,align=left]
+        at ([yshift=1.5cm,xshift=1.9cm]current page.south west) {%
+    \sffamily
+    {\bfseries\color{mbInk}\large\mbAuteur}\\[6pt]
+    {\color{mbBlue}\footnotesize\faIcon{calendar-alt}\ \the\year}};
+\end{tikzpicture}
+\end{titlepage}
+
+% Verso de la page de titre : colophon
+\thispagestyle{empty}
+\null\vfill
+{\footnotesize\sffamily\color{mbSlate}
+\noindent Édition \the\year. Document composé avec \LaTeX{} (pdf\TeX), polices
+Palatino (texte et mathématiques), TeX~Gyre~Heros (titres) et DejaVu~Sans~Mono
+(code).
+Figures et schémas réalisés avec \textsf{TikZ} et \textsf{pgfplots}, coloration
+syntaxique assurée par \textsf{minted}/Pygments, encadrés par
+\textsf{tcolorbox}, bibliographie par \textsf{biblatex}.\par
+\medskip
+\noindent Ce livre rassemble en un seul volume les mathématiques dont
+l'intelligence artificielle et la science des données ont réellement besoin :
+algèbre linéaire, analyse, probabilités, statistique et optimisation. Il est
+écrit pour être lu sans aucun prérequis : on part de zéro, on explique avec
+des mots avant d'écrire des symboles, et on n'avance jamais sans avoir
+d'abord dit pourquoi.\par}
+\clearpage

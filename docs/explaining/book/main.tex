@@ -1,0 +1,106 @@
+%%%=====================================================================%%%
+%%%                                                                      %%%
+%%%   V-JEPA 2.1 PAS À PAS                                               %%%
+%%%   Comprendre, coder et déployer un modèle vidéo auto-supervisé       %%%
+%%%                                                                      %%%
+%%%   Fichier maître. Compilation :                                      %%%
+%%%       latexmk        (recommandé, tout automatique)                  %%%
+%%%     ou :  make                                                       %%%
+%%%     ou à la main :                                                   %%%
+%%%       pdflatex -shell-escape main                                    %%%
+%%%       bibtex   main                                                  %%%
+%%%       pdflatex -shell-escape main                                    %%%
+%%%       pdflatex -shell-escape main                                    %%%
+%%%                                                                      %%%
+%%%   IMPORTANT : l'option -shell-escape est indispensable (minted).     %%%
+%%%                                                                      %%%
+%%%   La classe et les styles viennent du template ML4E, repris tels     %%%
+%%%   quels. Seule l'identité du livre est redéfinie ci-dessous, dans    %%%
+%%%   le préambule : le template d'origine n'est pas modifié.            %%%
+%%%=====================================================================%%%
+\documentclass{ml4ebook}     % ajoutez l'option [brouillon] pour un filigrane
+
+%----------------------------------------------------------------------
+% Identité de CE livre (le fichier de classe reste celui du template)
+%----------------------------------------------------------------------
+\renewcommand{\mbTitre}{V-JEPA 2.1 pas à pas}
+\renewcommand{\mbTitreCourt}{V-JEPA 2.1 pas à pas}
+\renewcommand{\mbSousTitre}{Comprendre, coder et déployer un modèle vidéo
+  auto-supervisé, en partant vraiment de zéro}
+\renewcommand{\mbAuteur}{Doctor Mokira}
+
+\begin{document}
+
+%----------------------------------------------------------------------
+% Pages liminaires
+%----------------------------------------------------------------------
+\frontmatter
+\input{frontmatter/cover}
+\input{frontmatter/preface}
+
+\cleardoublepage
+\pdfbookmark[0]{Table des matières}{toc}
+\tableofcontents
+
+%----------------------------------------------------------------------
+% Corps du livre
+%----------------------------------------------------------------------
+\mainmatter
+
+% Progression voulue : on ne suppose rien au départ, et chaque partie ne
+% s'appuie que sur les précédentes. Les chapitres sont décommentés au fur
+% et à mesure de leur rédaction.
+
+\part{Les fondations : partir vraiment de zéro}
+\input{chapters/01-image-et-video}
+% \input{chapters/02-apprendre}                 % poids, perte, descente de gradient
+% \input{chapters/03-auto-supervision}          % apprendre sans étiquettes
+% \input{chapters/04-transformeur-de-vision}    % patchs, jetons, attention, RoPE
+
+\part{Comprendre JEPA et V-JEPA 2, l'ancêtre direct}
+% \input{chapters/05-idee-jepa}
+% \input{chapters/06-perte-vjepa2}
+
+\part{Le problème que V-JEPA 2.1 vient résoudre}
+% \input{chapters/07-global-contre-dense}
+% \input{chapters/08-diagnostic}
+
+\part{V-JEPA 2.1, ingrédient par ingrédient}
+% \input{chapters/09-tableau-de-bord}
+% \input{chapters/10-perte-dense}
+% \input{chapters/11-supervision-profonde}
+% \input{chapters/12-donnees}
+% \input{chapters/13-tokeniseur-multimodal}
+% \input{chapters/14-taille-et-refroidissement}
+% \input{chapters/15-distillation}
+
+\part{Les résultats, lus avec honnêteté}
+% \input{chapters/16-prediction-du-futur}
+% \input{chapters/17-robot}
+% \input{chapters/18-taches-denses}
+
+\part{Construire le modèle et le programme d'entraînement}
+% \input{chapters/19-atelier}
+% \input{chapters/20-tokeniseur-en-code}
+% \input{chapters/21-encodeur}
+% \input{chapters/22-masques}
+% \input{chapters/23-predicteur}
+% \input{chapters/24-pertes-et-boucle}
+% \input{chapters/25-surveiller-entrainement}
+
+\part{De l'entraînement à la production}
+% \input{chapters/26-choisir-son-modele}
+% \input{chapters/27-encodeur-gele}
+% \input{chapters/28-entrainer-sa-sonde}
+% \input{chapters/29-servir-le-modele}
+% \input{chapters/30-surveiller-en-service}
+% \input{chapters/31-pieges}
+
+%----------------------------------------------------------------------
+% Pages finales
+%----------------------------------------------------------------------
+\backmatter
+\cleardoublepage
+\printbibliography[heading=bibintoc]
+
+\end{document}

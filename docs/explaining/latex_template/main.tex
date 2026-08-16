@@ -1,0 +1,82 @@
+%%%=====================================================================%%%
+%%%                                                                      %%%
+%%%   MATHÉMATIQUES POUR L'INTELLIGENCE ARTIFICIELLE                     %%%
+%%%   Le tout-en-un des fondamentaux, accessible à tous                  %%%
+%%%   Doctor Mokira — projet ML4E                                        %%%
+%%%                                                                      %%%
+%%%   Fichier maître. Compilation :                                      %%%
+%%%       latexmk    (recommandé, tout automatique)                      %%%
+%%%     ou :  make                                                       %%%
+%%%     ou à la main :                                                   %%%
+%%%       pdflatex -shell-escape main                                    %%%
+%%%       bibtex   main                                                  %%%
+%%%       pdflatex -shell-escape main                                    %%%
+%%%       pdflatex -shell-escape main                                    %%%
+%%%                                                                      %%%
+%%%   IMPORTANT : l'option -shell-escape est indispensable (minted).     %%%
+%%%=====================================================================%%%
+\documentclass{ml4ebook}     % ajoutez l'option [brouillon] pour un filigrane
+
+\begin{document}
+
+%----------------------------------------------------------------------
+% Pages liminaires
+%----------------------------------------------------------------------
+\frontmatter
+\input{frontmatter/cover}
+\input{frontmatter/preface}
+
+\cleardoublepage
+\pdfbookmark[0]{Table des matières}{toc}
+\tableofcontents
+
+%----------------------------------------------------------------------
+% Corps du livre
+%----------------------------------------------------------------------
+\mainmatter
+
+% Astuce : \input insère le chapitre directement. Pour de très gros livres,
+% vous pouvez remplacer \input par \include (compilation chapitre par
+% chapitre via \includeonly), à condition de n'utiliser QUE \include.
+%
+% Progression voulue : on ne suppose rien au départ, et chaque partie ne
+% s'appuie que sur les précédentes. Décommentez les chapitres au fur et à
+% mesure de leur rédaction.
+
+\part{Le langage des données : algèbre linéaire}
+\input{chapters/01-vecteurs-et-matrices}
+% \input{chapters/02-systemes-lineaires}       % résoudre Ax = b, Gauss
+% \input{chapters/03-factorisations}           % LU, Cholesky, QR
+% \input{chapters/04-valeurs-propres-et-svd}   % ACP, compression, embeddings
+
+\part{Le langage de l'incertain : probabilités et statistique}
+% \input{chapters/05-probabilites}             % hasard, variables aléatoires
+% \input{chapters/06-lois-usuelles}            % Bernoulli, normale, ...
+% \input{chapters/07-estimation}               % moyenne, variance, maximum de vraisemblance
+% \input{chapters/08-bayes}                    % probabilités conditionnelles, Bayes
+
+\part{Bouger dans la bonne direction : calcul différentiel et optimisation}
+% \input{chapters/09-derivees-et-gradients}
+% \input{chapters/10-descente-de-gradient}
+% \input{chapters/11-convexite}
+% \input{chapters/12-optimisation-sous-contraintes}
+
+\part{Apprendre à partir de données : apprentissage automatique}
+% \input{chapters/13-regression-lineaire}
+% \input{chapters/14-classification}           % régression logistique
+% \input{chapters/15-generalisation}           % sur-apprentissage, régularisation
+
+\part{Les réseaux de neurones, démontés pièce par pièce}
+% \input{chapters/16-le-neurone}
+% \input{chapters/17-reseaux-multicouches}
+% \input{chapters/18-retropropagation}
+% \input{chapters/19-entrainement-en-pratique}
+
+%----------------------------------------------------------------------
+% Pages finales
+%----------------------------------------------------------------------
+\backmatter
+\cleardoublepage
+\printbibliography[heading=bibintoc]
+
+\end{document}

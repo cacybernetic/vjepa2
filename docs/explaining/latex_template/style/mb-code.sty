@@ -1,0 +1,168 @@
+%%%=====================================================================%%%
+%%%  mb-code.sty — Coloration syntaxique du code                         %%%
+%%%                                                                      %%%
+%%%  S'appuie sur `minted` (Pygments). Nécessite la compilation avec     %%%
+%%%  l'option  -shell-escape  (gérée par .latexmkrc / Makefile).         %%%
+%%%                                                                      %%%
+%%%  Langages prévus : Python, Julia, R, C/C++, Fortran, MATLAB/Octave,  %%%
+%%%  pseudo-code, Bash — tout ce que Pygments sait colorer en réalité.   %%%
+%%%=====================================================================%%%
+\ProvidesPackage{style/mb-code}[2026/07/21 Coloration syntaxique du code]
+
+\RequirePackage{fvextra}
+\RequirePackage[cache=true,cachedir=build/_minted]{minted}
+\RequirePackage{tcolorbox}
+\tcbuselibrary{minted,skins,breakable,xparse}
+\RequirePackage{accsupp}   % voir « numéros non sélectionnables » plus bas
+
+%----------------------------------------------------------------------
+% Style Pygments et réglages globaux du code
+%----------------------------------------------------------------------
+\usemintedstyle{friendly}
+\setminted{
+  fontsize=\small,
+  fontfamily=tt,             % réutilise \ttfamily (DejaVu Sans Mono, chargé par la classe)
+  breaklines=true,
+  breakanywhere=true,
+  autogobble=true,
+  tabsize=4,
+  numbersep=6pt,
+}
+
+%----------------------------------------------------------------------
+% Palette des blocs de code
+%
+% Tout est dérivé de mbBlue : le bloc de code appartient visuellement à
+% la même famille que le reste du livre, il n'y détonne pas.
+%
+% L'écart entre le fond du code et la bande des numéros doit rester
+% NET. La version précédente opposait mbInk!3 à mbInk!7 — quatre points
+% d'écart, invisibles à l'impression : la « bande » ne se voyait pas.
+% Un filet vertical vient en plus marquer la séparation, comme dans un
+% éditeur de texte.
+%----------------------------------------------------------------------
+\colorlet{mbCodeFond}{mbBlue!4!white}    % fond de la zone de code
+\colorlet{mbCodeMarge}{mbBlue!16!white}  % bande des numéros de ligne
+\colorlet{mbCodeFilet}{mbBlue!32!white}  % filet séparateur
+\colorlet{mbCodeCadre}{mbBlue!45!white}  % cadre du bloc
+\colorlet{mbCodeNum}{mbSlate}            % chiffres des numéros de ligne
+\colorlet{mbCodeBarre}{mbInk}            % bandeau de titre
+
+% Largeur de la bande des numéros. Définie UNE fois : le retrait gauche
+% du texte et le tracé de la bande doivent coïncider exactement, sinon
+% les numéros débordent sur le code ou flottent dans le vide.
+% 26 pt (au lieu de 22) laissent la place à un numéro à trois chiffres :
+% un listing peut dépasser la centaine de lignes.
+\newlength{\mbCodeMargeL}
+\setlength{\mbCodeMargeL}{26pt}
+
+%----------------------------------------------------------------------
+% DÉCORATIONS NON SÉLECTIONNABLES
+%
+% Un numéro de ligne est du texte comme un autre dans le flux du PDF :
+% le copier-coller d'un extrait ramenait « 1 import numpy 2 3 #
+% commentaire 4 x = ... », inutilisable tel quel. Le lecteur devait
+% retirer les numéros à la main, ligne par ligne.
+%
+% `accsupp` déclare, pour un fragment, le texte que le lecteur PDF doit
+% renvoyer à la place de ce qui est affiché. On y met une chaîne VIDE :
+% la décoration reste imprimée, mais elle ne sort ni au copier-coller,
+% ni à l'extraction (pdftotext), ni au lecteur d'écran.
+%
+% Le lecteur doit honorer /ActualText — c'est le cas d'Adobe Reader,
+% d'Okular, de pdf.js (Firefox) et de poppler. Sur un lecteur qui
+% l'ignore, on retombe sur l'ancien comportement : rien n'est cassé, le
+% confort est seulement perdu.
+%----------------------------------------------------------------------
+\newcommand{\mbSansCopie}[1]{%
+  \BeginAccSupp{method=escape,ActualText={}}#1\EndAccSupp{}}
+
+% 1. Les numéros de ligne
+\renewcommand{\theFancyVerbLine}{%
+  \mbSansCopie{\ttfamily\footnotesize\textcolor{mbCodeNum}{%
+    \arabic{FancyVerbLine}}}}
+
+% 2. Le chevron de repli des lignes trop longues. Même raison : il
+%    apparaissait au milieu du code copié, en plein dans une chaîne de
+%    caractères ou une expression.
+\setminted{
+  breaksymbolleft={\mbSansCopie{%
+    \footnotesize\textcolor{mbCodeNum!70}{\ensuremath{\hookrightarrow}}}},
+}
+
+%----------------------------------------------------------------------
+% Habillage commun aux blocs de code et aux fichiers inclus.
+% Factorisé : les deux environnements partageaient auparavant une
+% douzaine de réglages recopiés à l'identique, qu'il fallait penser à
+% modifier des deux côtés.
+%----------------------------------------------------------------------
+\tcbset{
+  mb@codebox/.style={
+    enhanced, breakable,
+    colback=mbCodeFond,
+    colframe=mbCodeCadre,
+    boxrule=0.8pt, arc=3pt,
+    left=\mbCodeMargeL, right=8pt, top=4pt, bottom=4pt,
+    before skip=10pt, after skip=10pt,
+    % Bande des numéros + filet séparateur, redessinés sur chaque
+    % fragment quand le bloc se coupe en bas de page.
+    overlay={%
+      \begin{tcbclipinterior}
+        \fill[mbCodeMarge] (frame.south west)
+              rectangle ([xshift=\mbCodeMargeL]frame.north west);
+        \draw[mbCodeFilet, line width=0.6pt]
+              ([xshift=\mbCodeMargeL]frame.south west) --
+              ([xshift=\mbCodeMargeL]frame.north west);
+      \end{tcbclipinterior}},
+    % Texte blanc sur fond marine : c'est de la typographie INVERSÉE, où
+    % tout se paie plus cher qu'en noir sur blanc. D'où un sans-serif
+    % (jamais un serif à déliés fins), du droit plutôt que de l'italique,
+    % et \small plutôt que \footnotesize.
+    colbacktitle=mbCodeBarre, coltitle=white,
+    fonttitle=\sffamily\bfseries\small,
+    attach boxed title to top left={yshift=-2.4mm,xshift=10pt},
+    boxed title style={boxrule=0pt, arc=2pt, left=8pt, right=8pt,
+                       top=3pt, bottom=3pt,
+                       frame code={}, colback=mbCodeBarre},
+  }
+}
+
+%----------------------------------------------------------------------
+% Bloc de code encadré et titré
+%   \begin{code}{python}[Titre optionnel] ... \end{code}
+% Barre de titre : pastille + langage + titre. Numérotation à gauche.
+%----------------------------------------------------------------------
+\NewTCBListing{code}{ m O{} }{%
+  mb@codebox,
+  listing engine=minted,
+  minted language=#1,
+  minted options={linenos, numbersep=8pt},
+  listing only,
+  % Le nom du langage reste en gras capitales ; le titre libre passe en
+  % graisse normale — toujours en sans-serif et droit — et un point ambre
+  % les sépare. La hiérarchie se lit sans sacrifier la lisibilité.
+  title={\faIcon{code}\ \ \MakeUppercase{#1}%
+         \ifblank{#2}{}{%
+           \ \textcolor{mbAmber}{\textbullet}\ \mdseries#2}},
+}
+
+%----------------------------------------------------------------------
+% Inclusion d'un fichier source externe, coloré et encadré
+%   \fichiercode{python}{scripts/gauss.py}          (titre = nom du fichier)
+%   \fichiercode[Mon titre]{python}{scripts/gauss.py}
+%----------------------------------------------------------------------
+\newcommand{\fichiercode}[3][]{%
+  \begin{tcolorbox}[mb@codebox,
+    title={\faIcon{file-code}\ \ \ttfamily
+           \ifblank{#1}{\detokenize{#3}}{#1}}]
+    \inputminted[linenos, numbersep=8pt]{#2}{#3}
+  \end{tcolorbox}}
+
+%----------------------------------------------------------------------
+% Code en ligne coloré :  \co{python}{np.linalg.solve(A, b)}
+% et une commande courte pour du texte monospace neutre : \term{...}
+%----------------------------------------------------------------------
+\newcommand{\co}[2]{\mintinline{#1}{#2}}
+\newcommand{\term}[1]{{\ttfamily\small\textcolor{mbInk}{#1}}}
+
+\endinput

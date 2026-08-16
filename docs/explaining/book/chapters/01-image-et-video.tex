@@ -1,0 +1,782 @@
+\chapter{Une image, une vidéo, vues par un ordinateur}
+\label{chap:image-video}
+
+\begin{quote}\itshape
+Avant de parler d'intelligence artificielle, de vidéos cachées et de
+modèles à deux milliards de réglages, mettons-nous d'accord sur une chose
+toute simple : qu'est-ce qu'une image, pour une machine ? Ce chapitre pose
+le décor, tranquillement, sans rien supposer.
+\end{quote}
+
+\begin{prerequis}
+Rien du tout. Vraiment rien. Il faut savoir compter, savoir qu'une
+multiplication sert à répéter une addition, et c'est tout. Chaque mot
+nouveau sera expliqué au moment où il arrive.
+\end{prerequis}
+
+Vous regardez une photo de chat. Vous voyez un chat. C'est immédiat, c'est
+gratuit, vous n'avez rien eu à faire. Un ordinateur, lui, ne voit pas de
+chat. Il ne voit même pas d'image. Il voit une très longue liste de
+nombres, et rien d'autre.
+
+Tout ce livre part de là. Si nous voulons qu'une machine finisse par
+comprendre une vidéo, il faut d'abord savoir sous quelle forme la vidéo
+arrive chez elle. C'est exactement ce que nous allons faire dans ce
+chapitre : ouvrir le capot et regarder les nombres.
+
+\section{Un ordinateur ne voit pas des objets, il voit des nombres}
+
+\begin{enclair}
+Une image, pour un ordinateur, c'est une grille de petits carrés. Chaque
+carré porte un nombre, et ce nombre dit une seule chose : à quel point ce
+petit carré est clair ou sombre.
+\end{enclair}
+
+Pensez à une mosaïque, comme celles qu'on voit sur les murs des vieilles
+maisons. De loin, vous voyez un dessin. De près, vous voyez des centaines
+de petits carreaux collés les uns aux autres, chacun d'une seule couleur.
+Une image numérique, c'est exactement cela : une mosaïque de petits
+carrés, tous de la même taille, rangés en lignes et en colonnes.
+
+\begin{definition}[Le pixel][pixel]
+Un \emph{pixel} est un de ces petits carrés. C'est le plus petit morceau
+d'une image : on ne peut pas le couper en deux. Le mot vient de l'anglais
+\emph{picture element}, c'est-à-dire « élément d'image ». Chaque pixel
+porte un nombre qui décrit sa couleur.
+\end{definition}
+
+Commençons par le cas le plus simple : une image en \emph{niveaux de
+gris}, c'est-à-dire une image sans couleur, comme une vieille photo en
+noir et blanc. Dans ce cas, un seul nombre suffit par pixel. On se met
+d'accord une fois pour toutes sur ce que ce nombre veut dire :
+
+\begin{itemize}
+  \item le nombre \textbf{0} veut dire « ce carré est complètement noir » ;
+  \item le nombre \textbf{255} veut dire « ce carré est complètement
+        blanc » ;
+  \item tous les nombres entre les deux sont des gris, de plus en plus
+        clairs à mesure qu'on monte.
+\end{itemize}
+
+La figure~\ref{fig:image-grille} montre les deux faces de la même image : à
+gauche ce que la machine a réellement en mémoire, à droite ce que nous
+voyons apparaître à l'écran.
+
+\begin{schema}{Les deux visages d'une même image. À gauche, les seize
+nombres que l'ordinateur garde en mémoire. À droite, le dessin obtenu en
+peignant chaque carré : petit nombre, carré sombre ; grand nombre, carré
+clair. Il n'y a rien d'autre dans une image que ces nombres.}[image-grille]
+  \begin{scope}[x=1cm, y=1cm]
+    \node[font=\sffamily\small\bfseries, text=mbSlate] at (1.8,0.62)
+         {Ce que la machine garde};
+    \foreach \mbrow [count=\ri from 0] in
+      {{240,235,210,245},{235,120,60,210},{215,60,20,120},{245,205,115,235}}{
+      \foreach \mbval [count=\ci from 0] in \mbrow {
+        \draw[draw=mbSlate!45, line width=0.5pt]
+              (\ci*0.9,-\ri*0.9) rectangle ++(0.9,-0.9);
+        \node[font=\small, text=mbInk]
+              at (\ci*0.9+0.45,-\ri*0.9-0.45) {\mbval};
+      }
+    }
+    \draw[fleche accent] (3.8,-1.8) -- (5.2,-1.8);
+    \node[etiquette, above] at (4.5,-1.74) {on affiche};
+    \begin{scope}[xshift=5.4cm]
+      \foreach \mbrow [count=\ri from 0] in
+        {{240,235,210,245},{235,120,60,210},{215,60,20,120},{245,205,115,235}}{
+        \foreach \mbval [count=\ci from 0] in \mbrow {
+          \pgfmathsetmacro{\mblum}{100-\mbval/2.55}
+          \fill[black!\mblum] (\ci*0.9,-\ri*0.9) rectangle ++(0.9,-0.9);
+        }
+      }
+      \draw[draw=mbSlate!45, line width=0.5pt] (0,0) rectangle (3.6,-3.6);
+      \node[font=\sffamily\small\bfseries, text=mbSlate] at (1.8,0.62)
+           {Ce que nous voyons};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+\begin{exemple}[Lire trois pixels]
+Dans la grille de gauche de la figure~\ref{fig:image-grille}, le pixel tout en haut
+à gauche vaut $240$ : il est presque blanc. Le pixel du milieu vaut $20$ :
+il est presque noir. Un pixel qui vaudrait $128$, soit à peu près la
+moitié de $255$, serait un gris moyen, ni clair ni foncé.
+\end{exemple}
+
+\begin{intuition}
+Voyez chaque pixel comme un petit interrupteur à gradateur, du genre de
+ceux qui règlent la lumière d'un salon. Tourné à fond dans un sens, la
+lampe est éteinte : c'est $0$. Tourné à fond dans l'autre, la lampe éclaire
+au maximum : c'est $255$. Une image, c'est un mur couvert de milliers de
+ces petites lampes, chacune réglée à sa valeur.
+\end{intuition}
+
+\begin{piege}
+Pourquoi $255$ et pas $100$, ou $1000$ ? C'est une simple convention, née
+de la façon dont les ordinateurs rangent les nombres : avec huit cases de
+mémoire, on peut écrire exactement $256$ valeurs différentes, de $0$ à
+$255$. Retenez surtout le sens de lecture : \textbf{plus le nombre est
+grand, plus le pixel est clair}. Beaucoup de débutants inversent, dessinent
+des images en négatif, et cherchent l'erreur pendant une heure.
+\end{piege}
+
+Nous savons maintenant ce que contient une case de la mosaïque. La question
+suivante vient toute seule : combien y a-t-il de cases ?
+
+\section{La résolution : la finesse de la mosaïque}
+
+\begin{definition}[La résolution][resolution]
+La \emph{résolution} d'une image, c'est le nombre de pixels qu'elle
+contient, donné sous la forme « largeur $\times$ hauteur ». Une image de
+résolution $256 \times 256$ possède $256$ colonnes de pixels et $256$
+lignes de pixels.
+\end{definition}
+
+Plus la mosaïque a de carreaux, plus le dessin est fin. Avec très peu de
+carreaux, un rond ressemble à un escalier ; avec beaucoup, il redevient un
+rond. La figure~\ref{fig:resolution} montre le même disque dessiné deux fois, la
+première fois grossièrement, la seconde finement.
+
+\begin{schema}{Le même disque, dessiné avec deux finesses différentes. À
+gauche, la mosaïque est grossière et les bords deviennent des marches
+d'escalier. À droite, les carreaux sont seize fois plus nombreux et l'\oe{}il
+retrouve un vrai rond. Rien n'a changé dans le dessin : seule la finesse de
+la grille a changé.}[resolution]
+  \begin{scope}[x=1cm, y=1cm]
+    % --- grille grossière : 6 x 6 ---
+    \foreach \ri in {0,...,5}{
+      \foreach \ci in {0,...,5}{
+        \pgfmathsetmacro{\mbcx}{(\ci+0.5)/6-0.5}
+        \pgfmathsetmacro{\mbcy}{(\ri+0.5)/6-0.5}
+        \pgfmathsetmacro{\mbdd}{\mbcx*\mbcx+\mbcy*\mbcy}
+        \pgfmathsetmacro{\mbin}{\mbdd<0.2100 ? 1 : 0}
+        \ifdim\mbin pt>0.5pt
+          \fill[mbBlue!65] (\ci*0.5,-\ri*0.5) rectangle ++(0.5,-0.5);
+        \fi
+        \draw[draw=mbSlate!30, line width=0.4pt]
+              (\ci*0.5,-\ri*0.5) rectangle ++(0.5,-0.5);
+      }
+    }
+    \node[font=\sffamily\small, text=mbSlate] at (1.5,-3.35)
+         {$6 \times 6 = 36$ pixels};
+    % --- grille fine : 24 x 24 ---
+    \begin{scope}[xshift=5cm]
+      \foreach \ri in {0,...,23}{
+        \foreach \ci in {0,...,23}{
+          \pgfmathsetmacro{\mbcx}{(\ci+0.5)/24-0.5}
+          \pgfmathsetmacro{\mbcy}{(\ri+0.5)/24-0.5}
+          \pgfmathsetmacro{\mbdd}{\mbcx*\mbcx+\mbcy*\mbcy}
+          \pgfmathsetmacro{\mbin}{\mbdd<0.2100 ? 1 : 0}
+          \ifdim\mbin pt>0.5pt
+            \fill[mbBlue!65] (\ci*0.125,-\ri*0.125) rectangle ++(0.125,-0.125);
+          \fi
+        }
+      }
+      \draw[draw=mbSlate!30, line width=0.4pt] (0,0) rectangle (3,-3);
+      \node[font=\sffamily\small, text=mbSlate] at (1.5,-3.35)
+           {$24 \times 24 = 576$ pixels};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+Le nombre total de pixels s'obtient par une simple multiplication : on
+multiplie la largeur par la hauteur, comme on calculerait le nombre de
+carreaux d'un sol.
+
+\begin{exemple}[Compter les pixels d'une vraie image]
+Une image de résolution $256 \times 256$, qui est la taille utilisée
+pendant la plus grande partie de l'entraînement de V-JEPA~2.1, contient
+\[
+  256 \times 256 = 65\,536 \text{ pixels.}
+\]
+Soit soixante-cinq mille petits carrés. Et ce n'est encore qu'une image en
+gris : nous n'avons même pas parlé de couleur.
+\end{exemple}
+
+\begin{aretenir}
+Deux images peuvent montrer exactement la même chose et ne pas avoir la
+même résolution. Quand la résolution monte, le dessin gagne en finesse,
+mais le nombre de nombres à traiter grimpe très vite : il grimpe comme le
+\emph{carré} de la taille. Doubler la largeur et la hauteur, c'est
+multiplier le travail par quatre. Cette remarque, qui paraît anodine ici,
+expliquera plus tard pourquoi la dernière phase d'entraînement de
+V-JEPA~2.1 est si courte.
+\end{aretenir}
+
+Nos images sont encore grises. Ajoutons la couleur : vous allez voir que
+cela ne change presque rien à l'histoire.
+
+\section{La couleur, c'est trois grilles au lieu d'une}
+
+Un écran ne sait fabriquer que trois couleurs de lumière : du rouge, du
+vert et du bleu. Toutes les autres couleurs sont obtenues en mélangeant ces
+trois-là, en dosant chacune plus ou moins fort. Du rouge à fond plus du
+vert à fond donne du jaune. Les trois à fond donnent du blanc. Les trois
+éteintes donnent du noir.
+
+Un pixel en couleur a donc besoin non pas d'un nombre, mais de trois : un
+pour le rouge, un pour le vert, un pour le bleu. Chacun se lit comme avant,
+de $0$ (éteint) à $255$ (à fond).
+
+\begin{definition}[Le canal][canal]
+Un \emph{canal} est une grille complète de nombres qui ne s'occupe que
+d'une seule couleur de base. Une image en couleur possède trois canaux
+superposés : le canal rouge, le canal vert et le canal bleu. On les appelle
+souvent « les canaux R, V, B », ou « RGB » à l'anglaise.
+\end{definition}
+
+\begin{schema}{Une image en couleur, c'est trois mosaïques posées les unes
+sur les autres. La première dit combien il y a de rouge dans chaque carré,
+la deuxième combien de vert, la troisième combien de bleu. En regardant les
+trois ensemble, l'\oe{}il reconstitue la couleur.}[canaux-rvb]
+  \begin{scope}[x=1cm, y=1cm]
+    \foreach \mbcol [count=\ri from 0] in {red, green, blue}{
+      \begin{scope}[shift={(\ri*0.55,-\ri*0.5)}]
+        \fill[\mbcol!18] (0,0) rectangle (2.4,2.4);
+        \draw[\mbcol!70!black, line width=0.8pt] (0,0) rectangle (2.4,2.4);
+        \foreach \mbk in {0.6,1.2,1.8}{
+          \draw[\mbcol!35!white, line width=0.4pt] (\mbk,0) -- (\mbk,2.4);
+          \draw[\mbcol!35!white, line width=0.4pt] (0,\mbk) -- (2.4,\mbk);
+        }
+      \end{scope}
+    }
+    \node[font=\sffamily\scriptsize\bfseries, text=red!60!black]
+         at (2.75,2.15) {canal rouge};
+    \node[font=\sffamily\scriptsize\bfseries, text=green!45!black]
+         at (3.30,1.65) {canal vert};
+    \node[font=\sffamily\scriptsize\bfseries, text=blue!60!black]
+         at (3.85,1.15) {canal bleu};
+    \draw[fleche accent] (4.9,0.7) -- (6.1,0.7);
+    \node[etiquette, above] at (5.5,0.78) {on mélange};
+    \begin{scope}[xshift=6.4cm, yshift=-0.5cm]
+      \foreach \mbrow [count=\ri from 0] in
+        {{blue!25,blue!25,blue!30,blue!25},
+         {blue!25,orange!70,orange!80,blue!30},
+         {blue!30,orange!80,orange!60,orange!70},
+         {teal!35,teal!40,teal!35,teal!45}}{
+        \foreach \mbval [count=\ci from 0] in \mbrow {
+          \fill[\mbval] (\ci*0.6,{2.4-\ri*0.6}) rectangle ++(0.6,-0.6);
+        }
+      }
+      \draw[draw=mbSlate!45, line width=0.6pt] (0,0) rectangle (2.4,2.4);
+      \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (1.2,-0.32)
+           {l'image en couleur};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+\begin{exemple}[Quelques couleurs, en trois nombres]
+Voici comment se lisent quelques couleurs courantes, dans l'ordre
+rouge, vert, bleu :
+
+\begin{center}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Couleur} & \textbf{Rouge} & \textbf{Vert} & \textbf{Bleu} \\
+\midrule
+Noir           & 0   & 0   & 0   \\
+Blanc          & 255 & 255 & 255 \\
+Rouge vif      & 255 & 0   & 0   \\
+Jaune          & 255 & 255 & 0   \\
+Gris moyen     & 128 & 128 & 128 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Vous remarquez que le gris s'obtient en donnant la même valeur aux trois
+canaux. C'est logique : aucune couleur ne tire la couverture à elle.
+\end{exemple}
+
+Comptons maintenant, pour de bon, le nombre de cases d'une image en
+couleur.
+
+\begin{exemple}[Le poids d'une image de $256 \times 256$]
+Notre image possède $65\,536$ pixels, et chaque pixel réclame trois
+nombres. Au total :
+\[
+  256 \times 256 \times 3 = 196\,608 \text{ nombres.}
+\]
+Presque deux cent mille nombres pour une seule petite image carrée, plus
+petite que la moitié d'un écran de téléphone. Gardez ce chiffre en tête :
+il va grossir très vite.
+\end{exemple}
+
+Nous avons beaucoup de nombres sur les bras. Il est temps de les ranger
+proprement, et de leur donner un nom.
+
+\section{Ranger les nombres : le tenseur et sa forme}
+
+Pour parler de tous ces nombres sans se perdre, les informaticiens
+utilisent un mot unique, qui a l'air savant mais qui ne cache rien de
+compliqué : le \emph{tenseur}. Approchons-le par étapes, en montant une
+marche à la fois.
+
+\begin{schema}{La même idée, à quatre étages. Un nombre tout seul ; une
+liste de nombres ; un tableau de nombres ; puis une pile de tableaux. Le
+mot « tenseur » désigne tout cela d'un coup, quel que soit le nombre
+d'étages.}[echelle-tenseur]
+  \begin{scope}[x=1cm, y=1cm]
+    % 1. un nombre
+    \draw[draw=mbSlate!50, fill=mbBlue!10, line width=0.6pt]
+          (0,-0.75) rectangle (0.5,-1.25);
+    \node[font=\scriptsize, text=mbInk] at (0.25,-1) {7};
+    \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
+          at (0.25,-2.9) {un nombre\\ (0 étage)};
+    % 2. une liste
+    \begin{scope}[xshift=2cm]
+      \foreach \ci in {0,...,3}{
+        \draw[draw=mbSlate!50, fill=mbBlue!10, line width=0.6pt]
+              (\ci*0.5,-0.75) rectangle ++(0.5,-0.5);
+      }
+      \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
+            at (1,-2.9) {une liste\\ (1 étage)};
+    \end{scope}
+    % 3. un tableau
+    \begin{scope}[xshift=5.2cm]
+      \foreach \ri in {0,...,3}{
+        \foreach \ci in {0,...,3}{
+          \draw[draw=mbSlate!50, fill=mbBlue!10, line width=0.6pt]
+                (\ci*0.5,-\ri*0.5) rectangle ++(0.5,-0.5);
+        }
+      }
+      \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
+            at (1,-2.9) {un tableau\\ (2 étages)};
+    \end{scope}
+    % 4. une pile de tableaux
+    \begin{scope}[xshift=8.6cm]
+      \foreach \mbk in {2,1,0}{
+        \begin{scope}[shift={(\mbk*0.28,-\mbk*0.28)}]
+          \fill[mbAmber!\the\numexpr14+10*\mbk\relax] (0,0) rectangle (2,-2);
+          \draw[draw=mbAmber!80!black, line width=0.6pt] (0,0) rectangle (2,-2);
+          \foreach \mbj in {0.5,1,1.5}{
+            \draw[draw=mbAmber!45!white, line width=0.4pt] (\mbj,0) -- (\mbj,-2);
+            \draw[draw=mbAmber!45!white, line width=0.4pt] (0,-\mbj) -- (2,-\mbj);
+          }
+        \end{scope}
+      }
+      \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
+            at (1.3,-2.9) {une pile\\ (3 étages)};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+\begin{definition}[Le tenseur][tenseur]
+Un \emph{tenseur} est un tableau de nombres qui peut avoir autant de
+directions que l'on veut. Un nombre seul est un tenseur sans direction ;
+une liste est un tenseur à une direction ; un tableau à lignes et colonnes
+est un tenseur à deux directions ; une pile de tableaux est un tenseur à
+trois directions, et ainsi de suite. Chaque direction s'appelle un
+\emph{axe}.
+\end{definition}
+
+Pour décrire un tenseur, il suffit de dire combien de cases il compte le
+long de chaque axe. Cette liste de tailles porte un nom, et c'est le mot le
+plus utile de tout le chapitre.
+
+\begin{notation}[La forme d'un tenseur][forme]
+La \emph{forme} d'un tenseur est la liste du nombre de cases sur chaque
+axe. On l'écrit entre parenthèses. Pour une image en couleur, on écrit
+\[
+  (\text{hauteur},\ \text{largeur},\ \text{canaux}),
+\]
+et notre image de tout à l'heure a donc la forme $(256, 256, 3)$.
+\end{notation}
+
+\begin{exemple}[Lire une forme]
+Un tenseur de forme $(64, 384, 384, 3)$ se lit de gauche à droite comme une
+phrase : « soixante-quatre choses, chacune haute de $384$ cases, large de
+$384$ cases, et épaisse de $3$ canaux ». Nous verrons dans un instant que
+ces soixante-quatre choses sont les images d'une vidéo.
+\end{exemple}
+
+\begin{piege}
+L'ordre des axes n'est pas le même partout, et c'est la source d'erreur
+numéro un des débutants. Deux conventions se partagent le monde :
+
+\begin{itemize}
+  \item $(\text{hauteur},\ \text{largeur},\ \text{canaux})$ — l'ordre des
+        outils d'affichage et de photo ;
+  \item $(\text{canaux},\ \text{hauteur},\ \text{largeur})$ — l'ordre des
+        bibliothèques d'apprentissage comme PyTorch.
+\end{itemize}
+
+Les nombres sont exactement les mêmes, seule leur façon d'être rangés
+change. Mais si vous vous trompez, votre programme croira qu'une image de
+$256 \times 256$ en couleur est une image de $3$ pixels de haut sur $256$ de
+large avec $256$ canaux, et vous obtiendrez une bouillie. Prenez
+l'habitude, dès aujourd'hui, d'écrire la forme attendue en commentaire
+au-dessus de chaque ligne de code qui manipule une image.
+\end{piege}
+
+Nous savons ranger une image. Passons à ce qui nous intéresse vraiment dans
+ce livre : la vidéo.
+
+\section{Une vidéo, c'est une pile d'images}
+
+Une vidéo n'est rien d'autre qu'une suite d'images fixes, montrées les unes
+après les autres, très vite. Si elles défilent assez vite, notre \oe{}il ne
+voit plus des images séparées : il voit du mouvement. C'est le principe du
+petit carnet à feuilleter, celui où l'on dessine un bonhomme dans le coin
+de chaque page et où l'on fait défiler les pages avec le pouce.
+
+\begin{definition}[L'image d'une vidéo][frame]
+Chacune des images fixes qui composent une vidéo s'appelle une
+\emph{image}, ou une \emph{trame} ; en anglais on dit \emph{frame}, et ce
+mot revient tellement souvent dans les articles et dans le code qu'il faut
+le connaître. Une vidéo est donc une pile d'images empilées non pas dans
+l'espace, mais dans le temps.
+\end{definition}
+
+\begin{definition}[Les images par seconde][fps]
+Le nombre d'\emph{images par seconde} dit combien d'images sont montrées
+pendant une seconde. On l'abrège souvent en \emph{fps}, de l'anglais
+\emph{frames per second}. Un film de cinéma tourne à $24$ images par
+seconde ; les vidéos de téléphone, souvent à $30$ ou $60$.
+\end{definition}
+
+\begin{schema}{Une vidéo vue comme une pile de feuilles. Chaque feuille est
+une image complète, avec ses trois canaux de couleur. La flèche du bas est
+le temps : elle avance d'un cran à chaque nouvelle feuille. Ici, quatre
+images par seconde, donc un quart de seconde entre deux
+feuilles.}[pile-video]
+  \begin{scope}[x=1cm, y=1cm]
+    \foreach \mbk in {4,3,2,1,0}{
+      \begin{scope}[shift={(\mbk*1.35,\mbk*0.42)}]
+        \fill[mbBlue!\the\numexpr12+8*\mbk\relax] (0,0) rectangle (1.9,1.35);
+        \draw[draw=mbBlue!75, line width=0.7pt] (0,0) rectangle (1.9,1.35);
+        \foreach \mbj in {0.475,0.95,1.425}{
+          \draw[draw=mbBlue!30!white, line width=0.35pt] (\mbj,0) -- (\mbj,1.35);
+        }
+        \foreach \mbj in {0.45,0.9}{
+          \draw[draw=mbBlue!30!white, line width=0.35pt] (0,\mbj) -- (1.9,\mbj);
+        }
+      \end{scope}
+    }
+    \draw[-{Stealth[round,length=2.6mm,width=2mm]}, draw=mbAmber!85!black,
+          line width=1pt] (0.2,-0.55) -- (7.6,-0.55);
+    \foreach \mbk in {0,1,2,3,4}{
+      \draw[draw=mbAmber!85!black, line width=0.7pt]
+            (\mbk*1.35+0.95,-0.45) -- (\mbk*1.35+0.95,-0.65);
+    }
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (0.95,-0.95) {$0$~s};
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (2.30,-0.95) {$0{,}25$~s};
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (3.65,-0.95) {$0{,}50$~s};
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (5.00,-0.95) {$0{,}75$~s};
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (6.35,-0.95) {$1$~s};
+    \node[font=\sffamily\small\bfseries, text=mbAmber!80!black]
+          at (7.9,-0.95) {temps};
+    \node[annotation bulle] (mbune) at (-0.9,2.6)
+         {une image\\ $(H, W, 3)$};
+    \draw[trait annotation] (mbune) to[bend right=15] (0.55,1.0);
+  \end{scope}
+\end{schema}
+
+Puisque la vidéo est une pile d'images, sa forme s'obtient en ajoutant un
+axe devant celle d'une image : l'axe du temps.
+
+\begin{notation}[La forme d'une vidéo][forme-video]
+Un extrait de vidéo s'écrit sous la forme
+\[
+  (\text{temps},\ \text{hauteur},\ \text{largeur},\ \text{canaux}),
+\]
+où le premier nombre est le nombre d'images de l'extrait. On appelle
+souvent un tel extrait un \emph{clip} : c'est un petit morceau découpé dans
+une vidéo plus longue, exactement comme on découpe un morceau dans une
+bobine de film.
+\end{notation}
+
+La durée d'un clip se calcule sans effort. Si vous avez un certain nombre
+d'images, et que vous savez combien d'images passent en une seconde, alors
+la division vous donne les secondes :
+\[
+  \text{durée en secondes} \;=\; \frac{\text{nombre d'images}}
+                                      {\text{images par seconde}}.
+\]
+
+\begin{exemple}[La durée d'un clip d'entraînement]
+Pendant la plus grande partie de son entraînement, V-JEPA~2.1 regarde des
+clips de $16$ images prises à raison de $4$ images par seconde. Ces clips
+durent donc
+\[
+  \frac{16}{4} = 4 \text{ secondes.}
+\]
+Quatre secondes, c'est court, mais c'est bien assez pour voir un geste
+commencer et se terminer : une main qui saisit une tasse, une porte qui
+s'ouvre. Et c'est justement ce que le modèle doit apprendre à comprendre.
+\end{exemple}
+
+\begin{surlesdonnees}
+L'article de V-JEPA~2.1 utilise deux réglages, l'un après l'autre. Pendant
+la longue phase d'entraînement principale, les clips font $16$ images en
+$256 \times 256$. Pendant la courte phase finale, appelée phase de
+refroidissement, on monte à $64$ images en $384 \times 384$. Toujours à
+quatre images par seconde, ces clips-là durent
+\[
+  \frac{64}{4} = 16 \text{ secondes.}
+\]
+Le modèle regarde donc, à la fin, des extraits quatre fois plus longs et
+beaucoup plus fins. Nous verrons au chapitre consacré au refroidissement
+pourquoi cet ordre — d'abord grossier et court, ensuite fin et long — n'est
+pas un caprice.
+\end{surlesdonnees}
+
+Comptons enfin les nombres contenus dans un clip, en multipliant tout
+simplement les quatre tailles entre elles.
+
+\begin{exemple}[Le nombre de cases d'un clip]
+Pour un clip de $16$ images en $256 \times 256$ couleur :
+\[
+  16 \times 256 \times 256 \times 3 = 3\,145\,728 \text{ nombres.}
+\]
+Plus de trois millions. Et pour un clip de la phase de refroidissement,
+$64$ images en $384 \times 384$ :
+\[
+  64 \times 384 \times 384 \times 3 = 28\,311\,552 \text{ nombres,}
+\]
+soit environ vingt-huit millions, c'est-à-dire neuf fois plus que le
+précédent.
+\end{exemple}
+
+\begin{aretenir}
+Une image est un tenseur à trois axes, une vidéo un tenseur à quatre axes.
+Rien de plus mystérieux : on a seulement ajouté le temps devant. Toutes les
+formes que vous croiserez dans ce livre se lisent avec cette seule règle.
+\end{aretenir}
+
+Trois millions de nombres, cela reste abstrait. Regardons ce que cela
+représente vraiment dans la mémoire d'une machine.
+
+\section{Ce que tout cela pèse vraiment}
+
+Un ordinateur range ses nombres dans des cases de mémoire. L'unité de
+mesure de cette mémoire est l'\emph{octet}.
+
+\begin{definition}[L'octet][octet]
+Un \emph{octet} est un petit paquet de mémoire, celui qui suffit tout juste
+à écrire un nombre entier compris entre $0$ et $255$. C'est aussi l'unité
+dans laquelle on mesure la taille des fichiers. Mille octets font environ un
+kilo-octet, un million d'octets font environ un méga-octet (noté Mo), un
+milliard d'octets font environ un giga-octet (noté Go).
+\end{definition}
+
+Nos pixels vont de $0$ à $255$ : ils tiennent donc chacun dans un seul
+octet. Mais dès qu'un modèle se met à calculer, il a besoin de nombres à
+virgule — parce qu'une moyenne, une multiplication ou une petite correction
+tombent rarement sur un compte rond. Ces nombres à virgule s'appellent des
+\emph{nombres flottants}, et le format le plus courant en occupe quatre
+octets chacun, soit quatre fois plus.
+
+\begin{exemple}[Du fichier à la mémoire de calcul]
+Notre clip de $3\,145\,728$ nombres pèse :
+
+\begin{itemize}
+  \item $3\,145\,728$ octets, soit environ \textbf{3 Mo}, tant que les
+        pixels restent des entiers de $0$ à $255$ ;
+  \item $3\,145\,728 \times 4 = 12\,582\,912$ octets, soit environ
+        \textbf{12,6 Mo}, une fois convertis en nombres à virgule pour le
+        calcul.
+\end{itemize}
+\end{exemple}
+
+Or un modèle ne regarde jamais un seul clip à la fois : il en regarde tout
+un paquet d'un coup, pour aller plus vite. Ce paquet s'appelle un
+\emph{lot}, et sa taille est un réglage du programme d'entraînement.
+
+\begin{exemple}[Le poids d'un lot entier]
+V-JEPA~2.1 traite $128$ clips à la fois. Pour la phase principale, cela
+donne
+\[
+  128 \times 12\,582\,912 \approx 1\,610\,000\,000 \text{ octets,}
+\]
+soit environ \textbf{1,6 Go} — rien que pour les vidéos d'entrée, avant
+même le moindre calcul. Pour la phase de refroidissement, où chaque clip
+pèse neuf fois plus, on arrive à environ \textbf{14,5 Go}. Voilà, en une
+ligne de calcul, pourquoi cette phase-là ne dure que très peu de temps :
+elle coûte cher.
+\end{exemple}
+
+\begin{enia}
+Ce chapitre a l'air de ne parler que de pixels, mais il pose déjà les trois
+problèmes que tout le reste du livre s'emploie à résoudre.
+
+\begin{itemize}
+  \item \textbf{Il y a beaucoup trop de nombres.} Aucun modèle ne peut
+        traiter trois millions de valeurs une par une. Il faudra donc
+        d'abord les regrouper en petits carrés de $16 \times 16$ pixels :
+        c'est ce que nous ferons au chapitre~4, consacré au transformeur de
+        vision.
+  \item \textbf{La finesse coûte cher.} Chaque fois que la résolution
+        monte, la facture explose. C'est pour cela que l'entraînement
+        commence en basse résolution et ne monte qu'à la toute fin.
+  \item \textbf{Lire une vidéo prend du temps.} Une vidéo est stockée
+        compressée ; il faut la décompresser image par image avant de
+        pouvoir en faire quoi que ce soit. En production, ce travail-là
+        devient souvent plus lent que le modèle lui-même. Nous y
+        reviendrons longuement dans la partie consacrée à la mise en
+        service.
+\end{itemize}
+\end{enia}
+
+\begin{plusloin}
+Dans le même temps où il regarde $128$ clips, V-JEPA~2.1 regarde aussi
+$2\,304$ images fixes. En reprenant nos calculs, ces images pèsent
+$2\,304 \times 196\,608 \times 4 \approx 1,8$~Go, c'est-à-dire à peu près
+autant que les $1,6$~Go de vidéo. Ces deux nombres, $128$ et $2\,304$,
+n'ont donc pas été tirés au hasard : ils ont été choisis ensemble pour que
+les deux moitiés du travail coûtent à peu près pareil. Nous y reviendrons
+au chapitre sur les données.
+\end{plusloin}
+
+Assez de calculs sur le papier. Vérifions tout cela sur une vraie machine.
+
+\section{Passons au code}
+
+Nous allons manipuler nos images et nos clips avec Python, le langage
+utilisé par presque tous les travaux d'intelligence artificielle, et avec
+\co{python}{numpy}, la bibliothèque qui sait manipuler les tenseurs. Vous
+n'avez pas besoin de comprendre chaque ligne dès maintenant : lisez d'abord
+les commentaires, et comparez les nombres affichés avec ceux que nous
+venons de calculer à la main.
+
+\begin{code}{python}[Fabriquer une image et lire sa forme]
+import numpy as np
+
+# Une image en couleur de 256 x 256 pixels, entierement noire.
+# La forme se lit : (hauteur, largeur, canaux).
+image = np.zeros((256, 256, 3), dtype=np.uint8)
+
+print(image.shape)   # -> (256, 256, 3)
+print(image.size)    # -> 196608   le nombre total de cases
+print(image.dtype)   # -> uint8    un entier de 0 a 255
+print(image.nbytes)  # -> 196608   un octet par case
+
+# Peignons le pixel de la ligne 10, colonne 20, en rouge vif.
+image[10, 20] = [255, 0, 0]
+print(image[10, 20])  # -> [255   0   0]
+\end{code}
+
+Le mot \co{python}{uint8} se lit « entier non signé sur huit bits » : c'est
+exactement le type de nombre qui va de $0$ à $255$, celui dont nous avons
+parlé. Passons maintenant à la vidéo.
+
+\begin{code}{python}[Un clip, sa forme, sa durée et son poids]
+import numpy as np
+
+# Un clip de 16 images de 256 x 256 en couleur.
+# La forme se lit : (temps, hauteur, largeur, canaux).
+clip = np.zeros((16, 256, 256, 3), dtype=np.uint8)
+
+print(clip.shape)   # -> (16, 256, 256, 3)
+print(clip.size)    # -> 3145728   les trois millions annonces
+
+images_par_seconde = 4.0
+duree = clip.shape[0] / images_par_seconde
+print(duree, "secondes")            # -> 4.0 secondes
+
+# Le meme clip converti en nombres a virgule, ramenes entre 0 et 1.
+clip_flottant = clip.astype(np.float32) / 255.0
+print(clip_flottant.nbytes / 1e6, "Mo")   # -> 12.582912 Mo
+\end{code}
+
+Enfin, voici le changement d'ordre des axes dont nous parlions plus haut.
+C'est une opération que vous ferez des centaines de fois, alors autant la
+voir tout de suite.
+
+\begin{code}{python}[Passer de l'ordre « affichage » à l'ordre « PyTorch »]
+import numpy as np
+import torch
+
+clip = np.zeros((16, 256, 256, 3), dtype=np.uint8)   # (T, H, W, C)
+
+x = torch.from_numpy(clip).float() / 255.0
+x = x.permute(3, 0, 1, 2)                            # (C, T, H, W)
+
+print(x.shape)   # -> torch.Size([3, 16, 256, 256])
+
+# Aucun nombre n'a ete perdu : seul l'ordre des axes a change.
+print(x.numel())  # -> 3145728
+\end{code}
+
+\begin{piege}
+Remarquez la dernière ligne : le nombre de cases n'a pas bougé. Changer
+l'ordre des axes ne crée et ne détruit aucune donnée, cela réorganise
+seulement la façon de les parcourir. Si jamais ce nombre change après une
+telle opération, c'est que vous avez commis une erreur ailleurs — et cette
+vérification en une ligne vous fera gagner des heures.
+\end{piege}
+
+\begin{aretenir}
+Une image est une grille de nombres ; la couleur ajoute une troisième
+dimension ; la vidéo en ajoute une quatrième, le temps. Tout le reste de ce
+livre travaille sur ces tenseurs-là, et sur rien d'autre. Quand vous serez
+perdu dans un chapitre plus difficile, revenez à cette question toute
+simple : « quelle est la forme de ce que je manipule ? » Elle remet presque
+toujours les idées en place.
+\end{aretenir}
+
+Nous savons désormais sous quelle forme une image et une vidéo arrivent
+dans une machine. Mais nous n'avons encore rien appris à personne : nos
+tenseurs restent inertes. La question suivante est donc la bonne :
+qu'est-ce que cela veut dire, au juste, qu'une machine « apprend » ? C'est
+tout le sujet du chapitre suivant.
+
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Compter les cases]
+Combien de nombres contient une image en couleur de $512 \times 512$
+pixels ? C'est la taille des images utilisées pendant la phase de
+refroidissement de V-JEPA~2.1.
+\end{exercice}
+
+\begin{solution}
+On multiplie la hauteur, la largeur et le nombre de canaux :
+$512 \times 512 \times 3 = 262\,144 \times 3 = 786\,432$ nombres. C'est
+quatre fois plus qu'une image de $256 \times 256$, ce qui est normal
+puisque nous avons doublé les deux côtés.
+\end{solution}
+
+\begin{exercice}[La durée d'un clip]
+Un clip contient $32$ images, prises à raison de $8$ images par seconde.
+Combien de temps dure-t-il ? Et combien de temps durerait-il si les mêmes
+$32$ images étaient prises à $4$ images par seconde ?
+\end{exercice}
+
+\begin{solution}
+Dans le premier cas, $32 / 8 = 4$ secondes. Dans le second,
+$32 / 4 = 8$ secondes. Le nombre d'images est le même, mais elles sont
+prélevées plus loin les unes des autres : le clip couvre donc une tranche
+de temps deux fois plus longue. C'est un réglage important, car il décide
+de ce que le modèle a le droit de voir.
+\end{solution}
+
+\begin{exercice}[Le poids d'un lot]
+Un lot contient $64$ clips de $16$ images en $256 \times 256$ couleur,
+convertis en nombres à virgule de quatre octets. Combien de méga-octets
+occupe ce lot ?
+\end{exercice}
+
+\begin{solution}
+Un clip contient $16 \times 256 \times 256 \times 3 = 3\,145\,728$ nombres,
+donc $3\,145\,728 \times 4 = 12\,582\,912$ octets, soit environ $12{,}6$~Mo.
+Pour $64$ clips : $64 \times 12{,}6 \approx 806$~Mo, c'est-à-dire un peu
+plus de huit cents méga-octets. Ce lot fait exactement la moitié de celui
+de l'article, qui en contient $128$, et l'on retrouve bien les $1{,}6$~Go
+calculés plus haut en doublant ce résultat.
+\end{solution}
+
+\begin{exercice}[Lire une forme]
+Un collègue vous tend un tenseur de forme $(3, 64, 384, 384)$ et vous dit
+que c'est une vidéo. Que représente chaque nombre ? Quelle est la
+convention utilisée, et quelle serait la forme du même tenseur dans l'autre
+convention ?
+\end{exercice}
+
+\begin{solution}
+Le $3$ ne peut être que le nombre de canaux de couleur : aucune vidéo ne
+fait trois pixels de haut. Il s'agit donc de l'ordre
+$(\text{canaux},\ \text{temps},\ \text{hauteur},\ \text{largeur})$, celui de
+PyTorch : une vidéo en couleur de $64$ images en $384 \times 384$. Dans la
+convention d'affichage, le même tenseur s'écrirait
+$(64, 384, 384, 3)$. Les nombres qu'il contient sont exactement les mêmes ;
+seul leur rangement change.
+\end{solution}

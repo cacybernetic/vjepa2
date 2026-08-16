@@ -1,0 +1,131 @@
+%%%=====================================================================%%%
+%%%  mb-macros.sty — Raccourcis mathématiques du livre                   %%%
+%%%  Notations cohérentes d'un bout à l'autre : algèbre linéaire,        %%%
+%%%  probabilités, statistique, optimisation, apprentissage.             %%%
+%%%                                                                      %%%
+%%%  C'est là tout l'intérêt d'un « tout-en-un » : un même objet garde   %%%
+%%%  la même notation du chapitre 1 au chapitre 19.                      %%%
+%%%=====================================================================%%%
+\ProvidesPackage{style/mb-macros}[2026/07/21 Macros mathematiques]
+\RequirePackage{xspace}
+
+%---- Ensembles de nombres ----
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\Q}{\mathbb{Q}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\C}{\mathbb{C}}
+\newcommand{\K}{\mathbb{K}}          % corps de base (R ou C)
+
+%---- Espaces & matrices ----
+% NB : \Rn est déjà défini par un autre paquet (siunitx) comme une macro à
+% un argument ; on l'écrase volontairement — il n'a aucun usage ici, et sa
+% version d'origine avalerait le token suivant dans « $\vect{x}\in\Rn$ ».
+\providecommand{\Rn}{}\renewcommand{\Rn}{\R^{n}}
+\newcommand{\Rm}{\R^{m}}
+\newcommand{\Rnn}{\R^{n\times n}}
+\newcommand{\Mn}[1][n]{\mathcal{M}_{#1}}          % matrices carrées n x n
+\newcommand{\Mmn}[2]{\mathcal{M}_{#1,#2}}         % matrices m x n
+\newcommand{\GL}{\mathrm{GL}}                      % groupe linéaire
+\newcommand{\Or}{\mathrm{O}}                       % matrices orthogonales
+\newcommand{\Sym}{\mathcal{S}}                     % matrices symétriques
+\newcommand{\identity}{\mathbf{I}}                 % matrice identité
+\newcommand{\zero}{\mathbf{0}}
+
+%---- Opérateurs classiques ----
+\DeclareMathOperator{\rang}{rang}
+\DeclareMathOperator{\Ker}{Ker}
+\DeclareMathOperator{\Image}{Im}
+\DeclareMathOperator{\Vect}{Vect}
+\DeclareMathOperator{\diag}{diag}
+\DeclareMathOperator{\tr}{tr}
+\DeclareMathOperator{\spectre}{Sp}
+\DeclareMathOperator{\cond}{cond}
+\DeclareMathOperator*{\argmin}{arg\,min}
+\DeclareMathOperator*{\argmax}{arg\,max}
+\DeclareMathOperator{\sign}{sgn}
+% \det est déjà fourni par amsmath.
+
+%---- Transposée, conjuguée, inverse ----
+\newcommand{\transp}[1]{{#1}^{\mathsf{T}}}         % transposée : A^T
+\newcommand{\adj}[1]{{#1}^{\ast}}                  % adjointe / conjuguée-transposée
+\newcommand{\inv}[1]{{#1}^{-1}}
+
+%---- Normes, produits scalaires, valeurs absolues ----
+\DeclarePairedDelimiter{\abs}{\lvert}{\rvert}
+\DeclarePairedDelimiter{\norm}{\lVert}{\rVert}
+\DeclarePairedDelimiterX{\inner}[2]{\langle}{\rangle}{#1,#2}   % <x,y>
+\newcommand{\scal}[2]{\left(#1\,\middle|\,#2\right)}          % (x|y)
+
+%---- Vecteurs & gras ----
+\newcommand{\vect}[1]{\bm{#1}}
+\newcommand{\grad}{\nabla}
+\newcommand{\hess}{\nabla^{2}}
+\newcommand{\deriv}[2]{\dfrac{\mathrm{d}#1}{\mathrm{d}#2}}
+\newcommand{\pderiv}[2]{\dfrac{\partial #1}{\partial #2}}
+
+%---- Optimisation ----
+\newcommand{\minimize}[1]{\underset{#1}{\text{minimiser}}\ }
+\newcommand{\subjectto}{\text{sous contrainte}\ }
+\newcommand{\lagr}{\mathcal{L}}                    % lagrangien
+
+%======================================================================
+%  PROBABILITÉS ET STATISTIQUE
+%======================================================================
+%---- Probabilité, espérance, variance ----
+% NB : ce sont des *symboles*, pas des opérateurs texte — d'où \newcommand
+% et non \DeclareMathOperator, qui composerait \mathbb{P} en romain droit.
+% On n'écrase surtout pas \P : c'est le pied-de-mouche (¶) de LaTeX.
+\newcommand{\Prob}{\mathbb{P}}                     % mesure de probabilité
+\newcommand{\Esp}{\mathbb{E}}                      % espérance
+\DeclareMathOperator{\Var}{Var}                    % variance
+\DeclareMathOperator{\Cov}{Cov}                    % covariance
+\DeclareMathOperator{\Corr}{Corr}                  % corrélation
+\newcommand{\ecart}{\sigma}                        % écart-type
+\newcommand{\indep}{\perp\!\!\!\perp}              % indépendance : X \indep Y
+\newcommand{\iid}{i.i.d.\xspace}
+\newcommand{\loi}{\sim}                            % « suit la loi »
+
+%---- Lois usuelles (nommées en clair, comme dans le texte) ----
+\newcommand{\Bernoulli}{\mathcal{B}}
+\newcommand{\Binom}{\mathcal{B}in}
+\newcommand{\Normale}{\mathcal{N}}                 % loi normale
+\newcommand{\Uniforme}{\mathcal{U}}
+\newcommand{\Poisson}{\mathcal{P}oi}
+\newcommand{\vraisemblance}{\mathcal{L}}           % vraisemblance (même L que \lagr)
+
+%======================================================================
+%  APPRENTISSAGE AUTOMATIQUE ET RÉSEAUX DE NEURONES
+%======================================================================
+%---- Données et modèle ----
+\newcommand{\donnees}{\mathcal{D}}                 % jeu de données
+\newcommand{\entree}{\vect{x}}                     % une entrée
+\newcommand{\cible}{y}                             % la valeur à prédire
+\newcommand{\pred}[1]{\hat{#1}}                    % valeur prédite : \pred{y}
+\newcommand{\params}{\vect{\theta}}                % paramètres du modèle
+\newcommand{\poids}{\vect{w}}                      % poids
+\newcommand{\biais}{b}                             % biais
+\newcommand{\modele}{f}                            % la fonction apprise
+\newcommand{\pas}{\eta}                            % taux d'apprentissage
+\newcommand{\nex}{N}                               % nombre d'exemples
+
+%---- Coût, risque, régularisation ----
+\newcommand{\cout}{\mathcal{J}}                    % fonction de coût globale
+\newcommand{\perte}{\ell}                          % perte sur un exemple
+\newcommand{\risque}{\mathcal{R}}                  % risque
+\newcommand{\reg}{\Omega}                          % terme de régularisation
+
+%---- Fonctions d'activation ----
+\DeclareMathOperator{\relu}{ReLU}
+\DeclareMathOperator{\softmax}{softmax}
+\newcommand{\sigmo}{\sigma}                        % sigmoïde (symbole, pas opérateur)
+% \tanh est déjà fourni par LaTeX.
+
+%======================================================================
+%  CONFORT DE RÉDACTION
+%======================================================================
+\newcommand{\ie}{c.-à-d.\xspace}
+\newcommand{\eg}{p.\,ex.\xspace}
+\newcommand{\st}{\;\middle|\;}
+
+\endinput

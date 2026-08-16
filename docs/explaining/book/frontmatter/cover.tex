@@ -1,0 +1,220 @@
+%%%=====================================================================%%%
+%%%  frontmatter/cover.tex — Page de titre                              %%%
+%%%                                                                      %%%
+%%%  Le titre, le sous-titre et l'auteur viennent des macros \mbTitre,   %%%
+%%%  \mbSousTitre et \mbAuteur redéfinies en tête de main.tex.           %%%
+%%%                                                                      %%%
+%%%  PARTI PRIS : la couverture raconte, sans un mot, la boucle          %%%
+%%%  complète du livre :                                                 %%%
+%%%                                                                      %%%
+%%%     une vidéo  ·  on en cache des morceaux  ·  on devine l'idée      %%%
+%%%              un seul encodeur gelé  ·  un petit modèle              %%%
+%%%                                                                      %%%
+%%%  Composition en registres horizontaux :                              %%%
+%%%     1. la rangée haute : les trois temps de l'apprentissage          %%%
+%%%     2. le bandeau bleu qui porte le titre                            %%%
+%%%     3. le filet ambre, le sous-titre, la promesse                    %%%
+%%%     4. la rangée basse : ce qu'on en fait ensuite                    %%%
+%%%     5. l'auteur                                                      %%%
+%%%                                                                      %%%
+%%%  Les teintes sont plus soutenues que dans le corps du livre : une    %%%
+%%%  couverture est vue de loin, souvent imprimée, parfois en noir et    %%%
+%%%  blanc.                                                              %%%
+%%%=====================================================================%%%
+\begin{titlepage}
+\thispagestyle{empty}
+
+\tikzset{
+  cov formule/.style={font=\small, text=mbInk},
+  cov domaine/.style={font=\sffamily\scriptsize\bfseries, text=mbSlate},
+}
+
+\begin{tikzpicture}[remember picture,overlay,mbfig]
+
+  %--------------------------------------------------------------------
+  % Fond
+  %--------------------------------------------------------------------
+  \fill[mbPaper] (current page.south west) rectangle (current page.north east);
+
+  %====================================================================
+  % 1. RANGÉE HAUTE — les trois temps de l'apprentissage
+  %====================================================================
+  \coordinate (rhaut) at ($(current page.north)+(0cm,-4.6cm)$);
+
+  %--------------------------------------------------------------------
+  % 1a. UNE VIDÉO — une pile d'images qui avance dans le temps.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rhaut)+(-4.5cm,0cm)$)}]
+    \foreach \k [count=\n from 0] in {0,1,2,3}{
+      \pgfmathsetmacro{\dx}{-0.95+0.55*\k}
+      \pgfmathsetmacro{\dy}{-0.72+0.40*\k}
+      \fill[mbBlue!\the\numexpr18+14*\n\relax]
+            (\dx,\dy) rectangle ++(1.5,1.05);
+      \draw[mbBlue!70, line width=0.7pt] (\dx,\dy) rectangle ++(1.5,1.05);
+    }
+    \draw[-{Stealth[round,length=2.2mm,width=1.7mm]},
+          draw=mbAmber!85!black, line width=1pt]
+          (-1.15,-1.05) -- (1.35,-1.05);
+    \node[font=\scriptsize, text=mbAmber!80!black, below] at (0.1,-1.08)
+         {temps};
+    \node[cov formule] at (0,-1.85) {$(T,H,W,C)$};
+    \node[cov domaine] at (0,-2.35) {UNE VIDÉO};
+  \end{scope}
+
+  %--------------------------------------------------------------------
+  % 1b. ON EN CACHE DES MORCEAUX — la grille des jetons, dont une partie
+  %     est masquée. C'est le geste central de tout le livre.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rhaut)+(0cm,0cm)$)}]
+    \foreach \ri in {0,...,5}{
+      \foreach \ci in {0,...,5}{
+        \pgfmathsetmacro{\dd}{(\ci-1.6)*(\ci-1.6)+(\ri-3.2)*(\ri-3.2)}
+        \pgfmathsetmacro{\ee}{(\ci-4.3)*(\ci-4.3)+(\ri-1.4)*(\ri-1.4)}
+        \pgfmathsetmacro{\cache}{(\dd<2.2 || \ee<1.6) ? 1 : 0}
+        \ifdim\cache pt>0.5pt
+          \fill[mbSlate!35] (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+          \draw[mbSlate!55, line width=0.4pt, dashed]
+                (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+        \else
+          \fill[mbAzure!\the\numexpr20+7*\ri+5*\ci\relax]
+                (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+          \draw[mbAzure!60, line width=0.4pt]
+                (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+        \fi
+      }
+    }
+    \node[cov formule] at (0,-1.85) {$x \longrightarrow E_{\theta}(x)$};
+    \node[cov domaine] at (0,-2.35) {ON EN CACHE};
+  \end{scope}
+
+  %--------------------------------------------------------------------
+  % 1c. ON DEVINE L'IDÉE — pas les pixels : la carte de traits, celle
+  %     qu'on lira toute l'année sous forme de carte en couleurs.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rhaut)+(4.5cm,0cm)$)}]
+    \foreach \ri in {0,...,5}{
+      \foreach \ci in {0,...,5}{
+        \pgfmathsetmacro{\da}{(\ci-1.3)*(\ci-1.3)+(\ri-3.4)*(\ri-3.4)}
+        \pgfmathsetmacro{\db}{(\ci-4.2)*(\ci-4.2)+(\ri-1.5)*(\ri-1.5)}
+        \pgfmathsetmacro{\za}{\da<2.6 ? 1 : 0}
+        \pgfmathsetmacro{\zb}{\db<2.2 ? 1 : 0}
+        \ifdim\za pt>0.5pt
+          \fill[mbAmber!70] (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+        \else
+          \ifdim\zb pt>0.5pt
+            \fill[mbTeal!65] (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+          \else
+            \fill[mbViolet!35] (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+          \fi
+        \fi
+        \draw[white, line width=0.5pt]
+              (-1.32+\ci*0.44, 1.32-\ri*0.44) rectangle ++(0.44,-0.44);
+      }
+    }
+    \node[cov formule] at (0,-1.85) {$\lVert \hat{z} - z \rVert_{1}$};
+    \node[cov domaine] at (0,-2.35) {ON DEVINE L'IDÉE};
+  \end{scope}
+
+  %====================================================================
+  % 2. Bandeau du titre
+  %====================================================================
+  \fill[mbBlue] (current page.west|-current page.center)
+        rectangle ([yshift=3.7cm]current page.east|-current page.center);
+  \fill[mbAmber] (current page.west|-current page.center)
+        rectangle ([yshift=-0.28cm]current page.east|-current page.center);
+
+  \node[anchor=west,text width=11.5cm,align=left]
+        at ([yshift=1.85cm,xshift=1.9cm]current page.west) {%
+    \sffamily\bfseries\color{white}\fontsize{34}{39}\selectfont
+    V-JEPA 2.1\\ pas à pas};
+
+  %====================================================================
+  % 3. Sous-titre et promesse, sous le filet — donc sur le fond crème
+  %====================================================================
+  \node[anchor=north west,text width=12.4cm,align=left]
+        at ([yshift=-1.05cm,xshift=1.9cm]current page.west) {%
+    \sffamily\color{mbInk}\large \mbSousTitre};
+  \node[anchor=north west,text width=12.4cm,align=left]
+        at ([yshift=-2.35cm,xshift=1.9cm]current page.west) {%
+    \sffamily\bfseries\color{mbAmber!80!black}\normalsize
+    Aucun prérequis : on part vraiment de zéro.};
+
+  %====================================================================
+  % 4. RANGÉE BASSE — ce qu'on fait du modèle une fois qu'il est appris
+  %====================================================================
+  \coordinate (rbas) at ($(current page.south)+(0cm,6.5cm)$);
+
+  %--------------------------------------------------------------------
+  % 4a. UN ENCODEUR GELÉ — un seul gros modèle, qu'on ne touche plus, et
+  %     derrière lui de petites têtes, une par tâche.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rbas)+(-3.4cm,0cm)$)}]
+    \fill[mbBlue!25] (-1.7,-0.95) rectangle (-0.5,0.95);
+    \draw[mbBlue, line width=1pt] (-1.7,-0.95) rectangle (-0.5,0.95);
+    \node[font=\sffamily\scriptsize\bfseries, text=mbBlue!80!black, rotate=90]
+          at (-1.1,0) {ENCODEUR};
+    \node[font=\normalsize, text=mbAmber!85!black] at (-1.1,1.32)
+          {\faIcon{lock}};
+    \foreach \k [count=\n from 0] in {1,0,-1}{
+      \draw[-{Stealth[round,length=1.8mm,width=1.4mm]},
+            draw=mbSlate!70, line width=0.7pt]
+            (-0.45,\k*0.6) -- (0.45,\k*0.6);
+      \fill[mbAmber!35] (0.5,{\k*0.6-0.22}) rectangle ++(1.1,0.44);
+      \draw[mbAmber!85!black, line width=0.7pt]
+            (0.5,{\k*0.6-0.22}) rectangle ++(1.1,0.44);
+    }
+    \node[cov formule] at (0,-1.85) {une sonde par tâche};
+    \node[cov domaine] at (0,-2.35) {ENCODEUR GELÉ};
+  \end{scope}
+
+  %--------------------------------------------------------------------
+  % 4b. UN PETIT MODÈLE — la distillation : le gros apprend, le petit
+  %     l'imite, et c'est le petit qui part en production.
+  %--------------------------------------------------------------------
+  \begin{scope}[shift={($(rbas)+(3.4cm,0cm)$)}]
+    \fill[mbBlue!25] (-1.75,-1.1) rectangle (-0.35,1.1);
+    \draw[mbBlue, line width=1pt] (-1.75,-1.1) rectangle (-0.35,1.1);
+    \node[font=\sffamily\tiny\bfseries, text=mbBlue!80!black] at (-1.05,0)
+          {2\,000\\ millions};
+    \fill[mbTeal!30] (0.75,-0.42) rectangle (1.6,0.42);
+    \draw[mbTeal!90!black, line width=1pt] (0.75,-0.42) rectangle (1.6,0.42);
+    \node[font=\sffamily\tiny\bfseries, text=mbTeal!60!black] at (1.175,0)
+          {300\\ millions};
+    \draw[-{Stealth[round,length=2.2mm,width=1.7mm]},
+          draw=mbAmber!85!black, line width=1.1pt] (-0.25,0) -- (0.65,0);
+    \node[font=\sffamily\scriptsize, text=mbSlate, above] at (0.2,0.1)
+          {imite};
+    \node[cov formule] at (0,-1.85) {presque la même qualité};
+    \node[cov domaine] at (0,-2.35) {DISTILLATION};
+  \end{scope}
+
+  %====================================================================
+  % 5. Auteur
+  %====================================================================
+  \node[anchor=south west,text width=12.4cm,align=left]
+        at ([yshift=1.5cm,xshift=1.9cm]current page.south west) {%
+    \sffamily
+    {\bfseries\color{mbInk}\large\mbAuteur}\\[6pt]
+    {\color{mbBlue}\footnotesize\faIcon{calendar-alt}\ \the\year}};
+\end{tikzpicture}
+\end{titlepage}
+
+% Verso de la page de titre : colophon
+\thispagestyle{empty}
+\null\vfill
+{\footnotesize\sffamily\color{mbSlate}
+\noindent Édition \the\year. Document composé avec \LaTeX{} (pdf\TeX), polices
+Palatino (texte et mathématiques), TeX~Gyre~Heros (titres) et DejaVu~Sans~Mono
+(code).
+Figures et schémas réalisés avec \textsf{TikZ} et \textsf{pgfplots}, coloration
+syntaxique assurée par \textsf{minted}/Pygments, encadrés par
+\textsf{tcolorbox}, bibliographie par \textsf{biblatex}.\par
+\medskip
+\noindent Ce livre explique de bout en bout l'article \emph{V-JEPA 2.1:
+Unlocking Dense Features in Video Self-Supervised Learning}, publié par
+l'équipe FAIR de Meta et l'Université de Saragosse. Il est écrit pour être lu
+sans aucun prérequis : on part de zéro, on explique avec des mots avant
+d'écrire des symboles, et on n'avance jamais sans avoir d'abord dit pourquoi.
+Il ne s'arrête pas à la compréhension : il conduit le lecteur jusqu'au code
+qui tourne, puis jusqu'au modèle mis en service.\par}
+\clearpage

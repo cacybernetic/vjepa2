@@ -1,0 +1,192 @@
+%%%=====================================================================%%%
+%%%  mb-boxes.sty — Environnements de théorèmes et encadrés pédagogiques %%%
+%%%                                                                      %%%
+%%%  Deux familles :                                                     %%%
+%%%   1. Énoncés numérotés (théorème, définition, ...) partageant un     %%%
+%%%      compteur commun par chapitre : Théorème 3.1, Définition 3.2 ... %%%
+%%%   2. Encadrés pédagogiques non numérotés pensés pour les débutants : %%%
+%%%      « En clair », « Piège », « À retenir », « En IA », ...          %%%
+%%%                                                                      %%%
+%%%  Chaque encadré porte un pictogramme : le lecteur débutant repère    %%%
+%%%  le type d'un bloc à l'œil, sans avoir à en lire le titre.           %%%
+%%%=====================================================================%%%
+\ProvidesPackage{style/mb-boxes}[2026/07/16 Theoremes et encadres]
+
+\RequirePackage{tcolorbox}
+\tcbuselibrary{skins,breakable,theorems}
+\RequirePackage{xstring}
+\RequirePackage{etoolbox}         % \ifblank, utilisé dès les titres ci-dessous
+
+%----------------------------------------------------------------------
+% amsthm : la démonstration reste classique (« Démonstration » via babel)
+%----------------------------------------------------------------------
+\renewcommand{\qedsymbol}{$\blacksquare$}
+% babel french nomme déjà la preuve « Démonstration » ; on ne fait que la
+% styler (sans-serif, gris). NE PAS redéfinir \proof lui-même : cela casse
+% la détection de type de cleveref pour toutes les références suivantes.
+\renewcommand\proofname{\normalfont\sffamily\bfseries\textcolor{mbSlate}{Démonstration}}
+
+%======================================================================
+% 1. ÉNONCÉS NUMÉROTÉS
+%======================================================================
+% Style commun : barre latérale colorée, fond teinté doux, titre en
+% capitales fines, coin arrondi. Cassable sur plusieurs pages.
+% Le style ne prend que la couleur : le pictogramme, lui, est placé en tête
+% du *nom* de l'énoncé (2e argument de \newtcbtheorem), seul endroit que
+% tcolorbox compose dans la pastille de titre. Les noms utilisés par \cref
+% sont fixés séparément par crefname/Crefname : l'icône n'y apparaît pas.
+\tcbset{
+  mb@thm/.style={
+    enhanced, breakable, boxrule=0pt, frame hidden,
+    borderline west={2.6pt}{0pt}{#1},
+    colback=#1!5!mbPaper,
+    left=11pt,right=9pt,top=10pt,bottom=9pt,
+    arc=2pt, before skip=10pt, after skip=10pt,
+    fonttitle=\sffamily\bfseries\small,
+    colbacktitle=#1, coltitle=white,
+    attach boxed title to top left={yshift=-2.2mm,xshift=8pt},
+    boxed title style={boxrule=0pt, arc=1.5pt, left=6pt,right=6pt,top=2pt,bottom=2pt,
+                       frame code={},colback=#1},
+    separator sign={\ },
+    description delimiters={(}{)},
+  }
+}
+
+% On crée d'abord les environnements « bruts » (via newtcbtheorem), qui
+% partagent un même compteur ancré au chapitre. Ils attendent deux
+% arguments obligatoires : {titre}{marqueur}. On les enveloppe ensuite dans
+% des environnements conviviaux (\mbNewFriendlyThm) où titre ET label sont
+% OPTIONNELS, à la manière d'amsthm :
+%     \begin{theoreme} ... \end{theoreme}
+%     \begin{theoreme}[Titre] ... \end{theoreme}
+%     \begin{theoreme}[Titre][mon-label] ...        (réf. : \cref{thm:mon-label})
+\newcommand{\mb@ico}[1]{\raisebox{-0.5pt}{\faIcon{#1}}\ \,}
+
+\newtcbtheorem[number within=chapter,crefname={théorème}{théorèmes},
+  Crefname={Théorème}{Théorèmes}]{rawtheoreme}{\mb@ico{star}Théorème}%
+  {mb@thm=mbBlue}{thm}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={définition}{définitions},
+  Crefname={Définition}{Définitions}]{rawdefinition}{\mb@ico{book-open}Définition}%
+  {mb@thm=mbViolet}{def}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={proposition}{propositions},
+  Crefname={Proposition}{Propositions}]{rawproposition}{\mb@ico{check-circle}Proposition}%
+  {mb@thm=mbAzure}{prop}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={lemme}{lemmes},
+  Crefname={Lemme}{Lemmes}]{rawlemme}{\mb@ico{puzzle-piece}Lemme}%
+  {mb@thm=mbAzure}{lem}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={corollaire}{corollaires},
+  Crefname={Corollaire}{Corollaires}]{rawcorollaire}{\mb@ico{angle-double-right}Corollaire}%
+  {mb@thm=mbTeal}{cor}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={remarque}{remarques},
+  Crefname={Remarque}{Remarques}]{rawremarque}{\mb@ico{comment-dots}Remarque}%
+  {mb@thm=mbSlate}{rem}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={exemple}{exemples},
+  Crefname={Exemple}{Exemples}]{rawexemple}{\mb@ico{lightbulb}Exemple}%
+  {mb@thm=mbTeal}{ex}
+\newtcbtheorem[use counter from=rawtheoreme,crefname={notation}{notations},
+  Crefname={Notation}{Notations}]{rawnotation}{\mb@ico{pen-nib}Notation}%
+  {mb@thm=mbViolet}{not}
+
+% Enrobage : titre et label optionnels.  #1 = nom convivial, #2 = nom brut.
+% On transmet des arguments LITTÉRAUX (valeur réelle ou accolades vides),
+% afin que tcolorbox reconnaisse un marqueur vide et n'écrive alors AUCUN
+% label (sinon plusieurs encadrés sans label partageraient « ex: » ou
+% « rem: » et seraient « multiply defined »).
+\NewDocumentCommand{\mbNewFriendlyThm}{mm}{%
+  \NewDocumentEnvironment{#1}{oo}{%
+    \IfValueTF{##1}%
+      {\IfValueTF{##2}{\begin{#2}{##1}{##2}}{\begin{#2}{##1}{}}}%
+      {\IfValueTF{##2}{\begin{#2}{}{##2}}{\begin{#2}{}{}}}%
+  }{%
+    \end{#2}%
+  }%
+}
+\mbNewFriendlyThm{theoreme}{rawtheoreme}
+\mbNewFriendlyThm{definition}{rawdefinition}
+\mbNewFriendlyThm{proposition}{rawproposition}
+\mbNewFriendlyThm{lemme}{rawlemme}
+\mbNewFriendlyThm{corollaire}{rawcorollaire}
+\mbNewFriendlyThm{remarque}{rawremarque}
+\mbNewFriendlyThm{exemple}{rawexemple}
+\mbNewFriendlyThm{notation}{rawnotation}
+
+%======================================================================
+% 2. ENCADRÉS PÉDAGOGIQUES (non numérotés)
+%======================================================================
+% Fabrique un encadré titré avec pictogramme, pour l'accompagnement des
+% débutants. Usage : \begin{enclair} ... \end{enclair}
+\newtcolorbox{mb@edu}[3]{% #1=couleur #2=icone #3=titre
+  enhanced, breakable, boxrule=0pt, frame hidden,
+  colback=#1!6!mbPaper,
+  borderline west={2.6pt}{0pt}{#1},
+  left=12pt,right=10pt,top=9pt,bottom=9pt, arc=2pt,
+  before skip=10pt, after skip=10pt,
+  title={\raisebox{-0.5pt}{\faIcon{#2}}\ \ #3},
+  fonttitle=\sffamily\bfseries\small\color{#1!88!black},
+  coltitle=#1!88!black,
+  detach title, before upper={\tcbtitle\par\smallskip},
+}
+
+\newenvironment{enclair}
+  {\begin{mb@edu}{mbAmber}{comments}{En clair}}
+  {\end{mb@edu}}
+
+\newenvironment{piege}
+  {\begin{mb@edu}{mbRose}{exclamation-triangle}{Piège à éviter}}
+  {\end{mb@edu}}
+
+\newenvironment{aretenir}
+  {\begin{mb@edu}{mbGreen}{key}{À retenir}}
+  {\end{mb@edu}}
+
+\newenvironment{plusloin}
+  {\begin{mb@edu}{mbBlue}{rocket}{Pour aller plus loin}}
+  {\end{mb@edu}}
+
+\newenvironment{intuition}
+  {\begin{mb@edu}{mbTeal}{brain}{L'intuition}}
+  {\end{mb@edu}}
+
+% Propres au sujet du livre : relier chaque notion mathématique à son
+% usage réel en IA / science des données, et rassurer sur les prérequis.
+\newenvironment{enia}
+  {\begin{mb@edu}{mbAzure}{robot}{À quoi ça sert en IA ?}}
+  {\end{mb@edu}}
+
+\newenvironment{surlesdonnees}
+  {\begin{mb@edu}{mbViolet}{chart-line}{Sur des données réelles}}
+  {\end{mb@edu}}
+
+\newenvironment{prerequis}
+  {\begin{mb@edu}{mbSlate}{seedling}{Ce qu'il faut savoir avant}}
+  {\end{mb@edu}}
+
+%======================================================================
+% 3. EXERCICES (compteur propre, style léger, corrigés repliables)
+%======================================================================
+% Le compteur est déjà remis à zéro à chaque chapitre par \newcounter[chapter]
+% et préfixé par \thembexo : ajouter « number within=chapter » ferait poser
+% une seconde remise à zéro sur le même compteur.
+\newcounter{mbexo}[chapter]
+\renewcommand{\thembexo}{\thechapter.\arabic{mbexo}}
+\newtcolorbox[use counter=mbexo]{exercice}[1][]{%
+  enhanced, breakable, boxrule=0.6pt, colframe=mbAmber!70!black,
+  colback=mbAmber!4!white, colbacktitle=mbAmber!70!black, coltitle=white,
+  fonttitle=\sffamily\bfseries\small,
+  title={\faIcon{pencil-alt}\ \ Exercice~\thetcbcounter\ifblank{#1}{}{ — #1}},
+  left=10pt,right=8pt,top=7pt,bottom=7pt, arc=2pt,
+  before skip=10pt, after skip=10pt,
+}
+
+% Bloc « Solution » discret
+\newtcolorbox{solution}{%
+  enhanced, breakable, boxrule=0pt, frame hidden,
+  colback=mbMist, borderline west={2.6pt}{0pt}{mbSlate},
+  left=10pt,right=8pt,top=7pt,bottom=7pt, arc=2pt,
+  before skip=6pt, after skip=10pt,
+  title={\faIcon{check}\ \ Solution}, detach title,
+  fonttitle=\sffamily\bfseries\small\color{mbSlate},
+  before upper={\tcbtitle\par\smallskip},
+}
+
+\endinput

@@ -1,0 +1,224 @@
+\chapter{Vecteurs, matrices et normes}
+\label{chap:vecteurs}
+
+\begin{quote}\itshape
+Avant de faire apprendre quoi que ce soit à une machine, apprivoisons les
+objets avec lesquels elle travaille : les vecteurs et les matrices. Ce
+chapitre pose le décor — en douceur.
+\end{quote}
+
+\begin{prerequis}
+Savoir additionner et multiplier des nombres, et savoir ce qu'est une
+racine carrée. Rien d'autre. Si le symbole $\sum$ vous inquiète, ne vous
+arrêtez pas : il est expliqué la première fois qu'il apparaît.
+\end{prerequis}
+
+\section{Un vecteur, c'est juste une liste de nombres}
+
+\begin{enclair}
+Un \emph{vecteur} de taille $n$, c'est une liste ordonnée de $n$ nombres.
+Rien de plus. Par exemple, la position d'un point sur une carte
+$(x, y)$ est un vecteur de taille~2. Les pixels d'une image, mis bout à
+bout, forment un vecteur (très long).
+\end{enclair}
+
+\begin{enia}
+En intelligence artificielle, \textbf{tout} devient un vecteur : une
+photo, une phrase, un client, une molécule. C'est la première chose que
+fait n'importe quel système d'IA — transformer le monde en listes de
+nombres, parce que c'est la seule chose qu'une machine sache calculer.
+Le vecteur qui représente un objet s'appelle son \emph{plongement}
+(\emph{embedding} en anglais).
+\end{enia}
+
+\begin{graphe}{Un jeu de données, c'est un nuage de vecteurs. Ici, chaque
+fleur est décrite par deux nombres seulement — donc par un vecteur de
+$\R^2$ —, et l'espèce se lit presque à l'œil nu.}[nuage-iris]
+\begin{axis}[mbaxis, height=5.6cm,
+             xlabel={Longueur du pétale (cm)},
+             ylabel={Largeur du pétale (cm)},
+             xmin=0, xmax=7.5, ymin=0, ymax=3,
+             legend pos=north west]
+  \addplot[only marks, mark=*,       mark size=1.5pt, mbBlue] coordinates {
+    (1.4,0.2) (1.4,0.2) (1.3,0.2) (1.5,0.2) (1.4,0.2) (1.7,0.4)
+    (1.4,0.3) (1.5,0.2) (1.4,0.2) (1.5,0.1) (1.5,0.2) (1.6,0.2)};
+  \addplot[only marks, mark=triangle*, mark size=2pt,  mbAmber] coordinates {
+    (4.7,1.4) (4.5,1.5) (4.9,1.5) (4.0,1.3) (4.6,1.5) (4.5,1.3)
+    (4.7,1.6) (3.3,1.0) (4.6,1.3) (3.9,1.4) (4.2,1.5) (4.0,1.0)};
+  \addplot[only marks, mark=square*, mark size=1.5pt, mbTeal] coordinates {
+    (6.0,2.5) (5.1,1.9) (5.9,2.1) (5.6,1.8) (5.8,2.2) (6.6,2.1)
+    (5.5,1.8) (6.3,1.8) (5.8,1.6) (6.1,2.5) (5.1,2.0) (5.3,1.9)};
+  \legend{Espèce A, Espèce B, Espèce C}
+\end{axis}
+\end{graphe}
+
+On note un vecteur en gras, $\vect{x} \in \Rn$, et ses composantes
+$x_1, x_2, \dots, x_n$. On les empile verticalement :
+\[
+  \vect{x} = \begin{pmatrix} x_1 \\ x_2 \\ \vdots \\ x_n \end{pmatrix}.
+\]
+
+\begin{intuition}
+Voyez le vecteur $\vect{x}\in\R^2$ comme une \emph{flèche} partant de
+l'origine et pointant vers le point $(x_1, x_2)$. Additionner deux vecteurs,
+c'est mettre les flèches bout à bout.
+\end{intuition}
+
+\begin{schema}{Le vecteur $\vect{x} = (3,4)$ vu comme une flèche. Sa
+longueur se lit directement avec le théorème de Pythagore : les pointillés
+gris forment un triangle rectangle de côtés $3$ et $4$, dont l'hypoténuse
+— la flèche — mesure $5$.}[vecteur-fleche]
+  \begin{scope}[x=1cm, y=1cm]
+    \axesxy{5.2}{5.2}
+    \draw[construction] (3,0) -- (3,4);
+    \draw[construction] (0,4) -- (3,4);
+    \draw[vecteur] (0,0) -- (3,4);
+    \node[point] at (3,4) {};
+    \node[etiquette, below] at (3,-0.12) {$x_1 = 3$};
+    \node[etiquette, left]  at (-0.12,4) {$x_2 = 4$};
+    \node[font=\small, above left=-2pt] at (1.5,2) {$\vect{x}$};
+    \node[annotation bulle] (mblong) at (4.3,1.6)
+         {longueur\\ $\norm{\vect{x}}_2 = 5$};
+    \draw[trait annotation] (mblong) to[bend right=18] (2.1,2.5);
+  \end{scope}
+\end{schema}
+
+\begin{definition}[Norme euclidienne][norme-eucl]
+La \emph{longueur} d'un vecteur $\vect{x}\in\Rn$, appelée \emph{norme
+euclidienne}, est le nombre
+\[
+  \norm{\vect{x}}_2 = \sqrt{x_1^2 + x_2^2 + \dots + x_n^2}
+                    = \sqrt{\smash{\textstyle\sum_{i=1}^{n} x_i^2}}.
+\]
+C'est exactement le théorème de Pythagore, généralisé à $n$ dimensions.
+\end{definition}
+
+\begin{exemple}[Calcul d'une norme]
+Pour $\vect{x} = (3, 4)$, on a $\norm{\vect{x}}_2 = \sqrt{9 + 16}
+= \sqrt{25} = 5$. La flèche mesure 5~unités de long.
+\end{exemple}
+
+\begin{piege}
+La norme n'est \textbf{pas} la somme des composantes ! On élève au carré,
+on additionne, \emph{puis} on prend la racine. Oublier la racine est
+l'erreur numéro~un des débutants.
+\end{piege}
+
+\section{Une matrice transforme les vecteurs}
+
+Une matrice $A \in \Mmn{m}{n}$ est un tableau de nombres à $m$ lignes et
+$n$ colonnes. Son vrai rôle : \textbf{transformer} un vecteur en un autre,
+par le produit $\vect{y} = A\vect{x}$.
+
+\begin{aretenir}
+Multiplier par une matrice, c'est appliquer une transformation
+géométrique : une rotation, un étirement, une projection\dots{} Comprendre
+\emph{quelle} transformation cache une matrice, c'est comprendre l'algèbre
+linéaire.
+\end{aretenir}
+
+\begin{enia}
+Une couche de réseau de neurones n'est rien d'autre que cela : une
+multiplication par une matrice, $\vect{y} = W\vect{x} + \vect{b}$, suivie
+d'une petite fonction appliquée nombre par nombre. Les coefficients de $W$
+sont précisément ce que le réseau \emph{apprend}. Entraîner un modèle,
+c'est chercher les bons nombres à mettre dans des matrices — et rien de
+plus mystérieux que cela.
+\end{enia}
+
+\begin{schema}{Un petit réseau de neurones. Chaque trait porte un
+coefficient : ce sont exactement les cases de la matrice $W$. Un réseau
+qui « apprend », c'est un réseau qui ajuste ces nombres.}[reseau-couche]
+  \reseauneurones[Entrée $\vect{x}$][Couche cachée][Sortie $\vect{y}$]{3}{4}{2}
+\end{schema}
+
+\begin{theoreme}[Existence et unicité de la solution][inversible]
+Soit $A \in \Mn$ une matrice carrée. Le système linéaire $A\vect{x} =
+\vect{b}$ admet une \emph{unique} solution pour tout $\vect{b}\in\Rn$ si et
+seulement si $A$ est \emph{inversible}, c'est-à-dire $\det(A) \neq 0$.
+Dans ce cas, $\vect{x} = \inv{A}\,\vect{b}$.
+\end{theoreme}
+
+\begin{proof}
+Si $A$ est inversible, poser $\vect{x} = \inv{A}\vect{b}$ donne
+$A\vect{x} = A\inv{A}\vect{b} = \identity\vect{b} = \vect{b}$, d'où
+l'existence ; et si $A\vect{x} = A\vect{x}'$ alors, en multipliant à gauche
+par $\inv{A}$, on obtient $\vect{x} = \vect{x}'$, d'où l'unicité.
+Réciproquement, si $A$ n'est pas inversible, son noyau $\Ker A$ contient un
+vecteur non nul et la solution, quand elle existe, n'est jamais unique.
+\end{proof}
+
+\begin{remarque}
+En pratique, on ne calcule \emph{presque jamais} $\inv{A}$ pour résoudre
+$A\vect{x}=\vect{b}$ : c'est coûteux et numériquement instable. On préfère
+des méthodes directes (l'élimination de Gauss, au chapitre suivant) ou
+itératives. Voir aussi~\textcite{golubvanloan2013}.
+\end{remarque}
+
+\section{Passons au code}
+
+Voici comment manipuler tout cela en Python avec \co{python}{numpy}, la
+bibliothèque de référence en calcul scientifique~\parencite{harris2020numpy}.
+
+\begin{code}{python}[Norme et résolution d'un système linéaire]
+import numpy as np
+
+# Un vecteur et sa norme euclidienne
+x = np.array([3.0, 4.0])
+print(np.linalg.norm(x))          # -> 5.0
+
+# Résoudre A x = b SANS inverser A (recommandé)
+A = np.array([[2.0, 1.0],
+              [1.0, 3.0]])
+b = np.array([1.0, 2.0])
+
+x = np.linalg.solve(A, b)         # méthode directe, stable
+print("solution :", x)
+print("residu   :", np.linalg.norm(A @ x - b))
+\end{code}
+
+Le même calcul en Julia, très prisé en recherche numérique :
+
+\begin{code}{julia}[La même résolution en Julia]
+using LinearAlgebra
+
+A = [2.0 1.0; 1.0 3.0]
+b = [1.0, 2.0]
+
+x = A \ b            # l'opérateur « backslash » résout le système
+println("solution : ", x)
+println("norme    : ", norm(x))
+\end{code}
+
+\begin{plusloin}
+Le nombre $\cond(A) = \norm{A}\,\norm{\inv{A}}$, appelé
+\emph{conditionnement}, mesure à quel point la solution est sensible aux
+erreurs d'arrondi. Un grand conditionnement annonce des ennuis numériques.
+Nous y reviendrons en détail.
+\end{plusloin}
+
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Norme et distance]
+Calculez $\norm{\vect{x}}_2$ pour $\vect{x} = (1, 2, 2)$, puis la distance
+entre $\vect{x}$ et $\vect{y} = (1, 0, 0)$.
+\end{exercice}
+
+\begin{solution}
+$\norm{\vect{x}}_2 = \sqrt{1 + 4 + 4} = 3$. La distance vaut
+$\norm{\vect{x}-\vect{y}}_2 = \norm{(0,2,2)}_2 = \sqrt{8} = 2\sqrt{2}$.
+\end{solution}
+
+\begin{exercice}[Inversibilité]
+La matrice $A = \begin{psmallmatrix} 1 & 2 \\ 2 & 4 \end{psmallmatrix}$
+est-elle inversible ? Justifiez, puis dites ce que cela implique pour le
+système $A\vect{x} = \vect{b}$.
+\end{exercice}
+
+\begin{solution}
+$\det(A) = 1\cdot 4 - 2\cdot 2 = 0$ : la matrice \textbf{n'est pas}
+inversible (la 2\ieme{} ligne est le double de la 1\iere{}). D'après le
+\cref{thm:inversible}, le système n'a pas de solution unique : soit aucune
+solution, soit une infinité.
+\end{solution}

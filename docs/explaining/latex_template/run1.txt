@@ -1,0 +1,1769 @@
+This is pdfTeX, Version 3.141592653-2.6-1.40.22 (TeX Live 2022/dev/Debian) (preloaded format=pdflatex)
+ \write18 enabled.
+entering extended mode
+(./main.tex
+LaTeX2e <2021-11-15> patch level 1
+L3 programming layer <2022-01-21> (./matrixbook.cls
+Document Class: matrixbook 2026/07/16 v1.0 Classe pour livre de maths accessibl
+e
+(/usr/share/texlive/texmf-dist/tex/latex/base/book.cls
+Document Class: book 2021/10/04 v1.4n Standard LaTeX document class
+(/usr/share/texlive/texmf-dist/tex/latex/base/bk11.clo))
+(/usr/share/texlive/texmf-dist/tex/latex/base/fontenc.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/base/inputenc.sty)
+(/usr/share/texlive/texmf-dist/tex/generic/babel/babel.sty
+(/usr/share/texlive/texmf-dist/tex/generic/babel/txtbabel.def)
+(/usr/share/texlive/texmf-dist/tex/generic/babel-french/french.ldf))
+(/usr/share/texlive/texmf-dist/tex/latex/carlisle/scalefnt.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/graphics/keyval.sty)
+(/usr/share/texmf/tex/latex/lm/lmodern.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/mathpazo.sty)
+(/usr/share/texmf/tex/latex/tex-gyre/tgheros.sty
+(/usr/share/texlive/texmf-dist/tex/latex/kvoptions/kvoptions.sty
+(/usr/share/texlive/texmf-dist/tex/generic/ltxcmds/ltxcmds.sty)
+(/usr/share/texlive/texmf-dist/tex/generic/kvsetkeys/kvsetkeys.sty)))
+(/home/mokira3d48/texmf/tex/latex/fira/FiraMono.sty
+(/usr/share/texlive/texmf-dist/tex/generic/iftex/ifxetex.sty
+(/usr/share/texlive/texmf-dist/tex/generic/iftex/iftex.sty))
+(/usr/share/texlive/texmf-dist/tex/generic/iftex/ifluatex.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/xkeyval/xkeyval.sty
+(/usr/share/texlive/texmf-dist/tex/generic/xkeyval/xkeyval.tex
+(/usr/share/texlive/texmf-dist/tex/generic/xkeyval/xkvutils.tex)))
+(/usr/share/texlive/texmf-dist/tex/latex/base/textcomp.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/base/fontenc.sty
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/t1ppl.fd))
+(/usr/share/texlive/texmf-dist/tex/latex/fontaxes/fontaxes.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/helvet.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/microtype/microtype.sty
+(/usr/share/texlive/texmf-dist/tex/latex/etoolbox/etoolbox.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/microtype/microtype-pdftex.def)
+(/usr/share/texlive/texmf-dist/tex/latex/microtype/microtype.cfg))
+(/usr/share/texlive/texmf-dist/tex/latex/eurosym/eurosym.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsmath.sty
+For additional information on amsmath, use the `?' option.
+(/usr/share/texlive/texmf-dist/tex/latex/amsmath/amstext.sty
+(/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsgen.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsbsy.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/amsmath/amsopn.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/amsfonts/amssymb.sty
+(/usr/share/texlive/texmf-dist/tex/latex/amsfonts/amsfonts.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/mathtools/mathtools.sty
+(/usr/share/texlive/texmf-dist/tex/latex/tools/calc.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/mathtools/mhsetup.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/amscls/amsthm.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/tools/bm.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/siunitx/siunitx.sty
+(/usr/share/texlive/texmf-dist/tex/latex/translations/translations.sty
+(/usr/share/texlive/texmf-dist/tex/generic/pdftexcmds/pdftexcmds.sty
+(/usr/share/texlive/texmf-dist/tex/generic/infwarerr/infwarerr.sty)))
+(/usr/share/texlive/texmf-dist/tex/latex/l3packages/l3keys2e/l3keys2e.sty
+(/usr/share/texlive/texmf-dist/tex/latex/l3kernel/expl3.sty
+(/usr/share/texlive/texmf-dist/tex/latex/l3backend/l3backend-pdftex.def)))
+(/usr/share/texlive/texmf-dist/tex/latex/tools/array.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/geometry/geometry.sty
+(/usr/share/texlive/texmf-dist/tex/generic/iftex/ifvtex.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/emptypage/emptypage.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/xcolor/xcolor.sty
+(/usr/share/texlive/texmf-dist/tex/latex/graphics-cfg/color.cfg)
+(/usr/share/texlive/texmf-dist/tex/latex/graphics-def/pdftex.def))
+(/usr/share/texlive/texmf-dist/tex/latex/graphics/graphicx.sty
+(/usr/share/texlive/texmf-dist/tex/latex/graphics/graphics.sty
+(/usr/share/texlive/texmf-dist/tex/latex/graphics/trig.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/graphics-cfg/graphics.cfg)))
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/frontendlayer/tikz.sty
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/basiclayer/pgf.sty
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/utilities/pgfrcs.sty
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfutil-common.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfutil-common-lists.t
+ex)) (/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfutil-latex.def
+) (/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfrcs.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/pgf.revision.tex)))
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/basiclayer/pgfcore.sty
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/systemlayer/pgfsys.sty
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/systemlayer/pgfsys.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfkeysfiltered.code.t
+ex)) (/usr/share/texlive/texmf-dist/tex/generic/pgf/systemlayer/pgf.cfg)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/systemlayer/pgfsys-pdftex.def
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/systemlayer/pgfsys-common-pdf.de
+f)))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/systemlayer/pgfsyssoftpath.code.
+tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/systemlayer/pgfsysprotocol.code.
+tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcore.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathcalc.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathutil.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathparser.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.basic.code
+.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.trigonomet
+ric.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.random.cod
+e.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.comparison
+.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.base.code.
+tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.round.code
+.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.misc.code.
+tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfunctions.integerari
+thmetics.code.tex)))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmathfloat.code.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfint.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepoints.code.te
+x)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathconstruct.
+code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathusage.code
+.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorescopes.code.te
+x)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoregraphicstate.c
+ode.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransformation
+s.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorequick.code.tex
+)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreobjects.code.t
+ex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepathprocessing
+.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorearrows.code.te
+x)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreshade.code.tex
+)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreimage.code.tex
+
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoreexternal.code.
+tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorelayers.code.te
+x)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcoretransparency.c
+ode.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorepatterns.code.
+tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/basiclayer/pgfcorerdf.code.tex))
+)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/modules/pgfmoduleshapes.code.tex
+) (/usr/share/texlive/texmf-dist/tex/generic/pgf/modules/pgfmoduleplot.code.tex
+)
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version-0-65
+.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/compatibility/pgfcomp-version-1-18
+.sty)) (/usr/share/texlive/texmf-dist/tex/latex/pgf/utilities/pgffor.sty
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/utilities/pgfkeys.sty
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgfkeys.code.tex))
+(/usr/share/texlive/texmf-dist/tex/latex/pgf/math/pgfmath.sty
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/utilities/pgffor.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/math/pgfmath.code.tex)))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/tikz.code.tex
+
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/pgflibraryplothandlers
+.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/modules/pgfmodulematrix.code.tex
+)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarytopaths.code.tex)))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarycalc.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarypositioning.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibraryshapes.geometric.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/shapes/pgflibraryshape
+s.geometric.code.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/pgflibraryarrows.meta.
+code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarydecorations.pathmorphing.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarydecorations.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/modules/pgfmoduledecorations.cod
+e.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/decorations/pgflibrary
+decorations.pathmorphing.code.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarybackgrounds.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarymatrix.code.tex)
+(/usr/share/texlive/texmf-dist/tex/latex/pgfplots/pgfplots.sty
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplots.revision.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplots.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotscore.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/sys/pgfplotssysgeneric.code
+.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/libs/pgfplotslibrary.code.t
+ex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/oldpgfcompatib/pgfplotsoldp
+gfsupp_loader.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/pgflibraryfpu.code.tex
+))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/util/pgfplotsutil.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/liststructure/pgfplotslists
+tructure.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/liststructure/pgfplotslists
+tructureext.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/liststructure/pgfplotsarray
+.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/liststructure/pgfplotsmatri
+x.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/numtable/pgfplotstableshare
+d.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/liststructure/pgfplotsdeque
+.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/util/pgfplotsbinary.code.te
+x
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/util/pgfplotsbinary.data.co
+de.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/util/pgfplotsutil.verb.code
+.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/libs/pgflibrarypgfplots.sur
+fshading.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/sys/pgflibrarypgfplots.surf
+shading.pgfsys-pdftex.def)))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/util/pgfplotscolormap.code.
+tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/util/pgfplotscolor.code.tex
+))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotsstackedplots.code.t
+ex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotsplothandlers.code.t
+ex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotsmeshplothandler.cod
+e.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotsmeshplotimage.code.
+tex)))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplots.scaling.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotscoordprocessing.cod
+e.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplots.errorbars.code.tex
+) (/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplots.markers.code.tex
+) (/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplotsticks.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/pgfplots.paths.code.tex)
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibrarydecorations.pathreplacing.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/decorations/pgflibrary
+decorations.pathreplacing.code.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgfplots/libs/tikzlibrarypgfplots.co
+ntourlua.code.tex))
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/frontendlayer/tikz/libraries/tik
+zlibraryplotmarks.code.tex
+(/usr/share/texlive/texmf-dist/tex/generic/pgf/libraries/pgflibraryplotmarks.co
+de.tex))) (/usr/share/texlive/texmf-dist/tex/latex/booktabs/booktabs.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/multirow/multirow.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/caption/caption.sty
+(/usr/share/texlive/texmf-dist/tex/latex/caption/caption3.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/caption/subcaption.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/enumitem/enumitem.sty)
+(/home/mokira3d48/texmf/tex/latex/fontawesome5/fontawesome5.sty
+(/usr/share/texlive/texmf-dist/tex/latex/l3packages/xparse/xparse.sty)
+(/home/mokira3d48/texmf/tex/latex/fontawesome5/fontawesome5-generic-helper.sty
+(/home/mokira3d48/texmf/tex/latex/fontawesome5/fontawesome5-mapping.def)))
+(/usr/share/texlive/texmf-dist/tex/latex/fancyhdr/fancyhdr.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/titlesec/titlesec.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/titlesec/titletoc.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/tocbibind/tocbibind.sty
+
+Package tocbibind Note: Using chapter style headings, unless overridden.
+
+) (/usr/share/texlive/texmf-dist/tex/latex/tocloft/tocloft.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/hyperref.sty
+(/usr/share/texlive/texmf-dist/tex/generic/kvdefinekeys/kvdefinekeys.sty)
+(/usr/share/texlive/texmf-dist/tex/generic/pdfescape/pdfescape.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/hycolor/hycolor.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/letltxmacro/letltxmacro.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/auxhook/auxhook.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/pd1enc.def)
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/hyperref-langpatches.def)
+(/usr/share/texlive/texmf-dist/tex/generic/intcalc/intcalc.sty)
+(/usr/share/texlive/texmf-dist/tex/generic/etexcmds/etexcmds.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/puenc.def)
+(/usr/share/texlive/texmf-dist/tex/latex/url/url.sty)
+(/usr/share/texlive/texmf-dist/tex/generic/bitset/bitset.sty
+(/usr/share/texlive/texmf-dist/tex/generic/bigintcalc/bigintcalc.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/base/atbegshi-ltx.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/hpdftex.def
+(/usr/share/texlive/texmf-dist/tex/latex/base/atveryend-ltx.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/rerunfilecheck/rerunfilecheck.sty
+(/usr/share/texlive/texmf-dist/tex/generic/uniquecounter/uniquecounter.sty)))
+(/usr/share/texlive/texmf-dist/tex/latex/bookmark/bookmark.sty
+(/usr/share/texlive/texmf-dist/tex/latex/bookmark/bkm-pdftex.def))
+(/usr/share/texlive/texmf-dist/tex/latex/cleveref/cleveref.sty)
+(./style/mb-boxes.sty
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcolorbox.sty
+(/usr/share/texlive/texmf-dist/tex/latex/tools/verbatim.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/environ/environ.sty
+(/usr/share/texlive/texmf-dist/tex/latex/trimspaces/trimspaces.sty)))
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcbskins.code.tex
+Library (tcolorbox): 'tcbskins.code.tex' version '5.0.2'
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcbskinsjigsaw.code.tex
+Library (tcolorbox): 'tcbskinsjigsaw.code.tex' version '5.0.2'
+)) (/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcbbreakable.code.tex
+Library (tcolorbox): 'tcbbreakable.code.tex' version '5.0.2'
+(/usr/share/texlive/texmf-dist/tex/generic/oberdiek/pdfcol.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcbtheorems.code.tex
+Library (tcolorbox): 'tcbtheorems.code.tex' version '5.0.2'
+) (/usr/share/texlive/texmf-dist/tex/generic/xstring/xstring.sty
+(/usr/share/texlive/texmf-dist/tex/generic/xstring/xstring.tex)))
+(./style/mb-code.sty
+(/usr/share/texlive/texmf-dist/tex/latex/fvextra/fvextra.sty
+(/usr/share/texlive/texmf-dist/tex/latex/base/ifthen.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/fancyvrb/fancyvrb.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/upquote/upquote.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/lineno/lineno.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/minted/minted.sty
+(/usr/share/texlive/texmf-dist/tex/latex/tools/shellesc.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/ifplatform/ifplatform.sty
+(/usr/share/texlive/texmf-dist/tex/generic/catchfile/catchfile.sty) (./main.w18
+)) (/usr/share/texlive/texmf-dist/tex/latex/framed/framed.sty)
+(/usr/share/texlive/texmf-dist/tex/latex/float/float.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcbminted.code.tex
+Library (tcolorbox): 'tcbminted.code.tex' version '5.0.2'
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcblistingscore.code.tex
+Library (tcolorbox): 'tcblistingscore.code.tex' version '5.0.2'
+(/usr/share/texlive/texmf-dist/tex/latex/tcolorbox/tcbprocessing.code.tex
+Library (tcolorbox): 'tcbprocessing.code.tex' version '5.0.2'
+)))) (./style/mb-bib.sty
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/biblatex.sty
+(/usr/share/texlive/texmf-dist/tex/latex/logreq/logreq.sty
+(/usr/share/texlive/texmf-dist/tex/latex/logreq/logreq.def))
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/blx-dm.def)
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/blx-compat.def)
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/blx-bibtex.def
+
+Package biblatex Warning: Using fall-back BibTeX(8) backend:
+(biblatex)                functionality may be reduced/unavailable.
+
+) (/usr/share/texlive/texmf-dist/tex/latex/biblatex/biblatex.def)
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/bbx/numeric-comp.bbx
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/bbx/numeric.bbx
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/bbx/standard.bbx)))
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/cbx/numeric-comp.cbx)
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/biblatex.cfg)
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/blx-case-expl3.sty)))
+(./style/mb-macros.sty
+
+! LaTeX Error: Command \Rn already defined.
+               Or name \end... illegal, see p.192 of the manual.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.16 \newcommand{\Rn}{\R^{n}}
+                             
+(/usr/share/texlive/texmf-dist/tex/latex/tools/xspace.sty)))/home/mokira3d48/.local/bin/pygmentize
+
+
+Package biblatex Warning: 'babel/polyglossia' detected but 'csquotes' missing.
+(biblatex)                Loading 'csquotes' recommended.
+
+No file main.aux.
+(/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-ppl.cfg)
+(/usr/share/texlive/texmf-dist/tex/latex/translations/translations-basic-dictio
+nary-french.trsl)
+*geometry* driver: auto-detecting
+*geometry* detected driver: pdftex
+(/usr/share/texlive/texmf-dist/tex/context/base/mkii/supp-pdf.mkii
+[Loading MPS to PDF converter (version 2006.09.02).]
+) (/usr/share/texlive/texmf-dist/tex/latex/epstopdf-pkg/epstopdf-base.sty
+(/usr/share/texlive/texmf-dist/tex/latex/latexconfig/epstopdf-sys.cfg))
+Package pgfplots notification 'compat/show suggested version=true': you might b
+enefit from \pgfplotsset{compat=1.18} (current compat level: 1.17).
+
+(/usr/share/texlive/texmf-dist/tex/latex/hyperref/nameref.sty
+(/usr/share/texlive/texmf-dist/tex/latex/refcount/refcount.sty)
+(/usr/share/texlive/texmf-dist/tex/generic/gettitlestring/gettitlestring.sty))
+(/usr/share/texlive/texmf-dist/tex/latex/biblatex/lbx/french.lbx) (./main.bbl)
+(./frontmatter/cover.tex
+(/home/mokira3d48/texmf/tex/latex/fira/T1FiraMono-TOsF.fd)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1ppl.fd)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/omlzplm.fd)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/omszplm.fd)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/omxzplm.fd)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/ot1zplm.fd)
+(/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msa.cfg)
+(/usr/share/texlive/texmf-dist/tex/latex/microtype/mt-msb.cfg)
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/t1phv.fd)
+(/home/mokira3d48/texmf/tex/latex/fontawesome5/ufontawesomefree0.fd) [1{/home/m
+okira3d48/.texlive2021/texmf-var/fonts/map/pdftex/updmap/pdftex.map}] [2])
+(./frontmatter/preface.tex [3]) [4]
+
+Package hyperref Warning: old toc file detected, not used; run LaTeX again.
+
+[5] [6] [1] [2] (./chapters/01-vecteurs-et-matrices.tex
+Chapitre 1.
+! Missing number, treated as zero.
+<to be read again> 
+                   $
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Missing } inserted.
+<inserted text> 
+                }
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Too many }'s.
+\Rn ...ter \Rnfont \expandafter {\romannumeral #1}
+                                                  \endgroup 
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Extra \endgroup.
+\Rn ...t \expandafter {\romannumeral #1}\endgroup 
+                                                  
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+(/usr/share/texlive/texmf-dist/tex/latex/psnfss/ufplmbb.fd) [3]
+! Missing number, treated as zero.
+<to be read again> 
+                   $
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+! Missing } inserted.
+<inserted text> 
+                }
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+! Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+! Extra }, or forgotten \endgroup.
+\Rn ...ter \Rnfont \expandafter {\romannumeral #1}
+                                                  \endgroup 
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+
+! LaTeX Error: \begin{definition} on input line 31 ended by \end{tcb@savebox}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+
+! Package xcolor Error: Undefined color `tcbcol@origin'.
+
+See the xcolor package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+\tcb@set@normal@unbroken@beforeafter ...b@nobreak 
+                                                  \iftcb@ignorenobreak \else...
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+<argument> \the \dimexpr \tcb@width 
+                                    +\kvtcb@bbright \relax 
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+<argument> \tcb@width 
+                      
+l.39 \end{definition}
+                     
+! Missing number, treated as zero.
+<to be read again> 
+                   \relax 
+l.39 \end{definition}
+                     
+! Illegal unit of measure (pt inserted).
+<to be read again> 
+                   \relax 
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+<argument> \tcb@width 
+                      -\kvtcb@right@rule 
+l.39 \end{definition}
+                     
+! Missing number, treated as zero.
+<to be read again> 
+                   \tcb@footnote@cnt@i 
+l.39 \end{definition}
+                     
+
+! LaTeX Error: \begin{document} ended by \end{definition}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+! Extra \endgroup.
+<recently read> \endgroup 
+                          
+l.39 \end{definition}
+                     
+(/home/mokira3d48/texmf/tex/latex/fontawesome5/ufontawesomefree1.fd)
+! Missing number, treated as zero.
+<to be read again> 
+                   $
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+! Missing } inserted.
+<inserted text> 
+                }
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+! Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+! Extra }, or forgotten \endgroup.
+\Rn ...ter \Rnfont \expandafter {\romannumeral #1}
+                                                  \endgroup 
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+
+! LaTeX Error: \begin{theoreme} on input line 65 ended by \end{tcb@savebox}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+
+! Package xcolor Error: Undefined color `tcbcol@origin'.
+
+See the xcolor package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+\tcb@set@normal@unbroken@beforeafter ...b@nobreak 
+                                                  \iftcb@ignorenobreak \else...
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+<argument> \the \dimexpr \tcb@width 
+                                    +\kvtcb@bbright \relax 
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+<argument> \tcb@width 
+                      
+l.70 \end{theoreme}
+                   
+! Missing number, treated as zero.
+<to be read again> 
+                   \relax 
+l.70 \end{theoreme}
+                   
+! Illegal unit of measure (pt inserted).
+<to be read again> 
+                   \relax 
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+<argument> \tcb@width 
+                      -\kvtcb@right@rule 
+l.70 \end{theoreme}
+                   
+! Missing number, treated as zero.
+<to be read again> 
+                   \tcb@footnote@cnt@i 
+l.70 \end{theoreme}
+                   
+
+! LaTeX Error: \begin{document} ended by \end{theoreme}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+! Extra \endgroup.
+<recently read> \endgroup 
+                          
+l.70 \end{theoreme}
+                   
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@temptype 
+                      
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@getlabel was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@getlabel ...r \@cref@getlabel \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@templabel 
+                       
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\@@setcref ...andafter \ifx \csname #1@\@temptype 
+                                                  @format#3\endcsname \relax...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\@@setcref ...eset@font \bfseries ??}~\@templabel 
+                                                  \@latex@warning {#1\space ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<write> ...ence format for label type `\@temptype 
+                                                  ' undefined\on@line .
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+
+LaTeX Warning: cref reference format for label type `' undefined on input line 
+84.
+
+[4] (./build/_minted/friendly.pygstyle)
+(./build/_minted/93D7964EC38E9A2894A602B6C93F8CB78447DF9C2D5ED130E262CD4D9278E0
+D8.pygtex)
+(./build/_minted/C61763B59C6689494028A607E1ACC3AB8447DF9C2D5ED130E262CD4D9278E0
+D8.pygtex (/home/mokira3d48/texmf/tex/latex/fira/TS1FiraMono-TOsF.fd))
+(./build/_minted/23B6FEDBB403BB61491DFF60DD5AFD63D7D5AD158D493EAE7F93A2879D64EC
+4B.pygtex) [5]
+(/home/mokira3d48/texmf/tex/latex/fontawesome5/ufontawesomefree2.fd)
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@temptype 
+                      
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@getlabel was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@getlabel ...r \@cref@getlabel \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@templabel 
+                       
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\@@setcref ...andafter \ifx \csname #1@\@temptype 
+                                                  @format#3\endcsname \relax...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\@@setcref ...eset@font \bfseries ??}~\@templabel 
+                                                  \@latex@warning {#1\space ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<write> ...ence format for label type `\@temptype 
+                                                  ' undefined\on@line .
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+
+LaTeX Warning: cref reference format for label type `' undefined on input line 
+152.
+
+
+Underfull \vbox (badness 1142) has occurred while \output is active [6])
+[7]
+! Extra \else.
+\@include ...ediate \closeout \@partaux \fi \else 
+                                                  \deadcycles \z@ \@nameuse ...
+l.38 \include{chapters/01-vecteurs-et-matrices}
+                                               
+! Extra \else.
+\@include ...#1}\fi \let \@auxout \@mainaux \else 
+                                                  \@latex@warning {\noexpand...
+l.38 \include{chapters/01-vecteurs-et-matrices}
+                                               
+
+LaTeX Warning: \include should only be used after \begin{document} on input lin
+e 38.
+
+(./chapters/01-vecteurs-et-matrices.tex [8]
+Chapitre 2.
+! Missing number, treated as zero.
+<to be read again> 
+                   $
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Missing } inserted.
+<inserted text> 
+                }
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Too many }'s.
+\Rn ...ter \Rnfont \expandafter {\romannumeral #1}
+                                                  \endgroup 
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+! Extra \endgroup.
+\Rn ...t \expandafter {\romannumeral #1}\endgroup 
+                                                  
+l.19 ...ote un vecteur en gras, $\vect{x} \in \Rn$
+                                                  , et ses composantes
+[9]
+! Missing number, treated as zero.
+<to be read again> 
+                   $
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+! Missing } inserted.
+<inserted text> 
+                }
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+! Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+! Extra }, or forgotten \endgroup.
+\Rn ...ter \Rnfont \expandafter {\romannumeral #1}
+                                                  \endgroup 
+l.32 ...ph{longueur} d'un vecteur $\vect{x}\in\Rn$
+                                                  , appel矇e \emph{norme
+
+! LaTeX Error: \begin{definition} on input line 31 ended by \end{tcb@savebox}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+
+! Package xcolor Error: Undefined color `tcbcol@origin'.
+
+See the xcolor package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+\tcb@set@normal@unbroken@beforeafter ...b@nobreak 
+                                                  \iftcb@ignorenobreak \else...
+l.39 \end{definition}
+                     
+! Extra \else.
+\tcb@drawcolorbox ...l@unbroken@beforeafter \else 
+                                                  \edef \tcb@before@unbroken...
+l.39 \end{definition}
+                     
+! Extra \fi.
+\tcb@drawcolorbox ...oken =\tcb@float@env@end \fi 
+                                                  \setcounter {tcbbreakpart}...
+l.39 \end{definition}
+                     
+
+LaTeX Warning: No positions in optional float specifier.
+               Default added (so using `\fps@tcbfloat ') on input line 39.
+
+
+! LaTeX Error: Unknown float option `\fps@tcbfloat '.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+<argument> \the \dimexpr \tcb@width 
+                                    +\kvtcb@bbright \relax 
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+<argument> \tcb@width 
+                      
+l.39 \end{definition}
+                     
+! Missing number, treated as zero.
+<to be read again> 
+                   \relax 
+l.39 \end{definition}
+                     
+! Illegal unit of measure (pt inserted).
+<to be read again> 
+                   \relax 
+l.39 \end{definition}
+                     
+! Undefined control sequence.
+<argument> \tcb@width 
+                      -\kvtcb@right@rule 
+l.39 \end{definition}
+                     
+! Missing number, treated as zero.
+<to be read again> 
+                   \tcb@footnote@cnt@i 
+l.39 \end{definition}
+                     
+
+! LaTeX Error: \begin{document} ended by \end{definition}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.39 \end{definition}
+                     
+! Extra \endgroup.
+<recently read> \endgroup 
+                          
+l.39 \end{definition}
+                     
+! Missing number, treated as zero.
+<to be read again> 
+                   $
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+! Missing } inserted.
+<inserted text> 
+                }
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+! Missing \endgroup inserted.
+<inserted text> 
+                \endgroup 
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+! Extra }, or forgotten \endgroup.
+\Rn ...ter \Rnfont \expandafter {\romannumeral #1}
+                                                  \endgroup 
+l.67 ...nique} solution pour tout $\vect{b}\in\Rn$
+                                                   si et
+
+! LaTeX Error: \begin{theoreme} on input line 65 ended by \end{tcb@savebox}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+
+! Package xcolor Error: Undefined color `tcbcol@origin'.
+
+See the xcolor package documentation for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+\tcb@set@normal@unbroken@beforeafter ...b@nobreak 
+                                                  \iftcb@ignorenobreak \else...
+l.70 \end{theoreme}
+                   
+! Extra \else.
+\tcb@drawcolorbox ...l@unbroken@beforeafter \else 
+                                                  \edef \tcb@before@unbroken...
+l.70 \end{theoreme}
+                   
+! Extra \fi.
+\tcb@drawcolorbox ...oken =\tcb@float@env@end \fi 
+                                                  \setcounter {tcbbreakpart}...
+l.70 \end{theoreme}
+                   
+
+LaTeX Warning: No positions in optional float specifier.
+               Default added (so using `\fps@tcbfloat ') on input line 70.
+
+
+! LaTeX Error: Unknown float option `\fps@tcbfloat '.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+<argument> \the \dimexpr \tcb@width 
+                                    +\kvtcb@bbright \relax 
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+<argument> \tcb@width 
+                      
+l.70 \end{theoreme}
+                   
+! Missing number, treated as zero.
+<to be read again> 
+                   \relax 
+l.70 \end{theoreme}
+                   
+! Illegal unit of measure (pt inserted).
+<to be read again> 
+                   \relax 
+l.70 \end{theoreme}
+                   
+! Undefined control sequence.
+<argument> \tcb@width 
+                      -\kvtcb@right@rule 
+l.70 \end{theoreme}
+                   
+! Missing number, treated as zero.
+<to be read again> 
+                   \tcb@footnote@cnt@i 
+l.70 \end{theoreme}
+                   
+
+! LaTeX Error: \begin{document} ended by \end{theoreme}.
+
+See the LaTeX manual or LaTeX Companion for explanation.
+Type  H <return>  for immediate help.
+ ...                                              
+                                                  
+l.70 \end{theoreme}
+                   
+! Extra \endgroup.
+<recently read> \endgroup 
+                          
+l.70 \end{theoreme}
+                   
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@temptype 
+                      
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+Runaway argument?
+! Paragraph ended before \@@cref@getlabel was complete.
+<to be read again> 
+                   \par 
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\cref@getlabel ...r \@cref@getlabel \@tempa \@nil 
+                                                  #2
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<argument> \@templabel 
+                       
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\@@setcref ...andafter \ifx \csname #1@\@temptype 
+                                                  @format#3\endcsname \relax...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+\@@setcref ...eset@font \bfseries ??}~\@templabel 
+                                                  \@latex@warning {#1\space ...
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+! Undefined control sequence.
+<write> ...ence format for label type `\@temptype 
+                                                  ' undefined\on@line .
+l.84 ...始imination de Gauss, \cref{chap:vecteurs}
+                                                  ) ou
+
+LaTeX Warning: cref reference format for label type `' undefined on input line 
+84.
+
+[10]
+(./build/_minted/93D7964EC38E9A2894A602B6C93F8CB78447DF9C2D5ED130E262CD4D9278E0
+D8.pygtex)
+(./build/_minted/C61763B59C6689494028A607E1ACC3AB8447DF9C2D5ED130E262CD4D9278E0
+D8.pygtex)
+(./build/_minted/23B6FEDBB403BB61491DFF60DD5AFD63D7D5AD158D493EAE7F93A2879D64EC
+4B.pygtex) [11]
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@type 
+                  
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@isrefsametype ...after {\csname cref@\@type 
+                                                  @format\endcsname {\@dummy...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@gettype was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@gettype ...ter \@cref@gettype \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@temptype 
+                      
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Missing \endcsname inserted.
+<to be read again> 
+                   \unskip 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Extra \endcsname.
+\cref@getref ...ter #2\csname r@#1@cref\endcsname 
+                                                  \expandafter \expandafter ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Argument of \@firstoftwo has an extra }.
+<inserted text> 
+                \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@firstoftwo was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+Runaway argument?
+! Paragraph ended before \@@cref@getlabel was complete.
+<to be read again> 
+                   \par 
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\cref@getlabel ...r \@cref@getlabel \@tempa \@nil 
+                                                  #2
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<argument> \@templabel 
+                       
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\@@setcref ...andafter \ifx \csname #1@\@temptype 
+                                                  @format#3\endcsname \relax...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+\@@setcref ...eset@font \bfseries ??}~\@templabel 
+                                                  \@latex@warning {#1\space ...
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+! Undefined control sequence.
+<write> ...ence format for label type `\@temptype 
+                                                  ' undefined\on@line .
+l.152 \cref{thm:inversible}
+                           , le syst癡me n'a pas de solution unique : soit a...
+
+
+LaTeX Warning: cref reference format for label type `' undefined on input line 
+152.
+
+)
+! Extra \fi.
+\@include ...g \begin {document}}\@input@ {#1}\fi 
+                                                  
+l.38 \include{chapters/01-vecteurs-et-matrices}
+                                               
+! Extra \fi.
+\include ...clude \expandafter {\@curr@file } \fi 
+                                                  
+l.38 \include{chapters/01-vecteurs-et-matrices}
+                                               
+[12] [13] [14] [15] [16] [17] (./main.aux (./frontmatter/cover.aux)
+(./frontmatter/preface.aux) (./chapters/01-vecteurs-et-matrices.aux))
+
+LaTeX Warning: There were undefined references.
+
+
+LaTeX Warning: Label(s) may have changed. Rerun to get cross-references right.
+
+
+Package biblatex Warning: Please (re)run BibTeX on the file(s):
+(biblatex)                main
+(biblatex)                and rerun LaTeX afterwards.
+
+ )
+(see the transcript file for additional information){/home/mokira3d48/texmf/fon
+ts/enc/dvips/fontawesome5/fa5free2.enc}{/home/mokira3d48/texmf/fonts/enc/dvips/
+fira/fir_ikmdpu.enc}{/home/mokira3d48/texmf/fonts/enc/dvips/fira/fir_d4q673.enc
+}{/home/mokira3d48/texmf/fonts/enc/dvips/fontawesome5/fa5free1.enc}{/usr/share/
+texlive/texmf-dist/fonts/enc/dvips/base/8r.enc}{/home/mokira3d48/texmf/fonts/en
+c/dvips/fontawesome5/fa5free0.enc}</home/mokira3d48/texmf/fonts/type1/public/fi
+ra/FiraMono-Bold.pfb></home/mokira3d48/texmf/fonts/type1/public/fira/FiraMono-O
+blique.pfb></home/mokira3d48/texmf/fonts/type1/public/fira/FiraMono-Regular.pfb
+></home/mokira3d48/texmf/fonts/type1/public/fontawesome5/FontAwesome5Free-Solid
+.pfb></usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmex10.pfb><
+/usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmr10.pfb></usr/sh
+are/texlive/texmf-dist/fonts/type1/public/amsfonts/cm/cmsy10.pfb></usr/share/te
+xlive/texmf-dist/fonts/type1/public/mathpazo/fplmbb.pfb></usr/share/texlive/tex
+mf-dist/fonts/type1/public/amsfonts/symbols/msam10.pfb></usr/share/texlive/texm
+f-dist/fonts/type1/urw/helvetic/uhvb8a.pfb></usr/share/texlive/texmf-dist/fonts
+/type1/urw/helvetic/uhvr8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/h
+elvetic/uhvro8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/upl
+b8a.pfb></usr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplbi8a.pfb></u
+sr/share/texlive/texmf-dist/fonts/type1/urw/palatino/uplr8a.pfb></usr/share/tex
+live/texmf-dist/fonts/type1/urw/palatino/uplri8a.pfb>
+Output written on main.pdf (23 pages, 298612 bytes).
+Transcript written on main.log.

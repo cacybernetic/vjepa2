@@ -1,0 +1,40 @@
+%%%=====================================================================%%%
+%%%  mb-bib.sty — Bibliographie                                          %%%
+%%%                                                                      %%%
+%%%  On utilise biblatex avec le moteur `bibtex` (biber n'est pas requis %%%
+%%%  dans cet environnement). Les citations se font avec \parencite,     %%%
+%%%  \textcite, \cite ; la bibliographie avec \printbibliography.        %%%
+%%%                                                                      %%%
+%%%  Chaîne de compilation :                                             %%%
+%%%     pdflatex -> bibtex -> pdflatex -> pdflatex                       %%%
+%%%  (automatisée par latexmk / make).                                   %%%
+%%%=====================================================================%%%
+\ProvidesPackage{style/mb-bib}[2026/07/16 Bibliographie biblatex+bibtex]
+
+\RequirePackage{csquotes}         % guillemets contextuels, requis par biblatex
+
+\RequirePackage[
+  backend=bibtex,
+  style=numeric-comp,
+  sorting=nyt,
+  giveninits=true,
+  maxbibnames=6,
+  maxcitenames=2,
+  doi=true, isbn=true, url=true,
+]{biblatex}
+
+% Petits raffinements de présentation
+\renewcommand*{\bibfont}{\normalfont\small}
+\setlength{\bibitemsep}{0.6em}
+\setlength{\bibhang}{1.4em}
+
+% Titre de section « pédagogique »
+\DefineBibliographyStrings{french}{%
+  bibliography = {Bibliographie},
+  references   = {Références},
+}
+
+% Le fichier .bib du projet
+\addbibresource{bib/references.bib}
+
+\endinput
