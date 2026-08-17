@@ -1,0 +1,1177 @@
+\chapter{Ce que veut dire « apprendre » pour une machine}
+\label{chap:apprendre}
+
+\begin{quote}\itshape
+Nous savons maintenant qu'une image n'est qu'un grand tas de nombres. Mais
+un tas de nombres ne fait rien tout seul. Dans ce chapitre, nous allons
+voir comment une machine part d'un réglage complètement au hasard, se
+trompe, remarque qu'elle s'est trompée, et se corrige toute seule. C'est
+cela, et rien d'autre, qu'on appelle « apprendre ».
+\end{quote}
+
+\begin{prerequis}
+Le chapitre~\ref{chap:image-video}, et seulement lui. Il faut savoir qu'une
+image est une grille de nombres, et savoir ce qu'est la forme d'un tenseur.
+Pour le reste, il suffit de savoir additionner, multiplier, et diviser. Nous
+n'utiliserons aucune formule que nous n'aurons pas d'abord dessinée.
+\end{prerequis}
+
+Quand on dit qu'une machine « apprend », on imagine souvent quelque chose de
+mystérieux, presque magique. La réalité est beaucoup plus simple, et
+beaucoup plus rassurante : une machine qui apprend, c'est une machine qui
+essaie, qui se trompe, qui regarde de combien elle s'est trompée, et qui
+recommence un tout petit peu mieux. Des milliers de fois. Des millions de
+fois.
+
+Tout ce chapitre raconte cette boucle-là. Nous allons la suivre pas à pas
+sur un exemple minuscule, que nous calculerons entièrement à la main, avant
+de vérifier sur une vraie machine que nos calculs de papier tombent juste.
+
+\section{Une machine qui apprend, c'est une machine à boutons}
+
+\begin{enclair}
+Imaginez un appareil avec quelques boutons à tourner. Vous lui posez une
+question, il donne une réponse. Si la réponse est mauvaise, vous tournez un
+peu les boutons et vous redemandez. Apprendre, pour une machine, c'est
+exactement cela : trouver la bonne position des boutons.
+\end{enclair}
+
+Vous avez sûrement déjà réglé la température d'une douche. Il y a un
+robinet chaud et un robinet froid. Vous les tournez un peu, vous mettez la
+main sous l'eau, c'est trop froid, alors vous tournez encore. Au bout de
+quelques essais, l'eau est parfaite. Personne ne vous a donné la position
+exacte des robinets : vous l'avez trouvée en essayant et en corrigeant.
+
+Une machine qui apprend fait la même chose, sauf qu'elle a beaucoup plus de
+robinets, et qu'elle ne trempe pas la main dans l'eau : elle calcule.
+
+\begin{definition}[Le modèle][modele]
+Un \emph{modèle} est une machine à calculer qui prend quelque chose en
+entrée et rend une réponse en sortie. Ce qu'elle rend ne dépend pas
+seulement de l'entrée : cela dépend aussi de la position de ses boutons. Le
+même modèle, avec des boutons réglés autrement, donnera une autre réponse à
+la même question.
+\end{definition}
+
+\begin{definition}[Le paramètre, ou poids][parametre]
+Un \emph{paramètre} est un de ces boutons. C'est simplement un nombre, rangé
+dans la mémoire de la machine, que l'on a le droit de changer. On l'appelle
+aussi un \emph{poids}, parce qu'il décide de l'importance que la machine
+donne à telle ou telle information. Régler un modèle, c'est choisir la
+valeur de tous ses paramètres.
+\end{definition}
+
+La figure~\ref{fig:boutons} montre cette idée dans son entier : une entrée
+qui arrive, des boutons qu'on peut tourner, une réponse qui sort.
+
+\begin{schema}{Un modèle, c'est une boîte à calculer munie de boutons. On
+lui donne une entrée par la gauche, elle rend une réponse par la droite.
+Entre les deux, ce sont les boutons — les paramètres — qui décident du
+résultat. Tourner les boutons change la réponse sans rien changer à la
+question.}[boutons]
+  \begin{scope}[x=1cm, y=1cm]
+    % --- la boîte du modèle ---
+    \draw[draw=mbBlue, fill=mbBlue!8, line width=1pt, rounded corners=4pt]
+          (0,0) rectangle (5,2.5);
+    \node[font=\sffamily\small\bfseries, text=mbBlue] at (2.5,0.45)
+         {le modèle};
+    % --- les trois boutons ---
+    \foreach \mbk/\mbang/\mbnom in {0/55/a, 1/-30/b, 2/120/c}{
+      \begin{scope}[shift={(1.3+\mbk*1.2, 1.6)}]
+        \draw[draw=mbSlate!65, fill=white, line width=0.9pt] (0,0) circle (0.34);
+        \draw[draw=mbAmber!85!black, line width=1.3pt] (0,0) -- (\mbang:0.27);
+        \fill[mbInk] (0,0) circle (0.045);
+        \node[font=\sffamily\scriptsize, text=mbSlate] at (0,-0.62) {\mbnom};
+      \end{scope}
+    }
+    \node[font=\sffamily\scriptsize\itshape, text=mbAmber!75!black]
+         at (2.5,2.85) {les boutons, c'est-à-dire les paramètres};
+    % --- entrée ---
+    \draw[fleche] (-2.1,1.25) -- (-0.12,1.25);
+    \node[font=\sffamily\small, text=mbInk, align=center] at (-2.9,1.25)
+         {la question\\ $x$};
+    % --- sortie ---
+    \draw[fleche accent] (5.12,1.25) -- (7.1,1.25);
+    \node[font=\sffamily\small, text=mbInk, align=center] at (7.95,1.25)
+         {la réponse\\ $\pred{y}$};
+  \end{scope}
+\end{schema}
+
+Prenons tout de suite un exemple, et gardons-le jusqu'à la fin du chapitre.
+
+\begin{exemple}[La machine à bonbons]
+Dans le hall d'une école, il y a une machine à bonbons. On y glisse des
+pièces, et elle rend des bonbons. Trois enfants ont essayé et ont noté ce
+qu'ils ont obtenu :
+
+\begin{center}
+\begin{tabular}{ccc}
+\toprule
+\textbf{Enfant} & \textbf{Pièces glissées} & \textbf{Bonbons reçus} \\
+\midrule
+Léa   & 1 & 2 \\
+Sami  & 2 & 5 \\
+Nina  & 3 & 8 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Nous aimerions une machine à calculer qui devine le nombre de bonbons à
+partir du nombre de pièces. Appelons $x$ le nombre de pièces et $\pred{y}$
+le nombre de bonbons deviné. Le modèle le plus simple du monde s'écrit
+\[
+  \pred{y} \;=\; a \times x \;+\; b .
+\]
+Il a exactement deux boutons : $a$ et $b$. Le bouton $a$ dit combien de
+bonbons on gagne par pièce ; le bouton $b$ ajoute ou enlève un nombre fixe
+de bonbons, quel que soit le nombre de pièces.
+\end{exemple}
+
+\begin{intuition}
+Le bouton $a$, c'est la pente : plus il est grand, plus la machine est
+généreuse à chaque pièce. Le bouton $b$, c'est le cadeau de départ : il
+décale toute la réponse vers le haut ou vers le bas, même quand on n'a mis
+aucune pièce.
+\end{intuition}
+
+Vous avez peut-être déjà trouvé la règle de tête : trois bonbons par pièce,
+moins un bonbon que la machine garde toujours pour elle. Autrement dit
+$a = 3$ et $b = -1$. Vérifions sur les trois enfants : $3 \times 1 - 1 = 2$
+pour Léa, $3 \times 2 - 1 = 5$ pour Sami, $3 \times 3 - 1 = 8$ pour Nina.
+Tout tombe juste.
+
+\begin{piege}
+Nous connaissons la bonne réponse, mais \textbf{la machine, elle, ne la
+connaît pas}. C'est tout l'intérêt de l'exercice : nous allons la laisser
+partir de boutons réglés à zéro, complètement à côté de la plaque, et la
+regarder retrouver toute seule le $3$ et le $-1$. Connaître la réponse à
+l'avance nous sert seulement à vérifier qu'elle ne se trompe pas de chemin.
+\end{piege}
+
+\begin{definition}[La prédiction][prediction]
+Une \emph{prédiction} est la réponse que le modèle donne avec les boutons
+tels qu'ils sont réglés en ce moment. On la note $\pred{y}$, avec un petit
+chapeau, pour bien la distinguer de la vraie valeur $y$ que l'on a observée
+dans la réalité.
+\end{definition}
+
+\begin{exemple}[Une première prédiction, très mauvaise]
+Réglons les deux boutons à zéro : $a = 0$ et $b = 0$. Pour Léa, qui a mis
+une pièce :
+\[
+  \pred{y} \;=\; 0 \times 1 + 0 \;=\; 0 .
+\]
+La machine annonce zéro bonbon, alors que Léa en a reçu deux. Elle se trompe
+donc de deux bonbons. Pour Sami elle annonce encore zéro, alors qu'il en a
+reçu cinq. Et pour Nina, zéro contre huit. Notre modèle est pour l'instant
+parfaitement nul, et c'est normal : nous n'avons rien réglé du tout.
+\end{exemple}
+
+Nous avons une machine, des boutons, et des réponses fausses. Il nous
+manque quelque chose d'essentiel : un moyen de dire \emph{à quel point}
+elles sont fausses.
+
+\section{Se tromper, et mesurer de combien}
+
+\begin{enclair}
+Pour se corriger, il ne suffit pas de savoir qu'on s'est trompé. Il faut un
+nombre qui dise si l'on s'est trompé beaucoup ou un tout petit peu. Ce
+nombre s'appelle l'erreur.
+\end{enclair}
+
+Reprenons Léa. La machine a dit $0$, la réalité était $2$. L'écart entre les
+deux vaut $0 - 2 = -2$. Nous pourrions nous arrêter là et additionner les
+écarts des trois enfants. Mais un problème apparaît aussitôt.
+
+\begin{piege}
+Additionner les écarts tels quels ne marche pas. Imaginez une machine qui se
+trompe de $+5$ bonbons pour Léa et de $-5$ bonbons pour Sami. En
+additionnant, on obtient $5 + (-5) = 0$ : on croirait que la machine est
+parfaite, alors qu'elle s'est lourdement trompée deux fois ! Les erreurs se
+sont annulées entre elles.
+\end{piege}
+
+Il faut donc empêcher les écarts de se compenser. La solution retenue
+presque partout est de \textbf{mettre chaque écart au carré}, c'est-à-dire de
+le multiplier par lui-même. Un carré est toujours positif : $(+5)^2 = 25$ et
+$(-5)^2 = 25$ aussi. Plus rien ne s'annule.
+
+\begin{intuition}
+Mettre au carré a un deuxième avantage, qui est même le principal : cela
+punit très fort les grosses erreurs. Se tromper de $1$ coûte $1$. Se tromper
+de $2$ ne coûte pas $2$ mais $4$. Se tromper de $10$ coûte $100$. La machine
+va donc s'occuper en priorité de ses plus grosses bêtises, ce qui est
+exactement ce qu'on veut.
+\end{intuition}
+
+\begin{definition}[L'erreur, ou perte][perte]
+L'\emph{erreur} est un seul nombre qui résume à quel point le modèle se
+trompe sur l'ensemble des exemples. On l'appelle aussi la \emph{perte}, et
+on la note souvent $\mathcal{L}$, de l'anglais \emph{loss}. On la calcule en
+mettant chaque écart au carré, puis en prenant la moyenne :
+\[
+  \mathcal{L} \;=\; \frac{1}{N}\sum_{i=1}^{N}
+                    \bigl(\pred{y}_i - y_i\bigr)^{2},
+\]
+où $N$ est le nombre d'exemples, $\pred{y}_i$ la réponse du modèle sur
+l'exemple numéro $i$, et $y_i$ la vraie valeur. Une erreur de $0$ veut dire
+que le modèle tombe juste partout. Plus le nombre est grand, plus le modèle
+est mauvais.
+\end{definition}
+
+\begin{notation}[Lire le signe somme][somme]
+Le grand symbole $\sum$ se lit « somme de ». L'écriture
+$\sum_{i=1}^{3} z_i$ veut simplement dire $z_1 + z_2 + z_3$ : on fait
+prendre à $i$ toutes les valeurs de $1$ à $3$, et on additionne tout. C'est
+une façon courte d'écrire une addition longue, rien de plus. Si l'addition
+ne comporte que trois termes, vous avez parfaitement le droit de les écrire
+à la main : c'est ce que nous ferons.
+\end{notation}
+
+\begin{exemple}[L'erreur de notre machine réglée à zéro]
+Avec $a = 0$ et $b = 0$, les trois prédictions valent $0$. Calculons les
+écarts, puis leurs carrés :
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+\textbf{Enfant} & $x$ & $y$ & $\pred{y}$ & \textbf{écart } $\pred{y}-y$
+& \textbf{carré} \\
+\midrule
+Léa  & 1 & 2 & 0 & $-2$ & $4$  \\
+Sami & 2 & 5 & 0 & $-5$ & $25$ \\
+Nina & 3 & 8 & 0 & $-8$ & $64$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La somme des carrés vaut $4 + 25 + 64 = 93$. Comme il y a trois exemples, la
+moyenne vaut
+\[
+  \mathcal{L} \;=\; \frac{93}{3} \;=\; 31 .
+\]
+Retenez ce nombre : \textbf{l'erreur de départ vaut exactement $31$}. Nous
+allons passer le reste du chapitre à la faire descendre.
+\end{exemple}
+
+La figure~\ref{fig:erreur-droite} donne à voir ce que ces écarts
+représentent : ce sont des distances verticales entre les vrais points et la
+droite que dessine le modèle.
+
+\begin{schema}{Les trois enfants sont les points bleus. La droite en trait
+plein est la réponse du modèle : elle donne un bonbon deviné pour chaque
+nombre de pièces. Les traits rouges verticaux sont les écarts, c'est-à-dire
+ce que la machine s'est trompée sur chaque enfant. Régler les boutons, c'est
+faire pivoter et glisser cette droite jusqu'à ce que les traits rouges
+soient les plus courts possible.}[erreur-droite]
+  \begin{scope}[x=1.25cm, y=0.36cm]
+    % --- axes ---
+    \draw[->, draw=mbSlate, line width=0.7pt] (0,0) -- (3.9,0)
+          node[right, font=\sffamily\scriptsize, text=mbSlate] {pièces $x$};
+    \draw[->, draw=mbSlate, line width=0.7pt] (0,0) -- (0,10.2)
+          node[above, font=\sffamily\scriptsize, text=mbSlate] {bonbons};
+    \foreach \mbk in {1,2,3}{
+      \draw[draw=mbSlate!60, line width=0.6pt] (\mbk,-0.35) -- (\mbk,0.35);
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (\mbk,-1.1) {\mbk};
+    }
+    \foreach \mbk in {2,4,6,8}{
+      \draw[draw=mbSlate!60, line width=0.6pt] (-0.07,\mbk) -- (0.07,\mbk);
+      \node[font=\sffamily\scriptsize, text=mbSlate, left] at (-0.09,\mbk) {\mbk};
+    }
+    % --- la droite du modèle : y = 2,4 x + 1 ---
+    \draw[draw=mbAmber!85!black, line width=1.2pt] (0,1) -- (3.6,9.64);
+    \node[font=\sffamily\scriptsize, text=mbAmber!75!black, anchor=west]
+          at (3.05,10.0) {la droite du modèle};
+    % --- écarts verticaux ---
+    \foreach \mbx/\mby/\mbp/\mbe in {1/2/3.4/1{,}4, 2/5/5.8/0{,}8, 3/8/8.2/0{,}2}{
+      \draw[draw=mbRose, line width=1.1pt] (\mbx,\mby) -- (\mbx,\mbp);
+      \node[font=\sffamily\scriptsize, text=mbRose, anchor=west]
+            at (\mbx+0.08,{(\mby+\mbp)/2}) {\mbe};
+    }
+    % --- points réels ---
+    \foreach \mbx/\mby/\mbnom in {1/2/Léa, 2/5/Sami, 3/8/Nina}{
+      \fill[mbBlue] (\mbx,\mby) circle (0.09cm);
+      \node[font=\sffamily\scriptsize, text=mbBlue, anchor=north east]
+            at (\mbx-0.05,\mby-0.2) {\mbnom};
+    }
+  \end{scope}
+\end{schema}
+
+\begin{aretenir}
+Toute la suite du livre repose sur ce couple d'idées : un modèle donne une
+réponse, et une erreur mesure de combien cette réponse est fausse.
+Apprendre, ce sera toujours et uniquement : \textbf{faire descendre
+l'erreur en changeant les paramètres}.
+\end{aretenir}
+
+Nous savons mesurer notre bêtise. Reste la question qui compte vraiment :
+dans quel sens faut-il tourner les boutons pour que ce nombre baisse ?
+
+\section{De quel côté tourner le bouton ? La pente}
+
+\begin{enclair}
+Pour savoir dans quel sens tourner un bouton, il suffit de le pousser un tout
+petit peu et de regarder ce que devient l'erreur. Si elle monte, on tournait
+du mauvais côté. Si elle descend, on continue.
+\end{enclair}
+
+C'est le jeu du « tu chauffes, tu refroidis ». On cache un objet dans une
+pièce, l'enfant fait un pas, et on lui dit s'il se rapproche ou s'il
+s'éloigne. Avec cette seule information, répétée assez souvent, il finit
+toujours par trouver.
+
+Faisons-le pour de vrai sur notre machine à bonbons. Nos boutons sont à
+$a = 0$ et $b = 0$, et l'erreur vaut $31$. Poussons le bouton $a$ d'un tout
+petit peu, disons de $0{,}01$, sans toucher à $b$.
+
+\begin{exemple}[Pousser un bouton et regarder]
+Avec $a = 0{,}01$ et $b = 0$, les trois prédictions deviennent $0{,}01$,
+$0{,}02$ et $0{,}03$. Les écarts valent donc $-1{,}99$, $-4{,}98$ et
+$-7{,}97$. Leurs carrés valent $3{,}9601$, $24{,}8004$ et $63{,}5209$, dont
+la somme fait $92{,}2814$. La nouvelle erreur vaut
+\[
+  \mathcal{L} \;=\; \frac{92{,}2814}{3} \;\approx\; 30{,}7605 .
+\]
+Elle est passée de $31$ à $30{,}7605$ : elle a \textbf{baissé} de
+$0{,}2395$. Nous poussions donc dans le bon sens. Pour savoir à quelle
+vitesse elle baisse, on divise la baisse par la taille de la poussée :
+\[
+  \frac{-0{,}2395}{0{,}01} \;=\; -23{,}95 .
+\]
+Ce nombre, $-23{,}95$, dit deux choses à la fois. Son \emph{signe} négatif
+dit : « en augmentant $a$, l'erreur diminue ». Sa \emph{taille}, presque
+$24$, dit : « et elle diminue vite ».
+\end{exemple}
+
+\begin{definition}[La pente][pente]
+La \emph{pente} par rapport à un bouton est le nombre qui dit de combien
+l'erreur change quand on pousse ce bouton d'une unité. Une pente négative
+veut dire que l'erreur descend quand on augmente le bouton. Une pente
+positive veut dire qu'elle monte. Une pente proche de zéro veut dire que ce
+bouton ne change presque rien.
+\end{definition}
+
+\begin{definition}[Le gradient][gradient]
+Le \emph{gradient} est la liste de toutes les pentes, une par bouton. S'il y
+a deux boutons, le gradient contient deux nombres ; s'il y en a deux
+milliards, il en contient deux milliards. Le gradient est donc une sorte de
+boussole : il indique, pour chaque bouton à la fois, dans quel sens tourner.
+\end{definition}
+
+Pousser chaque bouton à la main pour mesurer sa pente serait épouvantable :
+un modèle comme V-JEPA~2.1 a deux milliards de boutons, il faudrait deux
+milliards de petites poussées à chaque étape. Heureusement, les
+mathématiques savent calculer ces pentes directement, d'un coup, par une
+formule. Pour notre droite, les deux formules sont les suivantes :
+
+\begin{notation}[Les deux pentes de notre modèle][pentes-droite]
+En notant $e_i = \pred{y}_i - y_i$ l'écart sur l'exemple $i$ :
+\[
+  \text{pente selon } a \;=\; \frac{2}{N}\sum_i e_i \times x_i,
+  \qquad
+  \text{pente selon } b \;=\; \frac{2}{N}\sum_i e_i .
+\]
+\end{notation}
+
+Ces deux formules ont l'air de tomber du ciel. Elles ne sont pourtant pas
+mystérieuses, et il vaut la peine de comprendre ce qu'elles racontent.
+
+\begin{intuition}
+Regardez la pente selon $b$ : c'est simplement la moyenne des écarts,
+multipliée par deux. C'est logique, car le bouton $b$ déplace toute la
+droite vers le haut ou vers le bas, de la même quantité pour tout le monde.
+Si en moyenne la machine annonce trop de bonbons, il faut baisser $b$.
+
+La pente selon $a$ est la même chose, mais chaque écart y est d'abord
+multiplié par $x_i$, le nombre de pièces. C'est l'effet du levier. Le
+bouton $a$ fait pivoter la droite autour du point de départ : un enfant
+placé loin, comme Nina avec ses trois pièces, monte ou descend trois fois
+plus qu'un enfant placé près, comme Léa. Son écart pèse donc trois fois plus
+lourd dans la décision.
+\end{intuition}
+
+\begin{exemple}[La formule donne-t-elle le même résultat que la poussée ?]
+Vérifions. Avec $a = 0$ et $b = 0$, les écarts valent $-2$, $-5$ et $-8$, et
+les pièces valent $1$, $2$ et $3$. La pente selon $a$ vaut donc
+\[
+  \frac{2}{3}\bigl[(-2)\times 1 + (-5)\times 2 + (-8)\times 3\bigr]
+  = \frac{2}{3}\bigl[-2 - 10 - 24\bigr]
+  = \frac{2}{3}\times(-36) = -24 .
+\]
+La formule annonce $-24$, et notre petite poussée avait mesuré $-23{,}95$.
+Les deux méthodes s'accordent. Le minuscule écart vient de ce que notre
+poussée de $0{,}01$ n'était pas infiniment petite ; en poussant encore
+moins fort, on collerait encore mieux au $-24$.
+
+Calculons aussi la pente selon $b$ :
+\[
+  \frac{2}{3}\bigl[(-2) + (-5) + (-8)\bigr]
+  = \frac{2}{3}\times(-15) = -10 .
+\]
+\end{exemple}
+
+Les deux pentes sont négatives. La boussole nous dit donc : augmente $a$,
+et augmente $b$ aussi. Voyons maintenant comment transformer ce conseil en
+mouvement.
+
+\section{La descente de gradient, calculée à la main}
+
+\begin{enclair}
+La règle tient en une phrase : on tourne chaque bouton dans le sens opposé
+à sa pente, d'une petite quantité. Puis on recommence.
+\end{enclair}
+
+Pourquoi le sens \emph{opposé} ? Parce qu'une pente négative signifie « en
+augmentant, l'erreur descend ». Prendre l'opposé du négatif donne du
+positif : on augmente. Et une pente positive signifie « en augmentant,
+l'erreur monte » ; son opposé nous fait diminuer. Dans les deux cas, on va
+vers le bas. C'est la même règle qu'une bille lâchée sur une colline : elle
+part toujours dans le sens contraire de la montée.
+
+\begin{definition}[La descente de gradient][descente]
+La \emph{descente de gradient} est la méthode qui consiste à répéter
+l'opération suivante : calculer l'erreur, calculer le gradient, puis
+déplacer chaque paramètre d'un petit pas dans le sens opposé à sa pente.
+Pour un paramètre $p$ quelconque, la mise à jour s'écrit
+\[
+  p_{\text{nouveau}} \;=\; p_{\text{ancien}}
+       \;-\; \pas \times \text{pente selon } p ,
+\]
+où $\pas$ est un petit nombre positif choisi par nous, qui règle la
+longueur du pas.
+\end{definition}
+
+La figure~\ref{fig:vallee} montre cette idée sous sa forme la plus parlante :
+l'erreur dessine une vallée, et le modèle est une bille qui la descend.
+
+\begin{schema}{L'erreur vue comme une vallée. En allant vers la droite ou
+vers la gauche, on change la valeur d'un bouton ; la hauteur de la courbe
+donne l'erreur correspondante. La bille est notre modèle. La droite en
+pointillés est la pente à l'endroit où se trouve la bille : elle monte vers
+la droite, donc la pente est positive, donc il faut aller à gauche. Le
+meilleur réglage est tout en bas de la vallée, là où la courbe est
+plate.}[vallee]
+  \begin{scope}[x=1.15cm, y=0.72cm]
+    % --- la vallée ---
+    \draw[draw=mbSlate!55, line width=1.2pt, smooth, samples=80,
+          domain=-2.9:2.9] plot (\x, {0.5*\x*\x});
+    % --- axes discrets ---
+    \draw[->, draw=mbSlate!70, line width=0.6pt] (-3.3,0) -- (3.4,0)
+          node[right, font=\sffamily\scriptsize, text=mbSlate]
+          {valeur du bouton};
+    \draw[->, draw=mbSlate!70, line width=0.6pt] (-3.3,-0.3) -- (-3.3,4.6)
+          node[above, font=\sffamily\scriptsize, text=mbSlate] {erreur};
+    % --- tangente au point (2 ; 2), de pente 2 ---
+    \draw[draw=mbAmber!85!black, line width=1pt, dashed]
+          (1.25,0.5) -- (2.75,3.5);
+    \node[font=\sffamily\scriptsize, text=mbAmber!75!black, anchor=west]
+          at (2.8,3.4) {la pente ici};
+    % --- la bille ---
+    \fill[mbBlue] (2,2) circle (0.13cm);
+    \node[font=\sffamily\scriptsize, text=mbBlue, anchor=south west]
+          at (2.12,2.12) {le modèle};
+    % --- sens du déplacement ---
+    \draw[fleche accent] (1.85,1.55) -- (1.05,1.05);
+    \node[font=\sffamily\scriptsize\itshape, text=mbAmber!75!black,
+          anchor=east] at (1.0,1.35) {on va par là};
+    % --- le fond ---
+    \fill[mbGreen] (0,0) circle (0.1cm);
+    \node[font=\sffamily\scriptsize, text=mbGreen!60!black, align=center]
+          at (0,-0.85) {le meilleur\\ réglage};
+  \end{scope}
+\end{schema}
+
+Nous avons tout ce qu'il faut. Choisissons une longueur de pas de $0{,}1$ et
+faisons deux étapes complètes, en écrivant chaque calcul.
+
+\begin{exemple}[Première étape, tout en détail]
+Nous partons de $a = 0$ et $b = 0$. Nous avons déjà tout calculé :
+l'erreur vaut $31$, la pente selon $a$ vaut $-24$, la pente selon $b$ vaut
+$-10$. Appliquons la règle avec un pas de $0{,}1$ :
+\[
+  a_{\text{nouveau}} = 0 - 0{,}1 \times (-24) = 0 + 2{,}4 = 2{,}4 ,
+\]
+\[
+  b_{\text{nouveau}} = 0 - 0{,}1 \times (-10) = 0 + 1 = 1 .
+\]
+Nos deux boutons sont maintenant réglés à $a = 2{,}4$ et $b = 1$.
+\end{exemple}
+
+\begin{exemple}[A-t-on vraiment progressé ?]
+Vérifions en recalculant l'erreur avec les nouveaux boutons. Les trois
+prédictions valent :
+\[
+  2{,}4 \times 1 + 1 = 3{,}4 ; \quad
+  2{,}4 \times 2 + 1 = 5{,}8 ; \quad
+  2{,}4 \times 3 + 1 = 8{,}2 .
+\]
+Les vraies valeurs étaient $2$, $5$ et $8$. Les écarts valent donc $1{,}4$,
+$0{,}8$ et $0{,}2$, et leurs carrés $1{,}96$, $0{,}64$ et $0{,}04$. La
+nouvelle erreur vaut
+\[
+  \mathcal{L} = \frac{1{,}96 + 0{,}64 + 0{,}04}{3}
+              = \frac{2{,}64}{3} = 0{,}88 .
+\]
+Nous sommes passés de $31$ à $0{,}88$ en une seule étape. L'erreur a été
+divisée par plus de trente-cinq. La machine, qui annonçait zéro bonbon à
+tout le monde, en annonce maintenant trois et demi à Léa et huit à Nina :
+elle a déjà presque compris.
+\end{exemple}
+
+\begin{exemple}[Deuxième étape]
+Recommençons exactement le même travail depuis $a = 2{,}4$ et $b = 1$. Les
+écarts, que nous venons de calculer, valent $1{,}4$, $0{,}8$ et $0{,}2$. Ils
+sont maintenant positifs : la machine annonce trop de bonbons.
+
+Pente selon $a$ :
+\[
+  \frac{2}{3}\bigl[1{,}4 \times 1 + 0{,}8 \times 2 + 0{,}2 \times 3\bigr]
+  = \frac{2}{3}\bigl[1{,}4 + 1{,}6 + 0{,}6\bigr]
+  = \frac{2}{3} \times 3{,}6 = 2{,}4 .
+\]
+Pente selon $b$ :
+\[
+  \frac{2}{3}\bigl[1{,}4 + 0{,}8 + 0{,}2\bigr]
+  = \frac{2}{3} \times 2{,}4 = 1{,}6 .
+\]
+Les deux pentes sont cette fois positives : il faut donc \emph{baisser} les
+deux boutons.
+\[
+  a_{\text{nouveau}} = 2{,}4 - 0{,}1 \times 2{,}4 = 2{,}4 - 0{,}24 = 2{,}16 ,
+\]
+\[
+  b_{\text{nouveau}} = 1 - 0{,}1 \times 1{,}6 = 1 - 0{,}16 = 0{,}84 .
+\]
+Et la nouvelle erreur vaut $0{,}496$, contre $0{,}88$ juste avant : elle a
+encore baissé.
+\end{exemple}
+
+Récapitulons les deux étapes dans un seul tableau, que vous pourrez
+comparer tout à l'heure à la sortie du programme.
+
+\begin{center}
+\begin{tabular}{cccccc}
+\toprule
+\textbf{Étape} & $a$ & $b$ & \textbf{erreur} &
+\textbf{pente selon } $a$ & \textbf{pente selon } $b$ \\
+\midrule
+0 & $0$      & $0$      & $31$      & $-24$   & $-10$  \\
+1 & $2{,}4$  & $1$      & $0{,}88$  & $2{,}4$ & $1{,}6$ \\
+2 & $2{,}16$ & $0{,}84$ & $0{,}496$ & $-0{,}48$ & $0{,}32$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{piege}
+Regardez la colonne du bouton $a$ : il monte à $2{,}4$, puis \emph{redescend}
+à $2{,}16$, alors que la bonne réponse est $3$. On dirait qu'il s'éloigne !
+Ne vous inquiétez pas, et surtout ne jugez jamais un entraînement en
+surveillant un paramètre isolé. Les boutons bougent ensemble, ils se
+gênent et se rattrapent l'un l'autre. Le seul chiffre qui compte est
+l'erreur, et elle, elle descend sans arrêt : $31$, puis $0{,}88$, puis
+$0{,}496$. Au bout de deux cents étapes, $a$ vaut $2{,}993$ et $b$ vaut
+$-0{,}985$ : la machine a bien retrouvé le $3$ et le $-1$ que nous
+cherchions.
+\end{piege}
+
+\begin{enia}
+Ce que nous venons de faire à la main sur deux boutons est \emph{exactement}
+ce que fait l'entraînement de V-JEPA~2.1, sans un seul changement d'idée.
+Les seules différences sont des différences de taille : deux milliards de
+boutons au lieu de deux, une erreur calculée sur des morceaux de vidéo au
+lieu de trois enfants, et cent trente-cinq mille étapes au lieu de deux.
+La boucle, elle, est identique : je prédis, je mesure mon erreur, je calcule
+mes pentes, je fais un petit pas, je recommence.
+\end{enia}
+
+Il nous reste à parler du seul réglage que nous avons choisi arbitrairement,
+et qui est pourtant le plus délicat de tous : la longueur du pas.
+
+\section{La taille des pas : le taux d'apprentissage}
+
+\begin{definition}[Le taux d'apprentissage][taux]
+Le \emph{taux d'apprentissage}, noté $\pas$, est le petit nombre par lequel
+on multiplie la pente avant de bouger un paramètre. Il décide de la longueur
+des pas. C'est nous qui le choisissons : la machine ne l'apprend pas.
+\end{definition}
+
+\begin{intuition}
+Vous descendez une colline dans le brouillard. Vous ne voyez que le sol sous
+vos pieds, donc vous ne connaissez que la pente à l'endroit où vous êtes.
+Avec des pas minuscules, vous descendrez, mais la nuit tombera avant que
+vous arriviez. Avec des pas de sept lieues, vous sauterez par-dessus la
+vallée et vous vous retrouverez plus haut qu'avant, sur l'autre versant. Il
+existe une bonne taille de pas entre les deux, et la trouver fait partie du
+métier.
+\end{intuition}
+
+La figure~\ref{fig:taille-des-pas} met les trois situations côte à côte.
+
+\begin{schema}{Trois façons de descendre la même vallée. À gauche, les pas
+sont trop courts : la bille avance à peine et il faudra une éternité. Au
+milieu, les pas sont bien choisis : la bille rejoint le fond en quelques
+sauts. À droite, les pas sont trop longs : la bille saute par-dessus le fond,
+remonte plus haut de l'autre côté, et s'échappe de la vallée au lieu d'y
+descendre.}[taille-des-pas]
+  \begin{scope}[x=0.42cm, y=0.30cm]
+    % ================= panneau 1 : pas trop petit =================
+    % depart en x = 3, chaque pas ne retire que 12 % du chemin restant
+    \begin{scope}
+      \draw[draw=mbSlate!45, line width=1pt, smooth, samples=60,
+            domain=-3.7:3.7] plot (\x, {0.5*\x*\x});
+      \foreach \mbx/\mby in {3.0/4.5, 2.64/3.485, 2.323/2.698,
+                             2.044/2.089, 1.799/1.618}{
+        \fill[mbBlue] (\mbx,\mby) circle (0.07cm);
+      }
+      \draw[fleche accent] (3.05,5.35) -- (2.0,5.35);
+      \node[font=\sffamily\scriptsize\bfseries, text=mbSlate]
+            at (0,-1.6) {pas trop petit};
+      \node[font=\sffamily\scriptsize, text=mbSlate!85, align=center]
+            at (0,-3.4) {on descend,\\ mais si lentement};
+    \end{scope}
+    % ================= panneau 2 : pas bien choisi =================
+    % meme depart, mais chaque pas retire la moitie du chemin restant
+    \begin{scope}[xshift=4.0cm]
+      \draw[draw=mbSlate!45, line width=1pt, smooth, samples=60,
+            domain=-3.7:3.7] plot (\x, {0.5*\x*\x});
+      \foreach \mbx/\mby in {3.0/4.5, 1.5/1.125, 0.75/0.281,
+                             0.375/0.070, 0.188/0.018}{
+        \fill[mbGreen] (\mbx,\mby) circle (0.07cm);
+      }
+      \draw[fleche accent] (3.05,5.35) -- (0.55,5.35);
+      \node[font=\sffamily\scriptsize\bfseries, text=mbGreen!55!black]
+            at (0,-1.6) {pas bien choisi};
+      \node[font=\sffamily\scriptsize, text=mbSlate!85, align=center]
+            at (0,-3.4) {on atteint le fond\\ en quelques pas};
+    \end{scope}
+    % ================= panneau 3 : pas trop grand =================
+    % chaque pas depasse le fond et repart plus haut de l'autre cote
+    \begin{scope}[xshift=8.0cm]
+      \draw[draw=mbSlate!45, line width=1pt, smooth, samples=60,
+            domain=-3.7:3.7] plot (\x, {0.5*\x*\x});
+      \foreach \mbx/\mby in {1.5/1.125, -1.95/1.901, 2.535/3.213,
+                             -3.296/5.434}{
+        \fill[mbRose] (\mbx,\mby) circle (0.07cm);
+      }
+      \draw[fleche accent, draw=mbRose] (1.28,1.30) -- (-1.68,1.76);
+      \draw[fleche accent, draw=mbRose] (-1.70,2.16) -- (2.28,3.09);
+      \draw[fleche accent, draw=mbRose] (2.30,3.52) -- (-3.02,5.29);
+      \node[font=\sffamily\scriptsize\bfseries, text=mbRose]
+            at (0,-1.6) {pas trop grand};
+      \node[font=\sffamily\scriptsize, text=mbSlate!85, align=center]
+            at (0,-3.4) {on saute par-dessus\\ et l'on remonte};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+Ce ne sont pas des dessins pour faire joli : refaisons une seule étape de
+notre machine à bonbons avec trois pas différents, et regardons ce que
+devient l'erreur.
+
+\begin{exemple}[Trois pas, trois destins]
+Nous partons toujours de $a = 0$, $b = 0$, avec une erreur de $31$ et des
+pentes de $-24$ et $-10$. Une seule étape suffit à tout révéler.
+
+\begin{center}
+\begin{tabular}{cccc}
+\toprule
+\textbf{Pas} $\pas$ & \textbf{nouveau } $a$ & \textbf{nouveau } $b$ &
+\textbf{erreur après une étape} \\
+\midrule
+$0{,}001$ & $0{,}024$ & $0{,}01$ & $30{,}33$ \\
+$0{,}1$   & $2{,}4$   & $1$      & $\bm{0{,}88}$ \\
+$1$       & $24$      & $10$     & $3\,103$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Avec un pas de $0{,}001$, l'erreur passe de $31$ à $30{,}33$ : elle a bougé
+d'à peine deux pour cent. À ce rythme, il faudrait des milliers d'étapes.
+Avec un pas de $0{,}1$, elle tombe à $0{,}88$ : c'est le bon réglage. Avec
+un pas de $1$, elle grimpe à $3\,103$, soit cent fois pire qu'au départ ! Et
+si l'on s'obstine, l'étape suivante donne une erreur de $316\,063$. La
+machine ne se contente pas d'échouer : elle s'envole.
+\end{exemple}
+
+\begin{piege}
+Un taux d'apprentissage trop grand est la panne numéro un des débutants, et
+elle est facile à reconnaître : au lieu de descendre doucement, l'erreur
+grossit d'étape en étape, jusqu'à afficher des nombres absurdes, voire le
+mot \co{python}{nan}, qui veut dire « ce n'est plus un nombre du tout ».
+Le réflexe correct, dans ce cas, est presque toujours le même : diviser le
+taux d'apprentissage par dix et relancer.
+\end{piege}
+
+\begin{surlesdonnees}
+V-JEPA~2.1 ne garde pas le même pas du début à la fin. Pendant les douze
+mille premières étapes, il l'augmente doucement de $10^{-4}$ à
+$5{,}25 \times 10^{-4}$ : on appelle cela une montée en douceur, et cela
+évite de tout casser au tout début, quand les boutons sont encore n'importe
+comment. Ensuite il le laisse constant très longtemps. Enfin, sur les douze
+mille dernières étapes, il le fait redescendre jusqu'à $10^{-6}$, c'est-à-dire
+presque zéro : les pas deviennent minuscules et le modèle se pose tout
+doucement au fond de la vallée, au lieu de continuer à sautiller autour.
+Cette dernière phase porte un nom que nous retrouverons souvent : la phase
+de refroidissement.
+\end{surlesdonnees}
+
+Nous savons faire un pas, et le faire de la bonne longueur. Il reste à
+savoir sur combien de données on le calcule, et combien de fois on
+recommence.
+
+\section{Le rythme de l'entraînement : le lot et l'époque}
+
+Jusqu'ici, nous avions trois enfants, et nous avons calculé l'erreur sur les
+trois à chaque étape. Avec trois exemples, c'est facile. Avec cent
+quarante-deux millions d'images, c'est impossible : regarder toute la
+collection avant de bouger un seul bouton prendrait des jours pour une seule
+étape.
+
+\begin{enclair}
+La solution est simple et un peu paresseuse : au lieu de regarder toutes les
+données, on en prend une petite poignée au hasard, on calcule l'erreur sur
+cette poignée-là, et on fait quand même un pas. La direction est un peu
+approximative, mais on avance beaucoup plus souvent — et au bout du compte,
+on va bien plus vite.
+\end{enclair}
+
+\begin{definition}[Le lot][lot]
+Un \emph{lot} est la petite poignée d'exemples que l'on regarde ensemble
+pour calculer une erreur et faire un pas. En anglais on dit \emph{batch}, et
+ce mot revient partout dans le code. Le nombre d'exemples dans la poignée
+s'appelle la \emph{taille de lot}.
+\end{definition}
+
+\begin{definition}[Le pas, ou itération][iteration]
+Un \emph{pas} — on dit aussi une \emph{itération} — est un tour complet de
+la boucle : on prend un lot, on prédit, on mesure l'erreur, on calcule les
+pentes, on bouge les paramètres. Un pas, un lot.
+\end{definition}
+
+\begin{definition}[L'époque][epoque]
+Une \emph{époque} est le temps qu'il faut pour que le modèle ait vu une fois
+chacune des données disponibles. Si la collection contient mille images et
+que les lots en contiennent cent, alors une époque vaut dix pas.
+\end{definition}
+
+\begin{schema}{Toutes les données de la collection, découpées en lots. Le
+modèle en prend un, fait un pas, en prend un autre, refait un pas. Quand il
+a épuisé tous les lots, il a vu chaque donnée une fois : cela s'appelle une
+époque, et il peut alors recommencer un nouveau tour.}[lot-epoque]
+  \begin{scope}[x=1cm, y=1cm]
+    \foreach \mbg in {0,1,2}{
+      \begin{scope}[xshift=\mbg*3.55cm]
+        \foreach \mbk in {0,1,2,3}{
+          \draw[draw=mbBlue!70, fill=mbBlue!14, line width=0.7pt,
+                rounded corners=1.5pt]
+                (\mbk*0.78,0) rectangle ++(0.62,0.62);
+        }
+        \draw[accolade bas] (0,-0.12) -- (3.02,-0.12);
+        \node[font=\sffamily\scriptsize, text=mbSlate] at (1.51,-0.66)
+             {lot n\textsuperscript{o}\,\the\numexpr\mbg+1\relax};
+        \draw[fleche accent] (1.51,0.95) -- (1.51,0.72);
+        \node[font=\sffamily\scriptsize\itshape, text=mbAmber!75!black]
+              at (1.51,1.22) {un pas};
+      \end{scope}
+    }
+    \draw[accolade bas] (0,-1.05) -- (9.62,-1.05);
+    \node[font=\sffamily\small\bfseries, text=mbGreen!55!black]
+          at (4.81,-1.7) {une époque : chaque donnée a été vue une fois};
+  \end{scope}
+\end{schema}
+
+\begin{exemple}[Compter des époques sur un petit jeu]
+Vous disposez de $1\,000$ photos et vous choisissez des lots de $100$
+photos. Chaque pas consomme $100$ photos, il faut donc
+\[
+  \frac{1\,000}{100} = 10 \text{ pas pour faire une époque.}
+\]
+Si vous entraînez pendant $50$ époques, votre programme aura effectué
+$50 \times 10 = 500$ pas au total, et chaque photo aura été vue $50$ fois.
+\end{exemple}
+
+\begin{surlesdonnees}
+Faisons le même calcul pour V-JEPA~2.1, et le résultat va sans doute vous
+surprendre. Le modèle fait $135\,000$ pas dans sa phase principale, et
+chaque lot contient $2\,304$ images. Il a donc regardé
+\[
+  135\,000 \times 2\,304 = 311\,040\,000 \text{ images en tout,}
+\]
+soit trois cent onze millions. Or sa collection d'images en compte $142$
+millions. Le nombre d'époques vaut donc
+\[
+  \frac{311\,040\,000}{142\,000\,000} \approx 2{,}2 .
+\]
+Chaque image n'est vue qu'un peu plus de deux fois dans toute la vie du
+modèle. Du côté des vidéos, c'est encore plus frappant : $135\,000$ pas
+avec $128$ clips par lot font $17\,280\,000$ clips, pour une collection de
+$19$ millions de vidéos. Le modèle ne voit donc même pas une fois chaque
+vidéo !
+
+C'est pour cela que les articles de recherche modernes ne parlent presque
+plus d'époques, mais comptent en pas. Quand les données sont quasi
+inépuisables, repasser deux fois sur la même image n'a plus grand intérêt :
+mieux vaut en voir une nouvelle.
+\end{surlesdonnees}
+
+\begin{plusloin}
+Prendre un lot au hasard plutôt que toutes les données rend le gradient un
+peu bruité : la direction indiquée n'est pas tout à fait la bonne, elle
+tremble. On appelle cela la descente de gradient \emph{stochastique}, un mot
+savant qui veut simplement dire « au hasard ». Ce tremblement, contre toute
+attente, aide souvent : il empêche la bille de rester coincée dans un petit
+creux sans intérêt et lui fait trouver de meilleures vallées.
+\end{plusloin}
+
+Nous savons entraîner. Il reste un dernier danger, et c'est le plus sournois
+de tous : une machine peut très bien faire baisser son erreur tout en
+n'ayant strictement rien compris.
+
+\section{Apprendre par cœur n'est pas apprendre}
+
+\begin{enclair}
+Un élève peut apprendre par cœur les réponses des exercices du livre sans
+comprendre la leçon. Tant qu'on l'interroge sur ces exercices-là, il a tout
+juste. Le jour où on lui pose une question nouvelle, il s'effondre. Une
+machine peut faire exactement pareil.
+\end{enclair}
+
+Revenons à nos trois enfants. Notre droite n'a que deux boutons : elle est
+trop simple pour tricher, elle est bien obligée de trouver une règle
+générale. Mais donnons à un modèle beaucoup, beaucoup de boutons, et il
+pourra faire passer une courbe tordue exactement par chacun des trois
+points. Son erreur tombera à zéro. Et pourtant, si l'on glisse quatre pièces
+dans la machine, ce modèle-là annoncera n'importe quoi.
+
+\begin{definition}[Le sur-apprentissage][surapprentissage]
+Le \emph{sur-apprentissage} est ce qui arrive quand un modèle apprend par
+cœur les exemples qu'on lui a montrés, y compris leurs petits défauts, au
+lieu d'apprendre la règle générale qui se cache derrière. Il est alors
+excellent sur ce qu'il a déjà vu, et mauvais sur tout le reste.
+\end{definition}
+
+\begin{schema}{Les mêmes points, expliqués de trois façons. À gauche, le
+modèle est trop simple : il ne suit même pas la tendance, il passe à côté de
+tout le monde. Au milieu, il a saisi la règle générale : il ne touche pas
+tous les points, et c'est très bien ainsi. À droite, il passe exactement par
+chaque point, son erreur est nulle — mais entre les points il fait n'importe
+quoi, et sur un point nouveau il se trompera lourdement.}[surapprentissage]
+  \begin{scope}[x=0.72cm, y=0.62cm]
+    % ============ panneau 1 : trop simple ============
+    \begin{scope}
+      \draw[draw=mbSlate!35, line width=0.6pt] (0,0) rectangle (4.4,4.6);
+      \draw[draw=mbRose, line width=1.2pt] (0.25,2.45) -- (4.15,2.45);
+      \foreach \mbx/\mby in {0.3/0.9, 0.9/1.9, 1.5/1.7, 2.1/2.9,
+                             2.7/2.6, 3.3/3.7, 3.9/3.5}{
+        \fill[mbBlue] (\mbx,\mby) circle (0.075cm);
+      }
+      \node[font=\sffamily\scriptsize\bfseries, text=mbRose]
+            at (2.2,-0.55) {trop simple};
+      \node[font=\sffamily\scriptsize, text=mbSlate!85, align=center]
+            at (2.2,-1.4) {il n'a rien\\ appris du tout};
+    \end{scope}
+    % ============ panneau 2 : juste ============
+    \begin{scope}[xshift=5.1cm]
+      \draw[draw=mbSlate!35, line width=0.6pt] (0,0) rectangle (4.4,4.6);
+      \draw[draw=mbGreen, line width=1.2pt] (0.25,0.9) -- (4.15,4.0);
+      \foreach \mbx/\mby in {0.3/0.9, 0.9/1.9, 1.5/1.7, 2.1/2.9,
+                             2.7/2.6, 3.3/3.7, 3.9/3.5}{
+        \fill[mbBlue] (\mbx,\mby) circle (0.075cm);
+      }
+      \node[font=\sffamily\scriptsize\bfseries, text=mbGreen!55!black]
+            at (2.2,-0.55) {bien réglé};
+      \node[font=\sffamily\scriptsize, text=mbSlate!85, align=center]
+            at (2.2,-1.4) {il a compris\\ la tendance};
+    \end{scope}
+    % ============ panneau 3 : par cœur ============
+    \begin{scope}[xshift=10.2cm]
+      \draw[draw=mbSlate!35, line width=0.6pt] (0,0) rectangle (4.4,4.6);
+      \draw[draw=mbAmber!85!black, line width=1.2pt, smooth]
+            plot coordinates {(0.3,0.9) (0.9,1.9) (1.5,1.7) (2.1,2.9)
+                              (2.7,2.6) (3.3,3.7) (3.9,3.5)};
+      \foreach \mbx/\mby in {0.3/0.9, 0.9/1.9, 1.5/1.7, 2.1/2.9,
+                             2.7/2.6, 3.3/3.7, 3.9/3.5}{
+        \fill[mbBlue] (\mbx,\mby) circle (0.075cm);
+      }
+      \node[font=\sffamily\scriptsize\bfseries, text=mbAmber!80!black]
+            at (2.2,-0.55) {appris par cœur};
+      \node[font=\sffamily\scriptsize, text=mbSlate!85, align=center]
+            at (2.2,-1.4) {erreur nulle,\\ mais rien compris};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+Comment se protéger de ce piège ? En trichant le moins possible : on cache
+au modèle une partie des données, et on ne les lui montre jamais pendant
+l'entraînement. Elles serviront uniquement à le juger.
+
+\begin{definition}[Jeu d'entraînement et jeu de validation][jeux]
+Le \emph{jeu d'entraînement} rassemble les données que le modèle a le droit
+de voir pour régler ses boutons. Le \emph{jeu de validation}, parfois appelé
+jeu de test, rassemble des données qu'il ne voit jamais pendant
+l'entraînement, et qui servent uniquement à mesurer honnêtement ce qu'il
+vaut. C'est la différence entre les exercices du cahier et l'examen de fin
+d'année.
+\end{definition}
+
+\begin{piege}
+La faute la plus grave, dans tout l'apprentissage automatique, est de régler
+quoi que ce soit en regardant le jeu de validation. Si vous essayez trente
+taux d'apprentissage et que vous gardez celui qui donne le meilleur score de
+validation, alors ce score n'est plus honnête : vous avez, sans le vouloir,
+appris par cœur votre examen. Les vrais résultats se mesurent toujours sur
+des données que rien ni personne n'a servi à choisir.
+\end{piege}
+
+\begin{enia}
+L'article de V-JEPA~2.1 prend cette précaution très au sérieux, et cela se
+voit dans ses annexes. Pour le suivi d'objets dans les vidéos, par exemple,
+les auteurs cherchent les meilleurs réglages sur la partie entraînement du
+jeu DAVIS, puis appliquent tels quels ces réglages à tous les jeux
+d'évaluation, sans plus jamais y toucher. C'est un détail d'annexe, et
+pourtant c'est ce détail qui rend leurs chiffres croyables.
+\end{enia}
+
+Nous avons maintenant tout le vocabulaire. Le moment est venu de vérifier
+que nos calculs de papier tiennent devant une vraie machine.
+
+\section{Passons au code}
+
+Nous allons refaire, en Python, les deux étapes que nous venons de calculer
+à la main. Nous utiliserons \co{python}{torch}, la bibliothèque PyTorch, qui
+sait faire deux choses très utiles : manipuler des tenseurs, et surtout
+calculer les pentes toute seule. Nous n'aurons donc plus jamais à écrire les
+formules du gradient nous-mêmes.
+
+Commençons par le plus important : vérifier que la petite poussée du début
+du chapitre donne bien ce que nous avions trouvé.
+
+\begin{code}{python}[Mesurer une pente en poussant un bouton]
+import torch
+
+# Les trois enfants : pieces glissees et bonbons recus.
+x = torch.tensor([1.0, 2.0, 3.0])
+y = torch.tensor([2.0, 5.0, 8.0])
+
+def erreur(a, b):
+    prediction = a * x + b
+    return ((prediction - y) ** 2).mean().item()
+
+avant = erreur(0.00, 0.0)   # les boutons a zero
+apres = erreur(0.01, 0.0)   # on pousse le bouton a de 0,01
+
+print(f"erreur avant la poussee : {avant:.4f}")   # -> 31.0000
+print(f"erreur apres la poussee : {apres:.4f}")   # -> 30.7605
+print(f"pente mesuree           : {(apres - avant) / 0.01:.2f}")  # -> -23.95
+\end{code}
+
+Les trois nombres affichés sont exactement ceux de notre exemple :
+$31$, $30{,}7605$ et $-23{,}95$. Le calcul à la main et la machine sont
+d'accord.
+
+Voici maintenant la boucle d'entraînement complète. Elle tient en une
+quinzaine de lignes, et c'est littéralement la même boucle que celle qui
+entraîne V-JEPA~2.1 : seules les tailles changent.
+
+\begin{code}{python}[Deux étapes de descente de gradient]
+import torch
+
+x = torch.tensor([1.0, 2.0, 3.0])
+y = torch.tensor([2.0, 5.0, 8.0])
+
+# Nos deux boutons. « requires_grad » dit a PyTorch :
+# surveille ce nombre, je te demanderai sa pente.
+a = torch.tensor(0.0, requires_grad=True)
+b = torch.tensor(0.0, requires_grad=True)
+pas = 0.1
+
+for etape in range(2):
+    prediction = a * x + b                       # 1. je predis
+    erreur = ((prediction - y) ** 2).mean()      # 2. je mesure mon erreur
+    erreur.backward()                            # 3. je demande les pentes
+
+    print(f"etape {etape} : a = {a.item():.2f}, b = {b.item():.2f}, "
+          f"erreur = {erreur.item():.4f}, "
+          f"pente_a = {a.grad.item():.2f}, pente_b = {b.grad.item():.2f}")
+
+    with torch.no_grad():                        # 4. je bouge les boutons
+        a -= pas * a.grad
+        b -= pas * b.grad
+
+    a.grad.zero_()                               # 5. j'efface les pentes
+    b.grad.zero_()
+
+print(f"apres 2 etapes : a = {a.item():.2f}, b = {b.item():.2f}")
+\end{code}
+
+Ce programme affiche exactement ceci :
+
+\begin{code}{text}[Ce que le programme écrit à l'écran]
+etape 0 : a = 0.00, b = 0.00, erreur = 31.0000, pente_a = -24.00, pente_b = -10.00
+etape 1 : a = 2.40, b = 1.00, erreur = 0.8800, pente_a = 2.40, pente_b = 1.60
+apres 2 etapes : a = 2.16, b = 0.84
+\end{code}
+
+Comparez ligne à ligne avec le tableau de la section précédente : le $31$,
+le $-24$, le $-10$, le $2{,}4$, le $0{,}88$, le $2{,}16$ et le $0{,}84$ y
+sont tous. Rien n'a été caché, et la machine n'a rien fait de plus que ce
+que nous avons fait au crayon.
+
+\begin{piege}
+La ligne \co{python}{a.grad.zero_()} paraît anodine, et pourtant l'oublier
+est l'une des erreurs les plus courantes chez les débutants. PyTorch
+\emph{additionne} les pentes qu'il calcule au lieu de les remplacer. Si vous
+n'effacez pas, l'étape suivante utilisera la somme de deux pentes, puis de
+trois, et vos pas grandiront tout seuls jusqu'à faire exploser
+l'entraînement. Le symptôme est le même que celui d'un taux d'apprentissage
+trop grand, ce qui rend la panne difficile à diagnostiquer.
+\end{piege}
+
+Laissons enfin tourner la même boucle bien plus longtemps, pour voir la
+machine retrouver la règle des bonbons.
+
+\begin{code}{python}[Deux cents étapes, et la règle apparaît]
+import torch
+
+x = torch.tensor([1.0, 2.0, 3.0])
+y = torch.tensor([2.0, 5.0, 8.0])
+a = torch.tensor(0.0, requires_grad=True)
+b = torch.tensor(0.0, requires_grad=True)
+
+for _ in range(200):
+    erreur = ((a * x + b - y) ** 2).mean()
+    erreur.backward()
+    with torch.no_grad():
+        a -= 0.1 * a.grad
+        b -= 0.1 * b.grad
+    a.grad.zero_()
+    b.grad.zero_()
+
+print(f"a = {a.item():.3f}   b = {b.item():.3f}")   # -> a = 2.993   b = -0.985
+print(f"erreur = {erreur.item():.6f}")              # -> erreur = 0.000032
+\end{code}
+
+Le bouton $a$ vaut $2{,}993$ et le bouton $b$ vaut $-0{,}985$. La machine a
+retrouvé, toute seule, la règle que nous avions devinée de tête au début du
+chapitre : trois bonbons par pièce, moins un pour la machine. Personne ne
+lui a jamais soufflé la réponse. Elle a seulement descendu la vallée, deux
+cents fois de suite.
+
+\begin{aretenir}
+Retenez cette boucle en cinq gestes, car c'est la seule qu'il y ait dans
+tout l'apprentissage automatique, du plus petit exemple au plus gros modèle
+du monde :
+
+\begin{enumerate}
+  \item je prends un lot de données ;
+  \item je calcule ma prédiction ;
+  \item je mesure mon erreur ;
+  \item je calcule les pentes ;
+  \item je bouge chaque bouton d'un petit pas dans le sens opposé à sa pente.
+\end{enumerate}
+
+Puis je recommence. Cent trente-cinq mille fois, dans le cas de V-JEPA~2.1.
+\end{aretenir}
+
+Il manque pourtant quelque chose d'énorme à tout ce que nous venons de
+faire, et vous l'avez peut-être déjà remarqué. À chaque étape, nous avions
+besoin de connaître la bonne réponse : les deux bonbons de Léa, les cinq de
+Sami, les huit de Nina. Sans elles, impossible de calculer le moindre écart,
+donc impossible de calculer la moindre erreur, donc impossible d'apprendre
+quoi que ce soit.
+
+Mais qui va écrire la bonne réponse à côté d'un milliard de vidéos ?
+Personne. Aucune équipe au monde, aucun budget, aucune quantité de patience
+ne suffirait. C'est précisément le mur contre lequel s'arrête tout ce que
+nous venons d'apprendre — et c'est le mur que le chapitre suivant va
+traverser.
+
+\phantomsection
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Calculer une erreur]
+Un modèle prédit $\pred{y} = 4$, $\pred{y} = 7$ et $\pred{y} = 9$, alors que
+les vraies valeurs sont $3$, $9$ et $9$. Quelle est l'erreur, au sens de la
+moyenne des carrés des écarts ?
+\end{exercice}
+
+\begin{solution}
+Les écarts valent $4 - 3 = 1$, puis $7 - 9 = -2$, puis $9 - 9 = 0$. Leurs
+carrés valent $1$, $4$ et $0$, dont la somme fait $5$. Comme il y a trois
+exemples,
+\[
+  \mathcal{L} = \frac{5}{3} \approx 1{,}67 .
+\]
+Remarquez que le deuxième écart, bien que négatif, contribue positivement à
+l'erreur : c'est tout l'intérêt du carré.
+\end{solution}
+
+\begin{exercice}[Faire un pas]
+Un paramètre vaut actuellement $p = 5$. On calcule sa pente et l'on trouve
+$+3$. Le taux d'apprentissage vaut $0{,}2$. Que vaut le paramètre après la
+mise à jour ? A-t-il augmenté ou diminué, et pourquoi était-ce le bon sens ?
+\end{exercice}
+
+\begin{solution}
+On applique la règle $p_{\text{nouveau}} = p_{\text{ancien}} - \pas \times
+\text{pente}$, soit
+\[
+  p_{\text{nouveau}} = 5 - 0{,}2 \times 3 = 5 - 0{,}6 = 4{,}4 .
+\]
+Le paramètre a diminué. C'était le bon sens, car une pente positive signifie
+« si j'augmente ce bouton, l'erreur monte ». Pour faire descendre l'erreur,
+il fallait donc baisser le bouton.
+\end{solution}
+
+\begin{exercice}[Compter des époques]
+Un jeu de données contient $50\,000$ images et l'on choisit des lots de
+$250$ images. Combien de pas faut-il pour une époque ? Et si l'on entraîne
+pendant $30\,000$ pas, combien d'époques cela représente-t-il ?
+\end{exercice}
+
+\begin{solution}
+Une époque demande $50\,000 / 250 = 200$ pas. Avec $30\,000$ pas au total,
+on effectue
+\[
+  \frac{30\,000}{200} = 150 \text{ époques,}
+\]
+et chaque image aura donc été vue $150$ fois. C'est un régime très différent
+de celui de V-JEPA~2.1, qui ne dépasse pas deux époques et demie : quand les
+données sont peu nombreuses, on repasse dessus souvent, et le risque de
+sur-apprentissage augmente d'autant.
+\end{solution}
+
+\begin{exercice}[Diagnostiquer une panne]
+Vous lancez un entraînement et vous voyez défiler ces erreurs :
+$18{,}4$ puis $91{,}7$ puis $2\,340$ puis \co{python}{nan}. Que se passe-t-il
+très probablement, et quel est le premier réglage à corriger ?
+\end{exercice}
+
+\begin{solution}
+L'erreur ne descend pas, elle explose : le modèle saute par-dessus le fond
+de la vallée et remonte de plus en plus haut à chaque étape, jusqu'à sortir
+des nombres représentables par la machine, ce qui produit le
+\co{python}{nan}. C'est la signature d'un taux d'apprentissage trop grand.
+Le premier geste est de le diviser par dix et de relancer ; si le problème
+persiste, on divise encore par dix. Attention toutefois : oublier
+d'effacer les pentes avec \co{python}{zero_()} produit exactement le même
+symptôme, et vaut la peine d'être vérifié dans la foulée.
+\end{solution}
+
+\begin{exercice}[Le piège de l'examen]
+Vous disposez d'un jeu d'entraînement et d'un jeu de validation. Vous
+essayez cinquante taux d'apprentissage différents et vous annoncez, comme
+résultat final de votre travail, le meilleur score obtenu sur le jeu de
+validation. Pourquoi ce chiffre est-il trompeur, et que fallait-il faire ?
+\end{exercice}
+
+\begin{solution}
+En choisissant le réglage qui donne le meilleur score de validation, vous
+avez utilisé le jeu de validation pour prendre une décision : il a donc servi
+à l'entraînement, au sens large. Parmi cinquante essais, le meilleur score
+est en partie dû à la chance, et il sera plus flatteur que la réalité. La
+bonne pratique consiste à garder un troisième jeu de données, mis de côté
+dès le départ, que l'on ne regarde qu'une seule et unique fois, tout à la
+fin, pour annoncer le résultat.
+\end{solution}
