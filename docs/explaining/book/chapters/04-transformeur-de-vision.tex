@@ -1,0 +1,1730 @@
+\chapter{Le transformeur de vision, l'œil de la machine}
+\label{chap:vit}
+
+\begin{quote}\itshape
+Nous savons ce qu'est une image pour un ordinateur, nous savons ce que veut
+dire apprendre, et nous savons jouer au jeu des trous. Il nous manque une
+chose, et une seule : l'appareil qui regarde. Dans ce chapitre, nous le
+construisons pièce par pièce, sans en sauter aucune. À la fin, vous saurez
+exactement ce qui se passe entre le moment où une vidéo entre dans la
+machine et le moment où elle en ressort sous forme de résumé.
+\end{quote}
+
+\begin{prerequis}
+Les chapitres~\ref{chap:image-video}, \ref{chap:apprendre}
+et~\ref{chap:auto-supervision}. Il faut savoir qu'une image est une grille
+de nombres et connaître sa forme ; il faut savoir qu'un modèle possède des
+boutons que l'on tourne pour réduire une erreur ; et il faut se souvenir
+qu'un encodeur transforme une image en un petit paquet de nombres appelé
+représentation. Nous n'aurons besoin de rien d'autre. Les seules opérations
+employées seront l'addition, la multiplication et la division.
+\end{prerequis}
+
+Au chapitre précédent, nous avons dit qu'une machine cache un morceau de ce
+qu'elle regarde et essaie de le deviner. Nous avons même écrit un petit
+programme qui le faisait. Mais nous avons triché sur un point : notre monde
+tenait dans une grille de huit cases sur huit, et notre modèle était une
+simple couche de calcul. Une vraie vidéo, elle, contient des millions de
+nombres. Il faut donc une machine à regarder beaucoup plus solide.
+
+Cette machine porte un nom : le \emph{transformeur de vision}. Tout le
+monde l'appelle par son surnom anglais, \emph{ViT}, qui se prononce
+«~vi-té~» et veut dire \emph{Vision Transformer}. C'est l'œil de V-JEPA~2.1,
+et c'est aussi l'œil de presque tous les grands modèles d'images
+d'aujourd'hui. Nous allons le monter devant vous, morceau par morceau.
+
+\section{Pourquoi on ne peut pas regarder les pixels un par un}
+
+\begin{enclair}
+L'idée du transformeur, c'est de laisser chaque morceau de l'image regarder
+tous les autres morceaux. Le problème, c'est que si les morceaux sont des
+pixels, il y en a beaucoup trop : le nombre de regards à échanger devient
+si grand qu'aucune machine au monde ne pourrait le calculer.
+\end{enclair}
+
+Commençons par la question qui commande tout le reste. Pour comprendre une
+image, il ne suffit pas de regarder chaque endroit tout seul dans son coin.
+Il faut les mettre en rapport les uns avec les autres.
+
+Prenons un exemple. Sur une photo, vous voyez une oreille pointue en haut à
+gauche, des moustaches au milieu, et une queue touffue en bas à droite.
+Aucun de ces trois morceaux ne dit «~chat~» à lui tout seul : une oreille
+pointue, cela peut être un renard ; des moustaches, cela peut être un phoque.
+C'est le \emph{rapprochement} des trois qui donne la réponse. Une bonne
+machine à regarder doit donc permettre à chaque endroit de l'image de
+consulter tous les autres endroits.
+
+Comptons maintenant le prix de cette consultation. Imaginons que chaque
+pixel consulte chaque autre pixel. Dans une image de $256 \times 256$, il y
+a $65\,536$ pixels. Le nombre de consultations vaut alors
+
+\[
+  65\,536 \times 65\,536 = 4\,294\,967\,296 ,
+\]
+
+soit plus de quatre milliards de consultations, et cela pour \emph{une
+seule} image, à \emph{un seul} endroit du modèle. Un clip de seize images
+contient seize fois plus de pixels, donc $16 \times 16 = 256$ fois plus de
+consultations encore. C'est tout simplement impossible.
+
+\begin{intuition}
+Imaginez une salle où chaque personne doit regarder toutes les autres, une
+par une. À dix personnes, cela fait $10 \times 10 = 100$ regards : on s'en
+sort en une minute. À mille personnes, cela fait $1\,000 \times 1\,000 =
+1\,000\,000$ de regards : la réunion durerait des semaines. Le nombre de
+personnes a été multiplié par cent, mais le travail a été multiplié par dix
+mille. C'est ce qu'on appelle un coût \emph{qui grimpe au carré}, et c'est
+l'ennemi numéro un de tout ce chapitre.
+\end{intuition}
+
+\begin{definition}[Un coût qui grimpe au carré][cout-carre]
+On dit qu'un coût \emph{grimpe au carré} quand il suit le nombre d'éléments
+multiplié par lui-même. Appelons $n$ le nombre d'éléments — écrire une
+lettre à la place d'un nombre permet simplement de parler de tous les cas à
+la fois. Si chacun de ces $n$ éléments doit consulter tous les autres, le
+nombre de consultations vaut $n \times n$, ce qui s'écrit aussi $n^2$ et se
+lit «~$n$ au carré~».
+\end{definition}
+
+\begin{exemple}[Voir le coût s'emballer]
+Mettons quelques nombres côte à côte, et regardons la colonne de droite
+grandir :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{rr}
+\toprule
+\textbf{Nombre d'éléments} & \textbf{Travail à faire} \\
+\midrule
+$10$    & $100$ \\
+$100$   & $10\,000$ \\
+$1\,000$ & $1\,000\,000$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+À chaque fois que la colonne de gauche est multipliée par dix, celle de
+droite est multipliée par cent. Voilà pourquoi on dit que le coût
+\emph{s'emballe} : il grandit bien plus vite que ce qu'on lui donne.
+\end{exemple}
+
+La solution est celle que tout le monde emploie quand une réunion est trop
+nombreuse : au lieu de faire parler chaque personne, on fait parler chaque
+\emph{table}. On regroupe. C'est exactement ce que fait le transformeur de
+vision, et c'est le sujet de la section suivante.
+
+\section{Le patch : découper l'image en petits carrés}
+
+\begin{enclair}
+Plutôt que de laisser dialoguer les pixels un par un, on découpe l'image en
+petits carrés de taille fixe. Chaque carré devient un porte-parole, et ce
+sont ces porte-parole qui dialoguent entre eux. Il y en a beaucoup moins, et
+tout devient calculable.
+\end{enclair}
+
+\begin{definition}[Le patch][patch]
+Un \emph{patch} est un petit carré de pixels découpé dans l'image, toujours
+de la même taille. Le mot vient de l'anglais et veut dire «~pièce~» ou
+«~morceau~», comme une pièce de tissu cousue sur un pantalon. Dans
+V-JEPA~2.1, un patch mesure $16 \times 16$ pixels. On dit aussi que la
+\emph{taille de patch} vaut $16$.
+\end{definition}
+
+Le découpage se fait sans laisser de trou et sans que deux morceaux se
+chevauchent : on pose une grille régulière sur l'image, exactement comme on
+découpe une plaque de chocolat en carrés le long des rainures. Chaque carré
+est ensuite mis à la queue leu leu, dans un ordre convenu une fois pour
+toutes : la première ligne de gauche à droite, puis la deuxième ligne, et
+ainsi de suite. On obtient une longue file de morceaux.
+
+\begin{schema}{Le découpage en patchs, puis la mise en file. À gauche,
+l'image est recouverte d'une grille régulière ; chaque case est un patch et
+porte son numéro. À droite, les mêmes patchs sont rangés les uns derrière
+les autres, dans l'ordre de lecture d'un texte : ligne par ligne, de gauche
+à droite. Cette file est ce que la machine manipulera désormais.}[decoupage-patchs]
+  \begin{scope}[x=1cm, y=1cm]
+    \node[font=\sffamily\small\bfseries, text=mbSlate] at (2.0,4.5)
+         {L'image et sa grille};
+    \foreach \ri in {0,...,3}{
+      \foreach \ci in {0,...,3}{
+        \pgfmathtruncatemacro{\num}{\ri*4+\ci+1}
+        \pgfmathtruncatemacro{\tone}{14+4*\num}
+        \fill[mbAzure!\tone] (\ci*1.0,3.9-\ri*1.0) rectangle ++(1.0,-1.0);
+        \draw[draw=mbSlate!55, line width=0.6pt]
+              (\ci*1.0,3.9-\ri*1.0) rectangle ++(1.0,-1.0);
+        % au-delà de la moitié de la grille, le fond devient trop foncé
+        % pour du texte sombre : on bascule en blanc.
+        \ifnum\num>10\relax
+          \node[font=\sffamily\scriptsize\bfseries, text=white]
+                at (\ci*1.0+0.5,3.9-\ri*1.0-0.5) {\num};
+        \else
+          \node[font=\sffamily\scriptsize\bfseries, text=mbInk]
+                at (\ci*1.0+0.5,3.9-\ri*1.0-0.5) {\num};
+        \fi
+      }
+    }
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (2.0,-0.45)
+         {$4 \times 4 = 16$ patchs};
+
+    \draw[fleche accent] (4.35,1.9) -- (5.55,1.9);
+    \node[etiquette, above] at (4.95,1.98) {on met en file};
+
+    \begin{scope}[xshift=5.9cm, yshift=1.55cm]
+      \node[font=\sffamily\small\bfseries, text=mbSlate] at (2.56,2.95)
+           {La file de patchs};
+      \foreach \k in {0,...,4}{
+        \pgfmathtruncatemacro{\num}{\k+1}
+        \pgfmathtruncatemacro{\tone}{14+4*\num}
+        \fill[mbAzure!\tone] (\k*0.72,0) rectangle ++(0.72,0.72);
+        \draw[draw=mbSlate!55, line width=0.6pt]
+              (\k*0.72,0) rectangle ++(0.72,0.72);
+        \node[font=\sffamily\scriptsize\bfseries, text=mbInk]
+              at (\k*0.72+0.36,0.36) {\num};
+      }
+      \node[font=\sffamily\small, text=mbSlate] at (4.05,0.36) {$\cdots$};
+      \fill[mbAzure!78] (4.4,0) rectangle ++(0.72,0.72);
+      \draw[draw=mbSlate!55, line width=0.6pt] (4.4,0) rectangle ++(0.72,0.72);
+      \node[font=\sffamily\scriptsize\bfseries, text=white] at (4.76,0.36) {16};
+      \draw[accolade bas] (0,-0.12) -- (5.12,-0.12);
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (2.56,-0.75)
+           {une file de $16$ morceaux};
+    \end{scope}
+  \end{scope}
+\end{schema}
+
+Combien de morceaux obtient-on ? Le calcul est le plus simple du monde : on
+divise la largeur par la taille du patch, on divise la hauteur par la taille
+du patch, et on multiplie les deux résultats.
+
+\begin{exemple}[Compter les patchs d'une image de V-JEPA 2.1]
+Pendant la phase principale de l'entraînement, les images font
+$256 \times 256$ pixels et les patchs mesurent $16 \times 16$. Sur la
+largeur, on peut donc poser
+
+\[
+  \frac{256}{16} = 16 \text{ patchs,}
+\]
+
+et autant sur la hauteur. Le nombre total de patchs vaut
+
+\[
+  16 \times 16 = 256 .
+\]
+
+Retenez bien ce nombre, $256$ : nous allons le retrouver sans cesse.
+Souvenez-vous aussi que cette image contenait $65\,536$ pixels. Nous venons
+donc de ramener le nombre d'éléments à consulter de $65\,536$ à $256$,
+c'est-à-dire de le diviser par $256$. Et comme le coût grimpe au carré, le
+travail, lui, est divisé par $256 \times 256$, soit par plus de soixante-cinq
+mille.
+\end{exemple}
+
+\begin{piege}
+La division doit tomber juste. Si vous prenez une image de $250$ pixels de
+côté avec des patchs de $16$, la division $250/16$ ne donne pas un nombre
+entier, et il vous restera une bande de pixels sur le bord que personne ne
+sait où ranger. C'est pour cela que les tailles d'images choisies dans
+l'article sont toujours des multiples de $16$ : $256$, $384$, $512$. Quand
+vous changerez de résolution dans vos propres essais, vérifiez toujours ce
+point avant de lancer quoi que ce soit.
+\end{piege}
+
+\begin{enia}
+Ce découpage est la toute première opération de V-JEPA~2.1, celle qui a lieu
+avant tout le reste. L'article lui donne un nom que nous retrouverons tout
+au long de la partie~IV : le \emph{tokeniseur}. C'est simplement la pièce
+qui fabrique les morceaux.
+\end{enia}
+
+Nous avons donc une file de petits carrés. Mais un petit carré, c'est encore
+une grille de nombres. Or un transformeur ne sait pas manipuler des grilles :
+il manipule des listes de nombres. Il faut donc transformer chaque carré en
+une liste. C'est ce que nous faisons tout de suite.
+
+\section{Du carré au jeton : le plongement}
+
+\begin{enclair}
+Chaque petit carré est d'abord mis à plat, c'est-à-dire écrit comme une
+simple liste de nombres. Puis on lui applique un calcul qui le remplace par
+une autre liste, plus courte et mieux rangée. Cette nouvelle liste
+s'appelle un jeton, et c'est elle que le modèle manipulera du début à la
+fin.
+\end{enclair}
+
+Reprenons un patch de $16 \times 16$ pixels en couleur. Combien de nombres
+contient-il ? Nous savons le calculer depuis le chapitre~\ref{chap:image-video} :
+la hauteur, fois la largeur, fois les trois canaux de couleur.
+
+\[
+  16 \times 16 \times 3 = 768 \text{ nombres.}
+\]
+
+On écrit ces $768$ nombres les uns derrière les autres, en une seule ligne.
+Cette opération s'appelle \emph{mettre à plat}, ou \emph{aplatir}. Rien n'est
+perdu, rien n'est ajouté : on change seulement la façon de ranger.
+
+Ensuite vient le vrai travail. On ne garde pas ces $768$ nombres bruts : on
+les remplace par une autre liste, obtenue grâce à des \emph{coefficients}.
+Un coefficient, c'est tout simplement un nombre par lequel on en multiplie
+un autre. Ceux dont nous parlons ici sont \emph{appris} : ce sont exactement
+les boutons du chapitre~\ref{chap:apprendre}. Au début ils valent n'importe
+quoi, et l'entraînement les règle petit à petit.
+
+\begin{definition}[Le plongement, ou embedding][embedding]
+Un \emph{plongement} est une liste de nombres qui représente un morceau de
+donnée. On dit aussi \emph{embedding}, qui est le mot anglais employé
+partout. On l'obtient en multipliant les nombres du morceau par des
+coefficients appris, puis en additionnant les résultats. La longueur de cette
+liste s'appelle la \emph{dimension} du plongement : c'est un choix que fait
+celui qui construit le modèle, et elle est la même pour tous les morceaux.
+\end{definition}
+
+\begin{schema}{Du carré au jeton, en deux gestes. On part d'un patch de
+$16 \times 16$ pixels en couleur. On le met d'abord à plat, c'est-à-dire
+qu'on écrit ses nombres les uns derrière les autres : cela en fait $768$, et
+aucun n'a été touché. On leur applique ensuite un calcul dont les
+coefficients sont appris, et qui rend une liste bien plus courte. Cette
+liste est le jeton.}[carre-vers-jeton]
+  \begin{scope}[x=1cm, y=1cm]
+    %---- 1. le patch, centré sur la ligne y = 0 ---------------------
+    \foreach \ri in {0,...,3}{
+      \foreach \ci in {0,...,3}{
+        \pgfmathtruncatemacro{\tone}{18+8*(\ri+\ci)}
+        \fill[mbAzure!\tone] (\ci*0.45,0.9-\ri*0.45) rectangle ++(0.45,-0.45);
+        \draw[draw=mbSlate!45, line width=0.4pt]
+              (\ci*0.45,0.9-\ri*0.45) rectangle ++(0.45,-0.45);
+      }
+    }
+    \node[font=\sffamily\scriptsize, text=mbSlate, align=center] at (0.9,-1.3)
+         {un patch\\ $16 \times 16 \times 3$};
+
+    %---- 2. on met à plat -------------------------------------------
+    \draw[fleche accent] (2.1,0) -- (3.3,0);
+    \node[etiquette, above] at (2.7,0.08) {on met à plat};
+
+    \foreach \k in {0,...,8}{
+      \pgfmathtruncatemacro{\tone}{18+9*\k}
+      \fill[mbAzure!\tone] (3.6+\k*0.32,-0.22) rectangle ++(0.32,0.44);
+      \draw[draw=mbSlate!45, line width=0.4pt]
+            (3.6+\k*0.32,-0.22) rectangle ++(0.32,0.44);
+    }
+    \node[font=\sffamily\small, text=mbSlate] at (6.72,0) {$\cdots$};
+    \node[font=\sffamily\scriptsize, text=mbSlate, align=center] at (5.4,-1.3)
+         {$768$ nombres,\\ aucun n'a changé};
+
+    %---- 3. le calcul appris ----------------------------------------
+    \draw[fleche accent] (7.1,0) -- (8.3,0);
+    \node[etiquette, above] at (7.7,0.08) {calcul appris};
+
+    \foreach \k in {0,...,3}{
+      \pgfmathtruncatemacro{\tone}{30+16*\k}
+      \fill[mbTeal!\tone] (8.6+\k*0.32,-0.22) rectangle ++(0.32,0.44);
+      \draw[draw=mbTeal!80!black, line width=0.5pt]
+            (8.6+\k*0.32,-0.22) rectangle ++(0.32,0.44);
+    }
+    \node[font=\sffamily\scriptsize, text=mbTeal!55!black, align=center]
+         at (9.24,-1.3) {le jeton :\\ des mesures,\\ pas des pixels};
+
+    %---- l'accolade qui montre que la liste a raccourci --------------
+    \draw[accolade] (3.6,0.32) -- (7.04,0.32);
+    \draw[accolade] (8.6,0.32) -- (9.88,0.32);
+    \node[annotation] at (9.24,0.95) {plus court};
+  \end{scope}
+\end{schema}
+
+\begin{definition}[Le jeton, ou token][jeton]
+Un \emph{jeton} est le plongement d'un patch, c'est-à-dire la liste de
+nombres qui remplace ce patch dans toute la suite des calculs. On dit aussi
+\emph{token}, en anglais. Le mot est bien choisi : comme un jeton de casino
+remplace une somme d'argent, un jeton remplace ici un morceau d'image. Le
+découpage suivi du plongement s'appelle la \emph{tokenisation}.
+\end{definition}
+
+\begin{exemple}[Un plongement en tout petit]
+Pour voir le calcul en entier, prenons un patch minuscule de $2 \times 2$
+pixels en niveaux de gris, donc quatre nombres, et une dimension de
+plongement de $2$ seulement. Le patch vaut
+
+\[
+  \begin{pmatrix} 10 & 20 \\ 30 & 40 \end{pmatrix}
+  \quad \longrightarrow \quad
+  \text{mis à plat : } (10,\ 20,\ 30,\ 40).
+\]
+
+Le modèle possède, pour cette opération, huit coefficients appris : quatre
+pour fabriquer le premier nombre du jeton, quatre pour le second. Disons
+qu'ils valent
+
+\[
+  (0{,}1 \; ; \; 0{,}0 \; ; \; -0{,}1 \; ; \; 0{,}2)
+  \quad \text{et} \quad
+  (0{,}0 \; ; \; 0{,}5 \; ; \; 0{,}0 \; ; \; -0{,}5).
+\]
+
+Le premier nombre du jeton s'obtient en multipliant terme à terme puis en
+additionnant :
+
+\[
+  10 \times 0{,}1 + 20 \times 0{,}0 + 30 \times (-0{,}1) + 40 \times 0{,}2
+  = 1 + 0 - 3 + 8 = 6 .
+\]
+
+Le second nombre, de la même façon :
+
+\[
+  10 \times 0{,}0 + 20 \times 0{,}5 + 30 \times 0{,}0 + 40 \times (-0{,}5)
+  = 0 + 10 + 0 - 20 = -10 .
+\]
+
+Le jeton vaut donc $(6\ ;\ -10)$. Quatre nombres sont devenus deux nombres,
+et ces deux nombres ne sont plus des intensités de gris : ce sont des
+mesures fabriquées par le modèle. Regardez la seconde liste de
+coefficients, $(0 \; ; \; 0{,}5 \; ; \; 0 \; ; \; -0{,}5)$ : elle ajoute
+le pixel en haut à droite et retranche celui d'en bas à droite. Elle mesure
+donc une différence entre le haut et le bas. Personne ne le lui a demandé :
+c'est l'entraînement qui a réglé ces quatre nombres ainsi.
+\end{exemple}
+
+\begin{intuition}
+Le plongement est un résumé. Là où les $768$ nombres bruts disaient «~voici
+l'éclat de chacun de mes pixels~», le jeton dit plutôt «~je contiens un bord
+oblique, plutôt sombre, plutôt vert~». Personne n'a écrit ces mots nulle
+part : ce sont les coefficients appris qui décident, tout seuls, de ce
+qu'il vaut la peine de mesurer.
+\end{intuition}
+
+\begin{surlesdonnees}
+Dans V-JEPA~2.1, ce calcul n'est pas fait patch par patch dans une boucle,
+mais d'un seul coup par une opération appelée \emph{convolution}. Une
+convolution, c'est une petite fenêtre que l'on fait glisser sur l'image :
+à chaque arrêt, elle regarde ce qui se trouve dessous et en tire quelques
+nombres. Ici, la fenêtre mesure $16 \times 16$ pixels et elle avance de $16$
+pixels à chaque pas. Avancer d'exactement la largeur de la fenêtre, c'est
+précisément découper sans chevauchement. Le résultat est le même que ce que
+nous venons de calculer à la main, mais il est obtenu bien plus vite. Nous
+reverrons la convolution de près au chapitre~13 ; pour l'instant, retenez
+seulement l'image de la fenêtre qui glisse.
+\end{surlesdonnees}
+
+Nous savons transformer une image en une file de jetons. Reste une question
+que nous avons soigneusement mise de côté : et le temps ?
+
+\section{Le tubelet : découper aussi dans le temps}
+
+\begin{enclair}
+Une vidéo, c'est une pile d'images. Si l'on découpait chaque image
+séparément, on obtiendrait beaucoup trop de jetons. On découpe donc aussi
+dans l'épaisseur de la pile : chaque morceau prend deux images d'un coup.
+Ce petit pavé s'appelle un tubelet.
+\end{enclair}
+
+\begin{definition}[Le tubelet][tubelet]
+Un \emph{tubelet} est un patch qui possède en plus une épaisseur dans le
+temps. Au lieu d'être un carré plat découpé dans une seule image, c'est un
+petit pavé qui traverse plusieurs images de suite. Dans V-JEPA~2.1, ce pavé
+mesure $16 \times 16$ pixels et $2$ images d'épaisseur : on dit que la
+\emph{taille de tubelet} vaut $2$.
+\end{definition}
+
+\begin{schema}{Le patch et le tubelet. À gauche, un patch : un carré plat,
+découpé dans une seule image. À droite, un tubelet : le même carré, pris sur
+deux images qui se suivent. Les traits pointillés montrent qu'il s'agit bien
+du même endroit. Le tubelet contient donc deux fois plus de pixels, et il
+porte en lui un petit bout de mouvement, puisqu'il voit cet endroit à deux
+instants.}[patch-tubelet]
+  \begin{scope}[x=1cm, y=1cm]
+    %================ à gauche : le patch, plat =======================
+    \node[font=\sffamily\small\bfseries, text=mbSlate] at (1.2,3.65)
+         {Un patch : plat};
+    \foreach \ri in {0,...,3}{
+      \foreach \ci in {0,...,3}{
+        \draw[draw=mbSlate!40, fill=white, line width=0.4pt]
+              (\ci*0.6,2.4-\ri*0.6) rectangle ++(0.6,-0.6);
+      }
+    }
+    \fill[mbBlue!45] (0.6,1.8) rectangle ++(0.6,-0.6);
+    \draw[draw=mbBlue, line width=1pt] (0.6,1.8) rectangle ++(0.6,-0.6);
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (1.2,-0.45)
+         {une seule image};
+
+    % le trait qui sépare les deux moitiés du dessin
+    \draw[draw=mbSlate!25, line width=0.5pt] (3.6,-0.9) -- (3.6,3.35);
+
+    %================ à droite : le tubelet ===========================
+    % Les deux images sont posées côte à côte, sans se recouvrir : ainsi
+    % la case retenue reste visible sur l'une comme sur l'autre.
+    \node[font=\sffamily\small\bfseries, text=mbSlate] at (7.5,3.65)
+         {Un tubelet : le même carré, sur deux images};
+
+    \foreach \img/\dx/\teinte in {1/4.6/55, 2/8.0/35}{
+      \begin{scope}[shift={(\dx,0)}]
+        \foreach \ri in {0,...,3}{
+          \foreach \ci in {0,...,3}{
+            \draw[draw=mbSlate!40, fill=white, line width=0.4pt]
+                  (\ci*0.6,2.4-\ri*0.6) rectangle ++(0.6,-0.6);
+          }
+        }
+        \fill[mbTeal!\teinte] (0.6,1.8) rectangle ++(0.6,-0.6);
+        \draw[draw=mbTeal!85!black, line width=1pt]
+              (0.6,1.8) rectangle ++(0.6,-0.6);
+        \node[font=\sffamily\scriptsize, text=mbSlate] at (1.2,-0.45)
+             {image \img};
+      \end{scope}
+    }
+
+    % les pointillés : c'est bien le même endroit des deux côtés
+    \draw[draw=mbTeal!85!black, line width=0.7pt, dashed]
+          (5.8,1.8) -- (8.6,1.8);
+    \draw[draw=mbTeal!85!black, line width=0.7pt, dashed]
+          (5.8,1.2) -- (8.6,1.2);
+
+    \draw[accolade bas] (4.6,-0.75) -- (10.4,-0.75);
+    \node[font=\sffamily\scriptsize, text=mbTeal!55!black] at (7.5,-1.4)
+         {le tubelet, c'est les deux carrés ensemble};
+
+    \draw[-{Stealth[round,length=2.2mm,width=1.7mm]},
+          draw=mbAmber!85!black, line width=1pt] (4.6,2.72) -- (10.4,2.72);
+    \node[font=\sffamily\scriptsize, text=mbAmber!80!black, above]
+         at (7.5,2.75) {le temps passe};
+  \end{scope}
+\end{schema}
+
+Pourquoi coller deux images ensemble plutôt que de les traiter séparément ?
+Pour deux raisons, et les deux sont bonnes.
+
+La première est une simple affaire de nombre. Un clip de seize images
+découpé image par image donnerait $16 \times 256 = 4\,096$ jetons. Avec des
+tubelets de deux images, on en obtient deux fois moins. Comme le coût grimpe
+au carré, le travail est divisé par quatre.
+
+La seconde raison est plus intéressante. Un tubelet voit le même endroit à
+deux instants différents. Il contient donc, dès sa fabrication, une petite
+trace de ce qui a bougé à cet endroit. Le mouvement n'est pas quelque chose
+que le modèle devra reconstituer plus tard : il est déjà là, dans le
+morceau.
+
+\begin{exemple}[Compter les jetons d'un clip de la phase principale]
+Pendant la phase principale, un clip contient $16$ images de
+$256 \times 256$ pixels. Comptons dans les trois directions.
+
+Dans le temps, avec des tubelets de $2$ images :
+\[ \frac{16}{2} = 8 \text{ tranches.} \]
+
+En hauteur, avec des patchs de $16$ pixels :
+\[ \frac{256}{16} = 16 \text{ rangées.} \]
+
+En largeur, de même : $16$ colonnes. Le nombre total de jetons vaut donc le
+produit des trois :
+
+\[
+  8 \times 16 \times 16 = 2\,048 \text{ jetons.}
+\]
+
+Voilà le deuxième nombre à retenir par cœur : \textbf{$2\,048$ jetons pour
+un clip de la phase principale}.
+\end{exemple}
+
+\begin{exemple}[Compter les jetons d'un clip de refroidissement]
+Vous connaissez déjà cette phase. Le chapitre~\ref{chap:image-video} vous a
+donné la taille de ses clips, $64$ images de $384 \times 384$ pixels, et le
+chapitre~\ref{chap:apprendre} vous a dit d'où lui vient son nom : sur les
+douze mille dernières étapes, le taux d'apprentissage redescend jusqu'à
+presque zéro, et le modèle se pose en douceur. Refaisons pour elle le calcul
+des jetons :
+
+\[
+  \frac{64}{2} = 32, \qquad \frac{384}{16} = 24, \qquad \frac{384}{16} = 24,
+\]
+\[
+  32 \times 24 \times 24 = 18\,432 \text{ jetons.}
+\]
+
+C'est le troisième nombre à retenir. Comparons-le au précédent :
+
+\[
+  \frac{18\,432}{2\,048} = 9 .
+\]
+
+Neuf fois plus de jetons : c'est exactement le rapport que nous avions
+trouvé au chapitre~\ref{chap:image-video} en comptant les pixels bruts, et
+ce n'est pas un hasard, puisque le découpage garde les proportions.
+
+Mais voici ce que le chapitre~\ref{chap:image-video} ne pouvait pas encore
+nous dire. Là-bas, neuf fois plus de nombres voulait dire neuf fois plus de
+mémoire, et nous étions passés de $1{,}6$ à $14{,}5$ gigaoctets par lot. Ici,
+c'est le \emph{calcul} qui est en jeu, et le calcul grimpe au carré :
+\[ 9 \times 9 = 81 . \]
+Un clip de refroidissement coûte donc \emph{quatre-vingt-une fois} plus de
+travail qu'un clip de la phase principale. La mémoire était multipliée par
+neuf, le calcul l'est par quatre-vingt-un. Voilà pourquoi l'article ne fait
+durer cette phase que $12\,000$ pas, alors que la phase principale en compte
+$135\,000$.
+\end{exemple}
+
+\begin{aretenir}
+Quatre lignes à garder en tête pour tout le livre :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llr}
+\toprule
+\textbf{Entrée} & \textbf{Calcul} & \textbf{Jetons} \\
+\midrule
+Image $256 \times 256$        & $16 \times 16$               & $256$ \\
+Image $512 \times 512$        & $32 \times 32$               & $1\,024$ \\
+Clip $16 \times 256 \times 256$ & $8 \times 16 \times 16$    & $2\,048$ \\
+Clip $64 \times 384 \times 384$ & $32 \times 24 \times 24$   & $18\,432$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La règle est toujours la même : on divise chaque côté par la taille du
+découpage, puis on multiplie les résultats entre eux.
+\end{aretenir}
+
+Nos morceaux sont prêts et rangés en file. Mais en les mettant en file, nous
+avons perdu quelque chose d'important, et il faut le récupérer sans tarder.
+
+\section{Dire où l'on se trouve : l'encodage de position}
+
+\begin{enclair}
+Une fois les jetons mis en file, plus rien ne dit lequel venait du coin en
+haut à gauche et lequel venait du milieu. On doit donc écrire l'adresse de
+chaque morceau à l'intérieur même de son jeton.
+\end{enclair}
+
+Voici le problème, et il est sérieux. Le calcul de la section suivante,
+l'attention, traite la file de jetons comme un \emph{sac} : il ne regarde
+jamais l'ordre. Mélangez la file, il rendra exactement le même résultat. Or
+une image dont on mélange les morceaux n'est plus la même image du tout.
+
+\begin{intuition}
+Prenez un puzzle terminé, photographiez-le, puis jetez toutes les pièces
+dans une boîte. Les pièces sont toujours là, aucune n'a été perdue, et
+pourtant le dessin a disparu. Ce qui manque, ce n'est pas la matière, c'est
+la \emph{place} de chaque pièce. Voilà exactement ce que nous devons rendre
+au modèle.
+\end{intuition}
+
+\begin{definition}[L'encodage de position][encodage-position]
+L'\emph{encodage de position} est la façon dont on inscrit, dans le jeton
+lui-même, l'endroit d'où venait son morceau. Sans lui, le modèle ne saurait
+pas distinguer le haut du bas, la gauche de la droite, ni le début de la fin
+d'une vidéo.
+\end{definition}
+
+V-JEPA~2.1 emploie une méthode particulière, appelée \emph{RoPE}. Ce nom est
+une abréviation anglaise de \emph{Rotary Position Embedding}, ce qui veut
+dire «~encodage de position par rotation~». Le mot rotation dit tout : au
+lieu d'ajouter un numéro au jeton, on \emph{tourne} le jeton d'un angle qui
+dépend de sa position.
+
+\begin{schema}{L'idée de RoPE, expliquée avec une aiguille d'horloge. On
+prend les nombres du jeton deux par deux et on les voit comme une flèche.
+Cette flèche est ensuite tournée d'un angle proportionnel à la position du
+morceau : rien à la position $0$, un cran à la position $1$, deux crans à la
+position $2$, et ainsi de suite. La longueur de la flèche ne change jamais :
+seule sa direction porte l'information de place.}[rope-horloge]
+  \begin{scope}[x=1cm, y=1cm]
+    \foreach \k/\ang in {0/0, 1/30, 2/60, 3/90}{
+      \begin{scope}[shift={(\k*3.4,0)}]
+        \draw[draw=mbSlate!30, line width=0.5pt] (0,0) circle (1.05);
+        \draw[draw=mbSlate!25, line width=0.4pt] (-1.25,0) -- (1.25,0);
+        \draw[draw=mbSlate!25, line width=0.4pt] (0,-1.25) -- (0,1.25);
+        % la position de départ, rappelée en pointillé sur chaque cadran
+        \draw[draw=mbSlate!45, line width=0.6pt, dashed] (0,0) -- (1.05,0);
+        % l'angle parcouru depuis le départ
+        \ifnum\ang>0\relax
+          \draw[draw=mbAmber!70, line width=0.7pt] (0.45,0) arc (0:\ang:0.45);
+        \fi
+        \draw[vecteur accent] (0,0) -- (\ang:1.05);
+        \fill[mbInk] (0,0) circle (1.4pt);
+        \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (0,1.55)
+             {position \k};
+        \node[font=\sffamily\scriptsize, text=mbAmber!80!black] at (0,-1.62)
+             {tourné de $\ang^\circ$};
+      \end{scope}
+    }
+  \end{scope}
+\end{schema}
+
+\begin{exemple}[Tourner une flèche, avec les nombres]
+Prenons deux nombres d'un jeton, disons $(1\ ;\ 0)$, et voyons-les comme une
+flèche qui pointe vers la droite. Convenons que chaque position fait tourner
+la flèche de trente degrés. Mesurons à la règle où arrive la pointe de la
+flèche après chaque rotation. Voici ce que l'on relève :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{crr}
+\toprule
+\textbf{Position} & \textbf{Angle} & \textbf{Les deux nombres} \\
+\midrule
+$0$ & $0^\circ$  & $(1{,}000 \ ; \ 0{,}000)$ \\
+$1$ & $30^\circ$ & $(0{,}866 \ ; \ 0{,}500)$ \\
+$2$ & $60^\circ$ & $(0{,}500 \ ; \ 0{,}866)$ \\
+$3$ & $90^\circ$ & $(0{,}000 \ ; \ 1{,}000)$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Les deux nombres changent, alors que le contenu du morceau, lui, n'a pas
+bougé. C'est la position, et elle seule, qui a fait tourner la flèche.
+\end{exemple}
+
+Pourquoi tourner plutôt qu'ajouter un numéro ? Parce que la rotation a un
+avantage qui tombe à pic. Quand deux jetons se comparent, ce qui compte
+n'est pas leur angle à chacun, mais l'\emph{écart} entre leurs deux angles.
+Or cet écart ne dépend que de la \emph{distance} entre leurs positions.
+
+\begin{exemple}[Ce qui compte, c'est l'écart]
+Reprenons nos trente degrés par position. Deux jetons placés aux positions
+$1$ et $3$ sont séparés de deux crans, donc de $60$ degrés. Deux autres
+jetons placés aux positions $4$ et $6$ sont eux aussi séparés de deux crans,
+donc des mêmes $60$ degrés. Pour le modèle, les deux paires sont dans la
+même situation.
+
+C'est très exactement ce que l'on veut. Un bord vertical reste un bord
+vertical, qu'il se trouve à gauche ou à droite de la photo. Ce qui importe,
+c'est la place des choses \emph{les unes par rapport aux autres}, et non
+l'endroit exact où elles se trouvent dans l'image.
+\end{exemple}
+
+Dans une vidéo, il y a trois directions à repérer : la ligne, la colonne et
+l'instant. On fait donc tourner une partie des nombres du jeton selon la
+hauteur, une autre selon la largeur, et une troisième selon le temps. Le
+principe ne change pas d'un pouce : il est simplement appliqué trois fois,
+une fois par direction.
+
+Les auteurs appellent cela un \emph{RoPE en trois dimensions}. Attention à
+ne pas confondre ce mot avec la «~dimension du plongement~» vue plus haut :
+ici, «~dimension~» veut dire «~direction dans laquelle on se repère~», et
+rien d'autre.
+
+\begin{enia}
+Voici maintenant le point qui vous servira le jour où vous mettrez ce modèle
+en service, et l'article y insiste. Comme la position se traduit par un
+angle, on peut décider de \emph{resserrer} ou d'\emph{écarter} les crans.
+
+Supposons que le modèle ait été entraîné sur des images de $16$ patchs de
+côté, avec trente degrés par cran. On veut maintenant lui donner des images
+de $32$ patchs de côté. Si l'on garde trente degrés par cran, la flèche fera
+plusieurs tours complets et le modèle sera perdu. Mais si l'on passe à
+quinze degrés par cran, la traversée complète de l'image correspondra
+toujours au même angle total : le modèle retrouve ses repères.
+
+Cette opération porte un nom, l'\emph{interpolation des fréquences}, et
+l'article s'en sert vraiment, pour deux travaux que nous découvrirons au
+chapitre~7 : la \emph{segmentation}, qui consiste à dire à quel objet
+appartient chaque pixel, et l'\emph{estimation de profondeur}, qui consiste
+à dire à quelle distance se trouve chaque pixel.
+
+Ce que cela permet est énorme : \textbf{on peut donner au modèle des images
+d'une autre taille que celles de son entraînement, sans le réentraîner}.
+Nous y reviendrons au chapitre~26, quand nous choisirons nos réglages de
+production.
+\end{enia}
+
+\begin{piege}
+«~Sans le réentraîner~» ne veut pas dire «~sans rien vérifier~». Changer de
+résolution modifie toujours un peu la qualité des résultats. La règle de
+métier est simple : vous avez le droit de changer la résolution, mais vous
+avez le devoir de mesurer ce que cela change sur vos propres données. Nous
+verrons dans la partie~VII que l'article lui-même a mesuré cet effet, et
+qu'il n'est pas nul.
+\end{piege}
+
+Nos jetons contiennent maintenant ce qu'ils voient et l'endroit d'où ils
+viennent. Il est temps de les faire dialoguer.
+
+\section{L'attention : chaque jeton écoute les autres}
+
+\begin{enclair}
+L'attention est le cœur du transformeur. Chaque jeton pose une question, tous
+les autres présentent une étiquette, et celui qui pose la question écoute
+surtout ceux dont l'étiquette répond le mieux. Il repart alors avec un
+contenu enrichi de tout ce qu'il vient d'entendre.
+\end{enclair}
+
+Nous arrivons à la pièce maîtresse. Prenons le temps qu'il faut, car tout le
+reste du livre s'appuie dessus.
+
+Reprenons notre photo de chat. Le jeton qui contient les moustaches aimerait
+bien savoir s'il y a des oreilles pointues quelque part dans l'image. Il ne
+peut pas aller les chercher lui-même : il ne voit que son propre morceau. Il
+va donc lancer un appel à toute la file, et voir qui répond.
+
+Pour organiser cet appel, chaque jeton fabrique trois listes de nombres à
+partir de son contenu, exactement comme il fabriquait son plongement : en
+multipliant ses nombres par des coefficients appris. Ces trois listes ont
+chacune un rôle bien précis.
+
+\begin{definition}[La question, la clé et le contenu][qkv]
+À partir de son propre jeton, chacun fabrique trois listes de nombres :
+
+\begin{itemize}
+  \item la \emph{question}, que l'on appelle \emph{query} en anglais : elle
+        dit «~voici ce que je cherche~» ;
+  \item la \emph{clé}, ou \emph{key} : elle dit «~voici de quoi je
+        parle~» ;
+  \item le \emph{contenu}, ou \emph{value} : c'est ce que le jeton donnera
+        réellement à ceux qui l'auront écouté.
+\end{itemize}
+
+Les coefficients qui fabriquent ces trois listes sont appris pendant
+l'entraînement. Personne ne les écrit à la main.
+\end{definition}
+
+\begin{intuition}
+Imaginez une salle de classe. Un élève lève la main et demande : «~qui sait
+quelque chose sur les oreilles pointues ?~» — c'est sa question. Chaque
+autre élève porte une pancarte autour du cou où il a écrit son sujet : «~je
+parle de fourrure~», «~je parle d'oreilles~», «~je parle de flaques d'eau~» —
+ce sont les clés. L'élève qui a posé la question regarde toutes les
+pancartes, repère celles qui collent le mieux à sa demande, et va écouter
+ces camarades-là en priorité. Ce qu'ils lui racontent alors, c'est leur
+contenu.
+\end{intuition}
+
+\begin{schema}{L'attention vue comme une salle de classe. Le jeton du bas
+pose sa question. Chaque autre jeton présente sa clé. Plus la clé répond à
+la question, plus la flèche est épaisse et plus le jeton sera écouté. Le
+résultat est un mélange des contenus, dosé par l'épaisseur des flèches. Ici,
+le jeton «~oreille~» est écouté fort, tandis que le jeton «~flaque~» est
+presque ignoré.}[attention-classe]
+  \begin{scope}[x=1cm, y=1cm]
+    \node[bloc calcul, minimum width=20mm] (j1) at (0,3.2)   {fourrure};
+    \node[bloc calcul, minimum width=20mm] (j2) at (3.2,3.2) {oreille};
+    \node[bloc calcul, minimum width=20mm] (j3) at (6.4,3.2) {flaque};
+    \node[font=\sffamily\scriptsize, text=mbSlate, above] at (0,3.72)
+         {clé + contenu};
+    \node[font=\sffamily\scriptsize, text=mbSlate, above] at (3.2,3.72)
+         {clé + contenu};
+    \node[font=\sffamily\scriptsize, text=mbSlate, above] at (6.4,3.72)
+         {clé + contenu};
+
+    \node[bloc accent, minimum width=30mm] (q) at (3.2,0) {moustaches};
+    \node[font=\sffamily\scriptsize, text=mbAmber!80!black, below] at (3.2,-0.55)
+         {pose la question : «~qui a des oreilles ?~»};
+
+    \draw[draw=mbBlue!55, line width=1.1pt, -{Stealth[round,length=2.2mm]}]
+          (j1.south) -- ($(q.north)+(-0.9,0)$);
+    \draw[draw=mbBlue!85, line width=3.2pt, -{Stealth[round,length=3.2mm]}]
+          (j2.south) -- (q.north);
+    \draw[draw=mbBlue!30, line width=0.5pt, -{Stealth[round,length=1.8mm]}]
+          (j3.south) -- ($(q.north)+(0.9,0)$);
+
+    \node[etiquette] at (1.05,1.75) {$0{,}117$};
+    \node[etiquette] at (3.62,1.75) {$0{,}867$};
+    \node[etiquette] at (5.6,1.75) {$0{,}016$};
+    \node[annotation] at (8.6,1.75) {les trois poids\\ font $1$ en tout};
+  \end{scope}
+\end{schema}
+
+Comment mesure-t-on qu'une clé «~répond bien~» à une question ? On multiplie
+les deux listes terme à terme et on additionne le tout. Cette opération porte
+un nom en mathématiques : le \emph{produit scalaire}. Elle donne un grand
+nombre quand les deux listes se ressemblent, et un petit nombre quand elles
+n'ont rien à voir.
+
+Le nombre obtenu s'appelle un \emph{score}. On en obtient un par jeton
+écouté. Il faut ensuite transformer ces scores en \emph{poids},
+c'est-à-dire en parts qui s'additionnent pour faire un, comme des parts d'un
+gâteau. L'opération qui fait cela s'appelle la \emph{fonction softmax}.
+
+\begin{definition}[La fonction softmax][softmax]
+La \emph{softmax} transforme une liste de nombres quelconques en une liste de
+parts, toutes positives, dont la somme fait exactement $1$. Elle procède en
+deux temps : on calcule d'abord l'\emph{exponentielle} de chaque nombre, puis
+on divise chacun par la somme de tous.
+
+L'exponentielle est une machine à agrandir. On l'écrit $e^{x}$, ce qui se lit
+«~e puissance $x$~». Elle prend un nombre et en rend un autre, toujours
+positif, et qui grossit très vite : $e^{0} = 1$, $e^{1} \approx 2{,}7$,
+$e^{2} \approx 7{,}4$, $e^{4} \approx 54{,}6$. Vous n'avez pas besoin de
+savoir la calculer — toute calculatrice le fait. Retenez ses deux effets, qui
+sont exactement ceux dont la softmax a besoin : elle rend tous les nombres
+positifs, et elle écarte fortement les grands des petits.
+
+Le nom «~softmax~» veut dire «~maximum en douceur~» : elle donne la plus
+grosse part au plus grand score, sans pour autant écraser complètement les
+autres.
+\end{definition}
+
+\begin{exemple}[Une attention calculée du début à la fin]
+Faisons le calcul en entier, avec de tout petits nombres. Reprenons les
+trois jetons de la figure~\ref{fig:attention-classe} : «~fourrure~»,
+«~oreille~» et «~flaque~». Toutes les listes auront quatre nombres, et nous
+conviendrons que le premier de ces quatre nombres veut dire «~je parle
+d'oreilles~».
+
+\textbf{Premier temps : la question.} Le jeton «~moustaches~» cherche des
+oreilles. Il met donc du poids sur le premier nombre :
+\[ q = (2 \ ; \ 0 \ ; \ 0 \ ; \ 0). \]
+
+\textbf{Deuxième temps : les clés.} Les trois autres présentent les leurs.
+«~Oreille~» parle beaucoup d'oreilles, «~fourrure~» un peu, «~flaque~» pas
+du tout :
+\[
+  \begin{aligned}
+    k_{\text{fourrure}} &= (2 \ ; \ 0 \ ; \ 0 \ ; \ 0), \\
+    k_{\text{oreille}}  &= (4 \ ; \ 0 \ ; \ 0 \ ; \ 0), \\
+    k_{\text{flaque}}   &= (0 \ ; \ 3 \ ; \ 0 \ ; \ 0).
+  \end{aligned}
+\]
+
+\textbf{Troisième temps : les scores.} On fait le produit scalaire de la
+question avec chaque clé :
+\[
+  2 \times 2 = 4, \qquad
+  2 \times 4 = 8, \qquad
+  0 .
+\]
+
+\textbf{Quatrième temps : on remet à l'échelle.} On divise chaque score par
+la racine carrée de la longueur des listes, ici $\sqrt{4} = 2$. La racine
+carrée
+d'un nombre, c'est celui qui, multiplié par lui-même, redonne ce nombre :
+$\sqrt{4} = 2$ parce que $2 \times 2 = 4$, et $\sqrt{9} = 3$ parce que
+$3 \times 3 = 9$. Cette division empêche les scores de devenir énormes quand
+les listes sont longues :
+\[
+  \frac{4}{2} = 2, \qquad \frac{8}{2} = 4, \qquad \frac{0}{2} = 0 .
+\]
+
+\textbf{Cinquième temps : la softmax.} On prend l'exponentielle de chacun :
+\[
+  e^{2} \approx 7{,}389, \qquad e^{4} \approx 54{,}598, \qquad e^{0} = 1 .
+\]
+On les additionne : $7{,}389 + 54{,}598 + 1 = 62{,}987$. Puis on divise
+chacun par cette somme :
+\[
+  \frac{7{,}389}{62{,}987} \approx 0{,}117, \quad
+  \frac{54{,}598}{62{,}987} \approx 0{,}867, \quad
+  \frac{1}{62{,}987} \approx 0{,}016 .
+\]
+Vérifions : $0{,}117 + 0{,}867 + 0{,}016 = 1{,}000$. Ce sont bien des parts
+de gâteau, et ce sont exactement les trois nombres écrits sur les flèches de
+la figure~\ref{fig:attention-classe}.
+
+\textbf{Sixième temps : le mélange des contenus.} Disons que les trois
+contenus valent
+\[
+  \begin{aligned}
+    v_{\text{fourrure}} &= (10 \ ; \ 0 \ ; \ 0 \ ; \ 0), \\
+    v_{\text{oreille}}  &= (0 \ ; \ 10 \ ; \ 0 \ ; \ 0), \\
+    v_{\text{flaque}}   &= (0 \ ; \ 0 \ ; \ 10 \ ; \ 0).
+  \end{aligned}
+\]
+Le résultat est la somme des contenus, chacun multiplié par sa part :
+\[
+  \begin{aligned}
+    &0{,}117 \times v_{\text{fourrure}}
+     + 0{,}867 \times v_{\text{oreille}}
+     + 0{,}016 \times v_{\text{flaque}} \\
+    &\qquad = (1{,}17 \ ; \ 8{,}67 \ ; \ 0{,}16 \ ; \ 0).
+  \end{aligned}
+\]
+
+Voilà le nouveau jeton «~moustaches~». Il ne contient plus seulement ce
+qu'il voyait tout seul : il contient surtout ce que lui a dit «~oreille~»,
+un peu de ce que lui a dit «~fourrure~», et presque rien de «~flaque~». Il a
+posé une question sur les oreilles, et c'est bien le jeton «~oreille~» qu'il
+a le plus écouté.
+\end{exemple}
+
+\begin{piege}
+N'oubliez jamais la division par la racine carrée. Sans elle, avec des
+listes de mille nombres, les scores atteignent des valeurs si grandes que la
+softmax donne une part de $1$ à un seul jeton et $0$ à tous les autres. Le
+modèle n'écoute plus qu'un seul camarade, l'entraînement se bloque, et rien
+dans les messages d'erreur ne vous dira pourquoi.
+\end{piege}
+
+\begin{aretenir}
+L'attention se résume à six gestes, toujours les mêmes : je fabrique ma
+question, chacun fabrique sa clé et son contenu, je compare ma question à
+chaque clé, je remets à l'échelle, je transforme les scores en parts, je
+mélange les contenus selon ces parts. Tout ce qui suit dans ce chapitre
+n'est que de l'organisation autour de ces six gestes.
+\end{aretenir}
+
+Cette façon de faire est puissante, mais il lui manque quelque chose. Voyons
+quoi, et comment on y remédie.
+
+\section{Plusieurs têtes valent mieux qu'une}
+
+\begin{enclair}
+Avec une seule attention, chaque jeton ne peut poser qu'une seule question à
+la fois. On en fait donc tourner plusieurs en même temps, chacune avec
+ses propres réglages, et on met leurs réponses bout à bout. Chacune de ces
+attentions qui travaillent côte à côte s'appelle une tête.
+\end{enclair}
+
+Notre jeton «~moustaches~» cherchait des oreilles. Mais il aurait aussi aimé
+savoir quelle est la couleur dominante autour de lui, et si quelque chose
+bouge à sa gauche. Avec une seule question, il doit choisir. C'est dommage.
+
+\begin{definition}[La tête d'attention][tete-attention]
+Une \emph{tête d'attention} est un exemplaire complet de tout ce que nous
+venons de décrire, avec ses propres coefficients pour fabriquer les
+questions, les clés et les contenus. Plusieurs têtes travaillent en même
+temps sur les mêmes jetons, mais chacune pose sa propre question. On parle
+alors d'\emph{attention multi-têtes}.
+\end{definition}
+
+Le partage se fait ainsi : on ne donne pas la totalité des nombres du jeton
+à chaque tête, on les répartit entre elles. Chaque tête travaille sur sa
+part, produit sa réponse, et l'on recolle toutes les réponses bout à bout à
+la fin. La liste finale a donc la même longueur qu'au départ.
+
+\begin{schema}{Le partage entre les têtes. Les nombres du jeton sont répartis
+en parts égales, une par tête. Chaque tête pose sa propre question et ne
+travaille que sur sa part. On recolle ensuite les réponses bout à bout, et
+l'on retrouve une liste de la même longueur qu'au départ. Quatre têtes sont
+dessinées ici ; le modèle en emploie seize.}[tetes-attention]
+  \begin{scope}[x=1cm, y=1cm]
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (-1.5,3.3) {le jeton};
+    \foreach \k in {0,...,3}{
+      \pgfmathtruncatemacro{\tone}{22+16*\k}
+      \fill[mbAzure!\tone] (\k*1.9,3.05) rectangle ++(1.9,0.5);
+      \draw[draw=white, line width=1.6pt] (\k*1.9,3.05) rectangle ++(1.9,0.5);
+      \draw[draw=mbSlate!50, line width=0.5pt] (\k*1.9,3.05) rectangle ++(1.9,0.5);
+    }
+
+    \foreach \k/\quoi in {0/{les formes}, 1/{les couleurs},
+                          2/{les mouvements}, 3/{les bords}}{
+      \draw[fleche] (\k*1.9+0.95,3.0) -- (\k*1.9+0.95,2.05);
+      \node[bloc calcul, minimum width=17mm, minimum height=8mm,
+            font=\sffamily\scriptsize] (t\k) at (\k*1.9+0.95,1.6) {tête \the\numexpr\k+1\relax};
+      \node[font=\sffamily\scriptsize, text=mbAmber!80!black]
+            at (\k*1.9+0.95,0.85) {\quoi};
+      \draw[fleche] (\k*1.9+0.95,0.55) -- (\k*1.9+0.95,-0.2);
+    }
+
+    \foreach \k in {0,...,3}{
+      \pgfmathtruncatemacro{\tone}{22+16*\k}
+      \fill[mbTeal!\tone] (\k*1.9,-0.75) rectangle ++(1.9,0.5);
+      \draw[draw=white, line width=1.6pt] (\k*1.9,-0.75) rectangle ++(1.9,0.5);
+      \draw[draw=mbSlate!50, line width=0.5pt] (\k*1.9,-0.75) rectangle ++(1.9,0.5);
+    }
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (-1.6,-0.5)
+         {on recolle};
+    \draw[accolade bas] (0,-0.9) -- (7.6,-0.9);
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (3.8,-1.55)
+         {la même longueur qu'au départ};
+  \end{scope}
+\end{schema}
+
+\begin{exemple}[Répartir mille vingt-quatre nombres entre seize têtes]
+Prenons un jeton de $1\,024$ nombres et $16$ têtes d'attention. Chaque tête
+reçoit
+\[
+  \frac{1\,024}{16} = 64 \text{ nombres.}
+\]
+Chacune produit une réponse de $64$ nombres. En recollant les seize
+réponses, on retrouve
+\[
+  16 \times 64 = 1\,024 \text{ nombres.}
+\]
+La taille du jeton n'a pas changé, mais seize questions différentes ont été
+posées au lieu d'une seule, et pour à peu près le même prix.
+\end{exemple}
+
+\begin{intuition}
+Retournons dans la salle de classe. Avec une seule tête, l'élève ne peut
+poser qu'une question et doit attendre la réponse avant d'en poser une
+autre. Avec seize têtes, c'est comme s'il avait seize paires d'oreilles :
+l'une écoute les formes, l'autre les couleurs, une troisième les
+mouvements. Il rassemble ensuite tout ce qu'il a entendu en une seule fiche.
+\end{intuition}
+
+Nous tenons la pièce centrale. Il faut maintenant l'emballer proprement, et
+c'est le rôle du bloc de transformeur.
+
+\section{Le bloc de transformeur, ouvert en coupe}
+
+\begin{enclair}
+Un bloc de transformeur, c'est l'attention plus trois pièces qui la rendent
+utilisable : une remise au propre des nombres avant chaque étage, un petit
+réseau qui réfléchit sur chaque jeton séparément, et deux raccourcis qui
+laissent passer l'information sans la déformer.
+\end{enclair}
+
+L'attention toute seule ne suffit pas. Elle mélange les jetons entre eux,
+mais elle ne fait aucun raisonnement à l'intérieur d'un jeton. Et surtout,
+si l'on empile beaucoup d'attentions à la suite, les nombres partent dans
+tous les sens et l'entraînement échoue. Trois pièces règlent ces problèmes.
+
+\subsection*{Première pièce : la normalisation de couche}
+
+\begin{definition}[La normalisation de couche, ou LayerNorm][layernorm]
+La \emph{normalisation de couche} remet les nombres d'un jeton à une échelle
+raisonnable. Pour chaque jeton pris séparément, on calcule la moyenne de ses
+nombres, on la retire de chacun, puis on divise le tout par un nombre qui
+mesure à quel point ils s'écartaient de cette moyenne. Après cette
+opération, les nombres du jeton sont centrés autour de zéro et ne sont ni
+minuscules ni gigantesques. On l'appelle presque toujours par son nom
+anglais, \emph{LayerNorm}.
+\end{definition}
+
+\begin{exemple}[Normaliser quatre nombres]
+Un jeton contient les nombres $(2 \ ; \ 4 \ ; \ 6 \ ; \ 8)$.
+
+Sa moyenne vaut $(2+4+6+8)/4 = 20/4 = 5$. On la retire de chacun :
+\[ (-3 \ ; \ -1 \ ; \ 1 \ ; \ 3). \]
+On mesure ensuite de combien les nombres s'écartent en moyenne. On multiplie
+chaque écart par lui-même — c'est ce qu'on appelle l'élever au carré — ce
+qui donne $9$, $1$, $1$, $9$. Multiplier par soi-même sert ici à effacer les
+signes moins, car un nombre négatif multiplié par lui-même devient positif.
+La moyenne de ces carrés vaut $(9+1+1+9)/4 = 5$, et sa racine carrée vaut
+$\sqrt{5} \approx 2{,}236$. On divise :
+\[
+  \left( \frac{-3}{2{,}236} \ ; \ \frac{-1}{2{,}236} \ ; \
+         \frac{1}{2{,}236} \ ; \ \frac{3}{2{,}236} \right)
+  \approx (-1{,}342 \ ; \ -0{,}447 \ ; \ 0{,}447 \ ; \ 1{,}342).
+\]
+
+Les nombres tiennent maintenant à peu près entre $-1{,}5$ et $1{,}5$. Le
+jeton dit toujours la même chose — les rapports entre ses nombres n'ont pas
+changé — mais il le dit à voix normale au lieu de crier ou de chuchoter.
+\end{exemple}
+
+Voilà nos nombres remis d'aplomb. Passons à la pièce qui va s'en servir.
+
+\subsection*{Deuxième pièce : le petit réseau de réflexion}
+
+Après avoir écouté les autres, chaque jeton a besoin d'un moment pour
+digérer ce qu'il vient d'entendre. C'est le rôle du second étage.
+
+\begin{definition}[Le MLP][mlp]
+Un \emph{MLP} est un petit réseau appliqué à chaque jeton séparément, sans
+aucun regard sur les autres. Ces trois lettres viennent de l'anglais
+\emph{Multi-Layer Perceptron}. Ce nom ne vous servira jamais : retenez
+seulement «~petit réseau de réflexion~». Il procède en
+trois temps : il agrandit d'abord la liste de nombres, en général en la
+multipliant par quatre ; il applique ensuite à chaque nombre une petite
+opération de tri appelée \emph{fonction d'activation} ; enfin il ramène la
+liste à sa taille de départ.
+\end{definition}
+
+\begin{definition}[La fonction d'activation][activation]
+Vous connaissez déjà cette pièce, sans connaître son nom. Dans le programme
+du chapitre~\ref{chap:auto-supervision}, nous avions glissé une petite règle
+appelée \co{python}{ReLU}, qui remplaçait par zéro tout nombre négatif et
+laissait passer les autres. Nous avions dit alors que, sans elle, empiler
+deux couches ne servirait à rien.
+
+Cette règle porte un nom de famille : on l'appelle une \emph{fonction
+d'activation}. C'est une opération appliquée à chaque nombre séparément, et
+qui ne se contente pas de le multiplier ou de lui ajouter quelque chose. La
+\co{python}{ReLU} est la plus simple de la famille ; celle qu'emploient les
+transformeurs, la \co{python}{GELU}, arrondit un peu les angles mais rend le
+même service. Sans l'une d'elles, toute la pile de blocs se ramènerait à une
+seule multiplication suivie d'une seule addition.
+\end{definition}
+
+\begin{exemple}[Un MLP en tout petit]
+Prenons un jeton de deux nombres, $(3 \ ; \ -2)$, et un MLP qui agrandit la
+liste en la multipliant par deux, donc qui passe de deux à quatre nombres.
+
+\textbf{On agrandit.} Après le premier calcul, disons que l'on obtient
+\[ (4 \ ; \ -1 \ ; \ 6 \ ; \ -5). \]
+
+\textbf{On trie.} La fonction d'activation remplace les négatifs par zéro :
+\[ (4 \ ; \ 0 \ ; \ 6 \ ; \ 0). \]
+
+Regardez ce qui vient de se passer : deux des quatre mesures ont été
+éteintes, deux sont restées allumées. Le jeton ne réagit donc qu'à certaines
+situations et reste muet devant les autres. C'est exactement ce qu'une suite
+de multiplications ne saurait pas faire.
+
+\textbf{On revient à la taille de départ.} Un dernier calcul ramène ces
+quatre nombres à deux, et le résultat est ajouté au jeton d'origine — nous
+allons voir tout de suite pourquoi.
+\end{exemple}
+
+\begin{intuition}
+L'attention, c'est le moment où l'on discute avec ses voisins. Le MLP, c'est
+le moment où l'on retourne à sa place pour réfléchir tout seul à ce qu'on
+vient d'apprendre. Un bloc de transformeur fait donc alterner, encore et
+encore, un temps de discussion et un temps de réflexion personnelle.
+\end{intuition}
+
+Il nous reste une pièce, la plus discrète des trois, et pourtant celle sans
+laquelle rien ne tiendrait debout.
+
+\subsection*{Troisième pièce : la connexion résiduelle}
+
+\begin{definition}[La connexion résiduelle][residuelle]
+Une \emph{connexion résiduelle} est un raccourci : au lieu de remplacer le
+jeton par le résultat d'un étage, on \emph{ajoute} ce résultat au jeton
+d'origine. L'ancienne valeur n'est donc jamais perdue ; l'étage ne fait
+qu'apporter une correction. On dit aussi \emph{connexion saute-mouton},
+parce que l'information peut sauter par-dessus l'étage.
+\end{definition}
+
+\begin{exemple}[Ce que le raccourci change, en chiffres]
+Un jeton vaut $(3 \ ; \ -2)$ et l'étage qu'il traverse produit
+$(0{,}4 \ ; \ 0{,}1)$.
+
+\textbf{Sans raccourci}, le jeton devient $(0{,}4 \ ; \ 0{,}1)$ : tout ce
+qu'il contenait a disparu, remplacé par le travail de l'étage.
+
+\textbf{Avec raccourci}, on additionne :
+\[ (3 \ ; \ -2) + (0{,}4 \ ; \ 0{,}1) = (3{,}4 \ ; \ -1{,}9). \]
+
+Le jeton est toujours reconnaissable, simplement corrigé un peu. Imaginez
+maintenant quarante-huit étages à la suite : dans le premier cas, il ne reste
+plus rien du jeton de départ après quelques étages ; dans le second, il est
+encore là, augmenté de quarante-huit petites corrections.
+\end{exemple}
+
+\begin{intuition}
+Vous relisez le devoir d'un élève. Vous pouvez soit tout réécrire de votre
+main — et si vous vous trompez, le travail de l'élève est perdu — soit
+écrire vos remarques en marge, à côté de son texte. La connexion résiduelle,
+c'est la deuxième façon de faire. Elle explique pourquoi l'on peut empiler
+quarante-huit blocs les uns sur les autres sans que le message du départ se
+dissolve en chemin.
+\end{intuition}
+
+Assemblons maintenant les trois pièces autour de l'attention.
+
+\begin{schema}{Un bloc de transformeur ouvert en coupe. Le jeton entre par
+le bas. Il passe dans deux étages successifs. Chaque étage commence par une
+normalisation, puis fait son travail — écouter les autres pour le premier,
+réfléchir tout seul pour le second — et son résultat est \emph{ajouté} à ce
+qui entrait dans l'étage, grâce au raccourci dessiné sur le côté. Le jeton
+ressort par le haut, de la même taille qu'à l'entrée.}[bloc-transformeur]
+  \begin{scope}[x=1cm, y=1cm]
+    \node[font=\sffamily\small\bfseries, text=mbSlate] at (0,-0.85)
+         {jeton qui entre};
+    \draw[fleche] (0,-0.55) -- (0,0.15);
+
+    %---- premier étage : le jeton écoute les autres ------------------
+    \node[bloc, minimum width=48mm, text width=42mm] (n1) at (0,0.7)
+         {normalisation};
+    \node[bloc calcul, minimum width=48mm, text width=42mm] (a1) at (0,2.3)
+         {attention multi-têtes};
+    \node[circle, draw=mbAmber!85!black, fill=mbAmber!12, line width=0.9pt,
+          minimum size=8mm, inner sep=0pt, font=\small] (s1) at (0,3.9) {$+$};
+
+    \draw[fleche] (n1) -- (a1);
+    \draw[fleche] (a1) -- (s1);
+    \draw[fleche accent] (-3.5,0.15) -- (-3.5,3.9) -- (s1);
+    \draw[draw=mbSlate!45, line width=0.6pt] (0,0.15) -- (-3.5,0.15);
+    \node[annotation, rotate=90] at (-3.82,2.05) {raccourci};
+
+    %---- second étage : le jeton réfléchit tout seul -----------------
+    \node[bloc, minimum width=48mm, text width=42mm] (n2) at (0,5.3)
+         {normalisation};
+    \node[bloc calcul, minimum width=48mm, text width=42mm] (a2) at (0,6.9)
+         {petit réseau de réflexion};
+    \node[circle, draw=mbAmber!85!black, fill=mbAmber!12, line width=0.9pt,
+          minimum size=8mm, inner sep=0pt, font=\small] (s2) at (0,8.5) {$+$};
+
+    \draw[fleche] (s1) -- (n2);
+    \draw[fleche] (n2) -- (a2);
+    \draw[fleche] (a2) -- (s2);
+    \draw[fleche accent] (-3.5,4.65) -- (-3.5,8.5) -- (s2);
+    \draw[draw=mbSlate!45, line width=0.6pt] (0,4.65) -- (-3.5,4.65);
+    \node[annotation, rotate=90] at (-3.82,6.6) {raccourci};
+
+    \draw[fleche] (s2) -- (0,9.3);
+    \node[font=\sffamily\small\bfseries, text=mbSlate] at (0,9.6)
+         {jeton qui sort};
+
+    %---- les bulles, posées à distance des cadres --------------------
+    \node[annotation bulle, text width=2.9cm, anchor=west] at (3.1,2.3)
+         {ici, le jeton\\ discute avec\\ les autres};
+    \node[annotation bulle, text width=2.9cm, anchor=west] at (3.1,6.9)
+         {ici, il réfléchit\\ tout seul};
+  \end{scope}
+\end{schema}
+
+\begin{definition}[Le bloc de transformeur][bloc-transformeur]
+Un \emph{bloc de transformeur} est l'ensemble que nous venons d'assembler :
+une normalisation puis une attention multi-têtes, le tout ajouté à l'entrée ;
+puis une normalisation puis un petit réseau de réflexion, le tout ajouté de
+nouveau. Un bloc reçoit une file de jetons et rend une file de jetons de la
+même taille. C'est pour cela qu'on peut en empiler autant qu'on veut.
+\end{definition}
+
+\begin{exemple}[Un bloc, en chiffres]
+Donnons à un bloc les $2\,048$ jetons d'un clip de la phase principale,
+chacun fait de $1\,024$ nombres. À la sortie, nous récupérons encore
+$2\,048$ jetons de $1\,024$ nombres.
+
+Rien n'a changé en taille, tout a changé en contenu : chaque jeton a écouté
+les $2\,047$ autres, puis a réfléchi de son côté. Comme l'entrée et la
+sortie ont exactement la même forme, on peut brancher la sortie de ce bloc
+sur l'entrée du suivant, sans le moindre ajustement. C'est ce détail, et lui
+seul, qui rend les empilements possibles.
+\end{exemple}
+
+Et c'est justement ce que l'on fait dans la section suivante.
+
+\section{Empiler les blocs : la profondeur et les quatre tailles}
+
+\begin{enclair}
+On met les blocs les uns au-dessus des autres, et la file de jetons les
+traverse tous. Le nombre de blocs empilés s'appelle la profondeur. Plus on
+monte, plus ce que voient les jetons devient général.
+\end{enclair}
+
+\begin{definition}[La profondeur][profondeur]
+La \emph{profondeur} d'un transformeur est le nombre de blocs empilés les uns
+sur les autres. Les jetons traversent le premier bloc, puis le deuxième, et
+ainsi de suite jusqu'au dernier. Chaque bloc reçoit le travail du précédent.
+\end{definition}
+
+Ce qui se passe le long de cette pile vaut la peine qu'on s'y arrête, et
+nous nous en servirons énormément dans la partie~IV. Les premiers blocs
+repèrent des choses très simples : un bord, un changement de couleur, un
+léger déplacement. Les blocs du milieu assemblent ces petites choses en
+morceaux reconnaissables : un coin, une roue, une main. Les derniers blocs
+assemblent ces morceaux en idées complètes : une voiture, quelqu'un qui
+verse de l'eau.
+
+\begin{schema}{Ce que voient les blocs, du bas vers le haut. En bas, on
+repère des traits. Un peu plus haut, des coins. Plus haut encore, des
+morceaux d'objets. Tout en haut, l'objet entier et l'action. C'est cette
+montée en généralité qui explique pourquoi, plus tard, nous aurons parfois
+envie d'aller chercher des informations à mi-hauteur plutôt qu'au
+sommet.}[montee-blocs]
+  \begin{scope}[x=1cm, y=1cm]
+    \foreach \k/\nom/\quoi in {
+      0/{blocs du bas}/{des traits},
+      1/{blocs du milieu}/{des coins},
+      2/{blocs du haut}/{des roues, des mains},
+      3/{dernier bloc}/{une voiture, un geste}}{
+      \pgfmathsetmacro{\yy}{\k*1.35}
+      \pgfmathtruncatemacro{\tone}{12+16*\k}
+      \node[rectangle, rounded corners=2.5pt, draw=mbBlue, fill=mbBlue!\tone,
+            line width=0.8pt, minimum width=38mm, minimum height=9mm,
+            font=\sffamily\small, text=mbInk] (b\k) at (0,\yy) {\nom};
+      \node[font=\sffamily\small, text=mbSlate, anchor=west] at (2.4,\yy)
+           {il y voit \quoi};
+    }
+    \draw[fleche] (b0) -- (b1);
+    \draw[fleche] (b1) -- (b2);
+    \draw[fleche] (b2) -- (b3);
+    \draw[fleche accent] (-2.5,-0.55) -- (-2.5,4.6);
+    \node[annotation, rotate=90] at (-2.85,2.0) {de plus en plus général};
+  \end{scope}
+\end{schema}
+
+\begin{piege}
+Cette montée en généralité a un revers, et c'est exactement le problème que
+V-JEPA~2.1 vient résoudre. Si le sommet ne parle plus que d'idées générales,
+il a pu oublier \emph{où} les choses se trouvaient. Or pour dire à quelle
+distance est chaque pixel, on a justement besoin du «~où~». Gardez cette
+tension en tête : elle est le sujet de toute la partie~III.
+\end{piege}
+
+\begin{piege}
+Il faut maintenant corriger une image que nous vous avions donnée au
+chapitre~\ref{chap:auto-supervision}. Nous y avions dessiné l'encodeur comme
+un \emph{entonnoir} : beaucoup de nombres entrent, un petit paquet sort. Cette
+image était commode pour comprendre l'idée de résumé, mais elle est trop
+simple.
+
+La vérité, vous venez de la voir : l'encodeur ne rend pas \emph{un} paquet
+pour toute l'image. Il rend \emph{un paquet par jeton}. Un clip de la phase
+principale entre avec $2\,048$ jetons, et il ressort avec $2\,048$ jetons,
+un pour chaque endroit du clip. L'entonnoir n'a pas rétréci la file : il a
+rétréci chaque morceau, chacun de son côté.
+
+Retenez bien cette différence, car tout le livre repose dessus. S'il vous
+faut une seule réponse pour toute la vidéo — « que se passe-t-il ici ? » —
+il faudra mélanger ces $2\,048$ paquets en un seul. Mais s'il vous faut une
+réponse \emph{par endroit} — « à quelle distance est ce pixel-là ? » — il
+faudra que chaque paquet, pris tout seul, décrive bien son propre morceau.
+Ces deux besoins tirent le modèle dans des directions différentes, et c'est
+précisément le conflit que raconte la partie~III.
+\end{piege}
+
+Combien de blocs empile-t-on, et de quelle taille ? La communauté s'est mise
+d'accord sur quelques tailles standards, désignées par une lettre. V-JEPA~2.1
+en emploie quatre.
+
+\begin{surlesdonnees}
+Les quatre tailles employées dans l'article, de la plus petite à la plus
+grande :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llrl}
+\toprule
+\textbf{Nom} & \textbf{Se lit} & \textbf{Boutons} & \textbf{Rôle dans l'article} \\
+\midrule
+ViT-B & «~bé~», pour \emph{Base}     & $80$ M            & le petit modèle de service \\
+ViT-L & «~èl~», pour \emph{Large}    & $300$ M           & le modèle des essais \\
+ViT-g & «~gé~» minuscule, \emph{giant} & $1$ milliard    & la taille de V-JEPA~2 \\
+ViT-G & «~gé~» majuscule, \emph{Giant} & $2$ milliards   & le grand modèle final \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Les deux plus petits ne sont pas entraînés depuis le début : ils apprennent
+en copiant le grand, par un procédé appelé \emph{distillation} que nous
+verrons au chapitre~15. Retenez seulement, pour l'instant, qu'un petit modèle
+peut hériter de presque toute la qualité d'un grand.
+
+Attention à la lettre \textbf{g}~: la minuscule et la majuscule désignent
+deux modèles différents, et l'article emploie les deux à quelques lignes
+d'écart. Le grand modèle final, celui qui obtient tous les meilleurs
+résultats, est le ViT-G majuscule et compte $48$ blocs empilés. Nous le
+savons parce que l'article indique qu'il va chercher des informations aux
+blocs numéro $12$, $24$, $36$ et $48$ — nous verrons au
+chapitre~11 pourquoi il fait cela.
+\end{surlesdonnees}
+
+\begin{exemple}[Ce que «~deux milliards de boutons~» veut dire]
+Reprenez le chapitre~\ref{chap:apprendre} : un bouton, c'est un nombre que
+l'entraînement règle. Le ViT-G en possède deux milliards. Si vous les
+imprimiez à raison de cinquante nombres par ligne et cinquante lignes par
+page, il vous faudrait huit cent mille pages, soit une pile de papier de
+quatre-vingts mètres de haut. Et l'entraînement les règle \emph{tous},
+$147\,000$ fois de suite.
+
+C'est aussi pour cela que nous consacrerons tout le chapitre~15 à rétrécir
+ce modèle : personne ne veut faire tourner quatre-vingts mètres de papier
+dans un serveur, et l'article montre comment ramener presque toute cette
+qualité dans un modèle six fois plus petit.
+\end{exemple}
+
+Il nous reste une dernière chose à regarder en face avant de coder : le prix
+de tout cela.
+
+\section{Ce que l'attention coûte vraiment}
+
+\begin{enclair}
+Dans un transformeur, le nombre de jetons est le bouton le plus important
+pour la vitesse. Le doubler ne double pas le travail : il le multiplie par
+quatre. C'est la première chose à regarder quand on choisit une résolution.
+\end{enclair}
+
+Nous l'avons dit au début du chapitre, mais nous pouvons maintenant le dire
+avec de vrais chiffres. Dans l'attention, chaque jeton compare sa question à
+la clé de tous les autres. Avec $n$ jetons, cela fait $n \times n$
+comparaisons.
+
+\begin{exemple}[Le prix des deux configurations de V-JEPA 2.1]
+Phase principale, $2\,048$ jetons :
+\[ 2\,048 \times 2\,048 = 4\,194\,304 \text{ comparaisons.} \]
+
+Phase de refroidissement, $18\,432$ jetons :
+\[ 18\,432 \times 18\,432 = 339\,738\,624 \text{ comparaisons.} \]
+
+Le rapport vaut
+\[ \frac{339\,738\,624}{4\,194\,304} = 81 . \]
+
+Quatre-vingt-une fois plus de travail, et cela dans \emph{chacun} des
+quarante-huit blocs. Voilà le chiffre qui explique tout le calendrier de
+l'entraînement décrit dans l'article.
+\end{exemple}
+
+\begin{aretenir}
+Retenez la règle du praticien : \textbf{ce que vous paierez suit à peu près
+le carré du nombre de jetons}. Quand votre modèle sera trop lent
+en service, le premier bouton à tourner ne sera ni le processeur ni la
+bibliothèque : ce sera la résolution d'entrée, parce que c'est elle qui
+décide du nombre de jetons. Nous referons ce calcul, pour de vrai, au
+chapitre~29.
+\end{aretenir}
+
+Nous avons monté l'œil de la machine en entier. Vérifions maintenant, avec
+un programme, que tout ce que nous avons calculé à la main est bien ce qui se
+passe pour de vrai.
+
+\section{Passons au code}
+
+Nous allons écrire quatre petits programmes. Les deux premiers découpent une
+image et un clip en jetons, et retrouvent les quatre nombres du tableau. Le
+troisième refait, ligne par ligne, l'exemple d'attention calculé à la main.
+Le quatrième assemble un bloc de transformeur complet. Vous pouvez les taper
+tels quels : ils tournent sur n'importe quel ordinateur, même sans le
+processeur spécialisé dont les gros entraînements ont besoin.
+
+Commençons par le découpage. Comme annoncé, on l'obtient avec une
+convolution dont la fenêtre et le pas ont la même taille.
+
+\begin{code}{python}[Découper une image et un clip en jetons]
+import torch
+import torch.nn as nn
+
+# --- La voie image : une convolution 2D de 16 x 16, qui avance de 16 ---
+tokeniseur_image = nn.Conv2d(
+    in_channels=3,       # les trois couleurs
+    out_channels=1024,   # la taille d'un jeton
+    kernel_size=16,      # la fenetre : un patch de 16 x 16
+    stride=16,           # elle avance de 16 : aucun chevauchement
+)
+
+image = torch.zeros(1, 3, 256, 256)          # (lot, couleurs, hauteur, largeur)
+sortie = tokeniseur_image(image)             # -> (1, 1024, 16, 16)
+jetons_image = sortie.flatten(2).transpose(1, 2)
+
+print(jetons_image.shape)   # -> torch.Size([1, 256, 1024])
+# 256 jetons : c'est bien le nombre calcule a la main.
+
+# --- La voie video : une convolution 3D, avec 2 images d'epaisseur ---
+tokeniseur_video = nn.Conv3d(
+    in_channels=3,
+    out_channels=1024,
+    kernel_size=(2, 16, 16),   # (tubelet, hauteur, largeur)
+    stride=(2, 16, 16),
+)
+
+clip = torch.zeros(1, 3, 16, 256, 256)       # (lot, couleurs, temps, H, W)
+sortie = tokeniseur_video(clip)              # -> (1, 1024, 8, 16, 16)
+jetons_video = sortie.flatten(2).transpose(1, 2)
+
+print(jetons_video.shape)   # -> torch.Size([1, 2048, 1024])
+# 2048 jetons : 8 x 16 x 16, exactement notre calcul.
+\end{code}
+
+\begin{piege}
+Regardez bien l'ordre des axes : PyTorch attend les couleurs en deuxième
+position, pas en dernière. C'est le changement d'ordre que nous avions déjà
+rencontré au chapitre~\ref{chap:image-video}. Si vous lui donnez un tenseur
+rangé dans l'ordre de l'affichage, il ne se plaindra pas toujours : il
+calculera quelque chose de faux, en silence. Prenez l'habitude d'afficher la
+forme avant et après chaque étape.
+\end{piege}
+
+Vérifions maintenant les quatre nombres du tableau, tous d'un coup.
+
+\begin{code}{python}[Vérifier les quatre nombres de jetons]
+def compte_jetons(images, hauteur, largeur, patch=16, tubelet=2):
+    """Rend le nombre de jetons. Mettre images=None pour une image seule."""
+    n = (hauteur // patch) * (largeur // patch)
+    if images is not None:
+        n = n * (images // tubelet)
+    return n
+
+print(compte_jetons(None, 256, 256))   # -> 256
+print(compte_jetons(None, 512, 512))   # -> 1024
+print(compte_jetons(16,  256, 256))    # -> 2048
+print(compte_jetons(64,  384, 384))    # -> 18432
+
+# Et le prix de l'attention, qui grimpe au carre :
+print(18432**2 / 2048**2)              # -> 81.0
+\end{code}
+
+Passons à l'attention. Nous reprenons exactement les nombres de l'exemple
+calculé à la main : vous devez retrouver les mêmes parts, à la troisième
+décimale.
+
+\begin{code}{python}[L'attention, refaite avec nos nombres]
+import torch
+
+# Notre question, puis les cles et les contenus de fourrure, oreille, flaque.
+q = torch.tensor([2.0, 0.0, 0.0, 0.0])
+k = torch.tensor([[2.0, 0.0, 0.0, 0.0],    # fourrure
+                  [4.0, 0.0, 0.0, 0.0],    # oreille
+                  [0.0, 3.0, 0.0, 0.0]])   # flaque
+v = torch.tensor([[10.0,  0.0,  0.0, 0.0],
+                  [ 0.0, 10.0,  0.0, 0.0],
+                  [ 0.0,  0.0, 10.0, 0.0]])
+
+scores = k @ q                      # les produits scalaires
+print(scores)                       # -> tensor([4., 8., 0.])
+
+scores = scores / (q.shape[0] ** 0.5)   # on divise par racine de 4, donc par 2
+print(scores)                       # -> tensor([2., 4., 0.])
+
+poids = torch.softmax(scores, dim=0)
+print(poids)                        # -> tensor([0.1173, 0.8668, 0.0159])
+print(poids.sum())                  # -> tensor(1.)
+
+resultat = poids @ v
+print(resultat)                     # -> tensor([1.1731, 8.6681, 0.1588, 0.])
+\end{code}
+Les trois parts sont bien $0{,}117$, $0{,}867$ et $0{,}016$, dans cet ordre,
+et le résultat est bien celui que nous avions trouvé à la main. Le programme
+ne fait rien d'autre que ce que nous avons écrit sur le papier.
+
+Terminons par un bloc de transformeur complet. Comptez les lignes : il n'y
+en a pas vingt. Tout ce chapitre tient là-dedans.
+
+\begin{code}{python}[Un bloc de transformeur, en entier]
+import torch
+import torch.nn as nn
+
+class BlocTransformeur(nn.Module):
+    def __init__(self, dimension=1024, nb_tetes=16):
+        super().__init__()
+        self.norme1 = nn.LayerNorm(dimension)
+        self.attention = nn.MultiheadAttention(
+            dimension, nb_tetes, batch_first=True)
+        self.norme2 = nn.LayerNorm(dimension)
+        self.reflexion = nn.Sequential(
+            nn.Linear(dimension, 4 * dimension),   # on agrandit
+            nn.GELU(),                             # la fonction d'activation
+            nn.Linear(4 * dimension, dimension),   # on revient a la taille de depart
+        )
+
+    def forward(self, jetons):
+        # Premier etage : on ecoute les autres, et on AJOUTE le resultat.
+        propre = self.norme1(jetons)
+        ecoute, _ = self.attention(propre, propre, propre)
+        jetons = jetons + ecoute
+
+        # Second etage : on reflechit tout seul, et on AJOUTE encore.
+        jetons = jetons + self.reflexion(self.norme2(jetons))
+        return jetons
+
+bloc = BlocTransformeur()
+jetons = torch.zeros(1, 2048, 1024)     # un clip de la phase principale
+print(bloc(jetons).shape)               # -> torch.Size([1, 2048, 1024])
+
+# La taille ne change pas : c'est ce qui permet d'empiler 48 blocs.
+encodeur = nn.Sequential(*[BlocTransformeur() for _ in range(48)])
+\end{code}
+
+\begin{piege}
+Repérez les deux \co{python}{jetons = jetons + ...} : ce sont les connexions
+résiduelles. Si vous écrivez \co{python}{jetons = ecoute} au lieu de
+\co{python}{jetons = jetons + ecoute}, le programme tournera sans erreur,
+mais l'entraînement d'un modèle profond ne convergera jamais. C'est l'une
+des erreurs les plus fréquentes, et l'une des plus difficiles à repérer,
+parce que rien ne casse : les résultats sont simplement mauvais.
+\end{piege}
+
+\begin{aretenir}
+Un transformeur de vision, c'est quatre gestes et rien de plus. On découpe
+l'image ou la vidéo en petits morceaux. On remplace chaque morceau par une
+liste de nombres, dans laquelle on inscrit aussi sa position. On empile des
+blocs, où les jetons discutent entre eux puis réfléchissent chacun de leur
+côté. Et l'on récupère à la sortie une file de jetons de la même taille
+qu'à l'entrée, mais dont chacun a été enrichi par tous les autres.
+\end{aretenir}
+
+\vspace{0.5em}
+
+Nous avons maintenant tout ce qu'il faut. Nous savons ce qu'est une image
+pour une machine, ce que veut dire apprendre, comment jouer au jeu des trous
+sans étiquettes, et de quoi est fait l'œil qui regarde. Ces quatre chapitres
+formaient les fondations, et elles sont posées.
+
+Une seule question reste en suspens, celle que nous avions laissée à la fin
+du chapitre~\ref{chap:auto-supervision} : quand la machine devine ce qui est
+caché, doit-elle deviner les pixels, ou l'idée ? La réponse à cette question
+porte un nom, JEPA, et c'est par elle que s'ouvre la partie~II.
+
+\phantomsection
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Compter des jetons]
+Vous donnez au modèle une image de $768 \times 768$ pixels, avec des patchs
+de $16$. Combien de jetons obtenez-vous ? Et un clip de $32$ images en
+$256 \times 256$, avec des tubelets de $2$ ?
+\end{exercice}
+
+\begin{solution}
+Pour l'image : $768 / 16 = 48$ sur chaque côté, donc
+$48 \times 48 = 2\,304$ jetons.
+
+Pour le clip : $32 / 2 = 16$ tranches de temps, et $256/16 = 16$ patchs sur
+chaque côté, donc $16 \times 16 \times 16 = 4\,096$ jetons. Remarquez que ce
+clip coûte $(4\,096 / 2\,048)^2 = 4$ fois plus cher qu'un clip de la phase
+principale, alors qu'il ne contient que deux fois plus d'images.
+\end{solution}
+
+\begin{exercice}[Choisir une résolution sous contrainte]
+Votre serveur ne peut pas dépasser $5\,000$ jetons par clip. Vous voulez des
+clips de $16$ images. Quelle est la plus grande résolution carrée, multiple
+de $16$, que vous pouvez vous permettre ?
+\end{exercice}
+
+\begin{solution}
+Avec $16$ images et des tubelets de $2$, il y a $8$ tranches de temps. Le
+budget par tranche vaut donc $5\,000 / 8 = 625$ patchs. Comme l'image est
+carrée, il faut au plus $\sqrt{625} = 25$ patchs de côté, ce qui donne
+$25 \times 16 = 400$ pixels. Et $400$ est bien un multiple de $16$ :
+la réponse est donc $400 \times 400$, qui consomme
+$8 \times 25 \times 25 = 5\,000$ jetons, exactement le budget.
+
+Un mot de prudence, quand même. Tomber pile sur la limite ne laisse aucune
+marge, et l'article, lui, a retenu $384 \times 384$ pour ses vidéos, ce qui
+donne $8 \times 24 \times 24 = 4\,608$ jetons. Choisir la résolution juste
+en dessous de son plafond est une habitude qui évite bien des mauvaises
+surprises le jour où le serveur est chargé.
+\end{solution}
+
+\begin{exercice}[Répartir entre les têtes]
+Un modèle a des jetons de $1\,408$ nombres et $22$ têtes d'attention.
+Combien de nombres chaque tête reçoit-elle ? Que se passerait-il avec $20$
+têtes ?
+\end{exercice}
+
+\begin{solution}
+Avec $22$ têtes : $1\,408 / 22 = 64$ nombres chacune. Le compte tombe juste.
+
+Avec $20$ têtes : $1\,408 / 20 = 70{,}4$, ce qui n'est pas un nombre entier.
+On ne peut pas donner $70{,}4$ nombres à une tête. La bibliothèque refusera
+de construire le modèle. C'est pour cela que le nombre de têtes doit toujours
+diviser exactement la taille du jeton.
+\end{solution}
+
+\begin{exercice}[Une softmax à la main]
+Trois scores valent $1$, $1$ et $3$. Calculez les trois parts. Que
+remarquez-vous sur les deux premières ?
+\end{exercice}
+
+\begin{solution}
+Les exponentielles valent $e^1 \approx 2{,}718$, $e^1 \approx 2{,}718$ et
+$e^3 \approx 20{,}086$. Leur somme vaut $25{,}522$. Les parts valent donc
+
+\[
+  \frac{2{,}718}{25{,}522} \approx 0{,}106, \qquad
+  \frac{2{,}718}{25{,}522} \approx 0{,}106, \qquad
+  \frac{20{,}086}{25{,}522} \approx 0{,}787 .
+\]
+
+Les deux premières sont égales, ce qui est normal : elles avaient le même
+score. Et l'on voit l'effet de l'exponentielle : le score $3$ n'est que trois
+fois plus grand que le score $1$, mais il récolte sept fois et demie plus de
+part, puisque $0{,}787 / 0{,}106 \approx 7{,}4$. La softmax écarte bel et
+bien les grands des petits.
+\end{solution}
+
+\begin{exercice}[Le mélange des positions]
+Un collègue vous dit : «~j'ai mélangé l'ordre de mes jetons avant de les
+donner au modèle, mais comme ils contiennent tous la même information
+qu'avant, cela ne change rien~». A-t-il raison ?
+\end{exercice}
+
+\begin{solution}
+Il a raison sur un point et tort sur l'essentiel. L'attention traite bien la
+file comme un sac : à elle seule, elle rendrait le même résultat.
+
+Mais les jetons ne contiennent pas que leur contenu : l'encodage de position
+y a inscrit l'endroit d'où ils viennent. En mélangeant la file, il a donc
+associé chaque morceau à une mauvaise adresse. Pour le modèle, c'est comme
+si l'on avait recollé les pièces du puzzle au hasard : les pièces sont
+justes, le dessin ne l'est plus. Le résultat sera faux, et sans le moindre
+message d'erreur.
+\end{solution}
+
+\begin{exercice}[Le prix de la finesse]
+Un ingénieur propose de passer les patchs de $16$ à $8$ pixels, «~pour voir
+plus de détails~», en gardant des images de $256 \times 256$. Par combien le
+travail de l'attention est-il multiplié ?
+\end{exercice}
+
+\begin{solution}
+Avec des patchs de $16$, on avait $16 \times 16 = 256$ jetons. Avec des
+patchs de $8$, on obtient $256/8 = 32$ patchs de côté, donc
+$32 \times 32 = 1\,024$ jetons : quatre fois plus.
+
+Comme le coût grimpe au carré, le travail est multiplié par
+$4 \times 4 = 16$. Sa proposition améliorera sans doute la finesse, mais elle
+coûtera seize fois plus cher. C'est un choix parfaitement défendable — à
+condition de le faire les yeux ouverts, et de vérifier que le gain de qualité
+vaut la dépense.
+\end{solution}
