@@ -1,0 +1,1373 @@
+\chapter{L'idée JEPA : deviner l'idée, pas les pixels}
+\label{chap:idee-jepa}
+
+\begin{quote}\itshape
+Nous avons laissé une question en suspens à la fin de la partie~I. Quand la
+machine cache un morceau de ce qu'elle regarde et essaie de le deviner,
+que doit-elle deviner au juste~? Les pixels qui manquent, un par un~? Ou
+bien autre chose~? Ce chapitre répond à cette question, et la réponse est
+le cœur de tout le reste du livre. Nous allons monter, pièce par pièce, la
+machine qui porte cette réponse. Elle s'appelle JEPA.
+\end{quote}
+
+\begin{prerequis}
+Les quatre chapitres de la partie~I, et rien d'autre. Il faut savoir qu'une
+image est une grille de nombres (chapitre~\ref{chap:image-video})~; qu'un
+modèle possède des boutons que l'on tourne pour faire baisser une erreur
+(chapitre~\ref{chap:apprendre})~; qu'on peut apprendre sans étiquettes en
+cachant un morceau de l'image, et qu'un encodeur transforme une image en un
+petit paquet de nombres appelé représentation
+(chapitre~\ref{chap:auto-supervision})~; et enfin comment une image devient
+une file de jetons qui discutent entre eux
+(chapitre~\ref{chap:vit}). Les seules opérations employées ici seront
+l'addition, la soustraction, la multiplication et la division.
+\end{prerequis}
+
+Au chapitre~\ref{chap:auto-supervision}, nous avons trouvé un moyen
+d'apprendre sans que personne n'écrive la bonne réponse~: on cache un
+morceau de l'image, et on demande à la machine de deviner ce qui manque.
+C'était une belle idée, et elle marchait déjà sur notre petit monde de huit
+cases sur huit.
+
+Puis, à la fin de ce même chapitre, nous avons buté sur une question que
+nous avons laissée ouverte~: fallait-il deviner les \emph{pixels} cachés, ou
+seulement \emph{l'idée} de ce qui manquait~? Nous avions même donné un avant-goût
+de la réponse, et lâché un nom~: JEPA. Le moment est venu de tenir cette
+promesse. Nous allons reprendre cette question, la trancher pour de bon, et
+surtout monter la machine qui en découle.
+
+\section{Deviner les pixels, ou deviner l'idée}
+
+\begin{enclair}
+Quand on cache un morceau d'image, on peut demander deux choses très
+différentes à la machine. Soit on lui demande de \emph{redessiner} le
+morceau manquant, pixel par pixel, comme un peintre qui refait un bout de
+tableau. Soit on lui demande seulement de \emph{décrire} ce qu'il y avait,
+comme quelqu'un qui dirait «~là, il y avait de l'herbe~». La première
+demande est terriblement difficile. La seconde est raisonnable. V-JEPA
+choisit la seconde.
+\end{enclair}
+
+Reprenons la pelouse du chapitre~\ref{chap:auto-supervision}. On a une photo
+de jardin, on cache un carré au milieu, et ce carré tombe sur l'herbe.
+Posons cette fois les deux questions côte à côte, bien en face l'une de
+l'autre.
+
+\textbf{Première question, celle du peintre.} «~Redessine-moi ce carré,
+exactement comme il était.~» Nous savons déjà où cela mène~: il faudrait
+retrouver chaque brin d'herbe, celui qui penche à gauche, celui qui est un
+peu jauni, la petite ombre entre les deux. Ces détails-là ne se déduisent de
+rien, ils sont le fruit du hasard, et la machine s'épuiserait à deviner ce
+qui ne peut pas se deviner.
+
+\textbf{Deuxième question, celle du témoin.} «~Dis-moi seulement ce qu'il y
+avait dans ce carré.~» Cette fois, la machine peut répondre~: «~de l'herbe, verte, en
+pleine lumière, et c'est la suite de la pelouse d'à côté~». Cette réponse-là,
+elle peut la trouver. Elle est même obligée de comprendre la scène pour la
+trouver. Et surtout, elle a le droit de \emph{ne pas savoir} où était
+exactement chaque brin d'herbe, parce qu'on ne le lui demande pas.
+
+\begin{intuition}
+Imaginez qu'un ami vous téléphone depuis une pièce que vous ne voyez pas, et
+qu'il vous demande de deviner ce qu'il y a derrière lui. Si vous devez dire
+«~il y a une bibliothèque, avec des livres~», vous avez une chance de tomber
+juste. Si vous devez dire le titre exact de chaque livre, dans l'ordre, vous
+n'avez aucune chance. Le premier jeu vous apprend à réfléchir. Le second
+ne vous apprend rien~: il vous fait seulement perdre à tous les coups.
+\end{intuition}
+
+\begin{definition}[Méthode générative][generative]
+Une méthode est dite \emph{générative} quand elle demande au modèle de
+reconstruire l'entrée elle-même, c'est-à-dire de ressortir des pixels. Le
+mot vient de «~générer~», qui veut dire «~fabriquer~». On compare alors les
+pixels fabriqués aux vrais pixels.
+\end{definition}
+
+\begin{definition}[Méthode prédictive dans l'espace latent][predictif-latent]
+Une méthode est dite \emph{prédictive dans l'espace latent} quand elle
+demande au modèle de prédire, non pas les pixels, mais la
+\emph{représentation} de la zone manquante — c'est-à-dire le petit paquet de
+nombres qui la résume. On rappelle que l'\emph{espace latent} est simplement
+le nom savant du monde des représentations~: l'endroit où vivent ces paquets
+de nombres, une fois que l'encodeur a fait son travail
+(chapitre~\ref{chap:auto-supervision}).
+\end{definition}
+
+Voilà les deux chemins nommés. Le chapitre~\ref{chap:auto-supervision} nous
+avait mis sur la piste du second~; nous savons maintenant comment il
+s'appelle, et la figure~\ref{fig:jepa-deux-voies} les met côte à côte pour
+qu'on ne les confonde plus jamais.
+
+\begin{schema}{Les deux façons de remplir un trou. En haut, la méthode
+générative redessine les pixels, et doit donc inventer chaque brin d'herbe.
+En bas, la méthode JEPA se contente de décrire ce qui manquait, avec un
+petit paquet de nombres.}[jepa-deux-voies]
+
+% ---------- Ligne du haut : la voie générative ----------
+\node[font=\sffamily\bfseries\scriptsize, text=mbInk, anchor=west]
+      at (0,2.05) {La façon du peintre : redessiner les pixels};
+
+\fill[mbAzure!18] (0,0.8) rectangle (2.2,1.6);
+\fill[mbGreen!30] (0,0)   rectangle (2.2,0.8);
+\draw[mbSlate, line width=0.7pt] (0,0) rectangle (2.2,1.6);
+\fill[mbSlate!25] (0.75,0.4) rectangle (1.45,1.1);
+\draw[mbSlate, dashed, line width=0.7pt] (0.75,0.4) rectangle (1.45,1.1);
+\node[font=\sffamily\scriptsize, text=mbSlate] at (1.1,-0.35) {la photo trouée};
+
+\draw[fleche] (2.45,0.8) -- (3.65,0.8);
+\node[etiquette] at (3.05,1.1) {on redessine};
+
+\fill[mbAzure!18] (3.9,0.8) rectangle (6.1,1.6);
+\fill[mbGreen!30] (3.9,0)   rectangle (6.1,0.8);
+\draw[mbSlate, line width=0.7pt] (3.9,0) rectangle (6.1,1.6);
+\fill[mbGreen!30] (4.65,0.4) rectangle (5.35,1.1);
+\draw[mbGreen!60!black, line width=0.6pt] (4.65,0.4) rectangle (5.35,1.1);
+\foreach \k in {0,1,...,6}{
+  \draw[draw=mbGreen!70!black, line width=0.5pt]
+        (4.72+\k*0.09, 0.45) -- (4.67+\k*0.09, 0.95);
+}
+\node[font=\sffamily\scriptsize, text=mbSlate] at (5,-0.35) {chaque brin inventé};
+
+\node[annotation bulle, align=center, anchor=west] at (7.05,0.8)
+     {il faudrait deviner\\ce qui ne se devine pas};
+\draw[trait annotation] (6.3,0.8) -- (6.95,0.8);
+
+% ---------- Ligne du bas : la voie JEPA ----------
+\begin{scope}[yshift=-3.3cm]
+\node[font=\sffamily\bfseries\scriptsize, text=mbInk, anchor=west]
+      at (0,2.05) {La façon de JEPA : décrire l'idée};
+
+\fill[mbAzure!18] (0,0.8) rectangle (2.2,1.6);
+\fill[mbGreen!30] (0,0)   rectangle (2.2,0.8);
+\draw[mbSlate, line width=0.7pt] (0,0) rectangle (2.2,1.6);
+\fill[mbSlate!25] (0.75,0.4) rectangle (1.45,1.1);
+\draw[mbSlate, dashed, line width=0.7pt] (0.75,0.4) rectangle (1.45,1.1);
+\node[font=\sffamily\scriptsize, text=mbSlate] at (1.1,-0.35) {la photo trouée};
+
+\draw[fleche accent] (2.45,0.8) -- (3.65,0.8);
+\node[etiquette] at (3.05,1.1) {on décrit};
+
+\draw[fill=mbAmber!12, draw=mbAmber!80!black, line width=0.6pt]
+      (3.95,0.35) circle (2pt);
+\draw[fill=mbAmber!12, draw=mbAmber!80!black, line width=0.6pt]
+      (4.2,0.6) circle (3.5pt);
+\node[cloud, cloud puffs=13, cloud puff arc=110, aspect=1.9,
+      draw=mbAmber!80!black, fill=mbAmber!12, line width=0.7pt,
+      minimum width=3cm, minimum height=1.7cm,
+      font=\sffamily\scriptsize, text=mbInk] (nuage) at (5.2,1.05)
+     {$0{,}8$ \ $-0{,}3$ \ $1{,}2$};
+\node[font=\sffamily\scriptsize, text=mbSlate] at (5.2,-0.35)
+     {un petit paquet de nombres};
+
+\node[annotation bulle, align=center, anchor=west] at (7.05,0.95)
+     {« de l'herbe verte,\\en pleine lumière » :\\c'est faisable};
+\draw[trait annotation] (6.6,0.95) -- (6.95,0.95);
+\end{scope}
+\end{schema}
+
+\begin{piege}
+Une erreur revient tout le temps, alors autant l'écarter tout de suite~: on
+croit souvent que la voie JEPA est meilleure parce qu'elle aurait
+\emph{moins de nombres} à deviner. C'est faux, et il faut le savoir. Un
+carré de $64 \times 64$ pixels en couleur, cela fait
+$64 \times 64 \times 3 = 12\,288$ nombres à redessiner. La représentation de
+ce même carré peut très bien en contenir davantage. Ce n'est donc pas une
+question de \emph{quantité}. C'est une question de \emph{nature}~: les
+pixels sont imposés de l'extérieur, avec leur part de hasard, alors que la
+représentation est fabriquée par la machine elle-même, qui a donc le droit
+de laisser de côté ce qui n'est pas devinable.
+\end{piege}
+
+\begin{aretenir}
+Prédire des pixels oblige à deviner du hasard. Prédire une représentation
+permet de l'oublier. C'est là toute la différence, et c'est elle qui donne
+son nom à toute la famille JEPA.
+\end{aretenir}
+
+Nous savons maintenant \emph{quoi} deviner. Voyons à partir de quoi, et
+mettons enfin des noms sur les deux images qui entrent dans la machine.
+
+\section{Les deux vues : la trouée et la complète}
+
+\begin{enclair}
+La machine regarde toujours la même vidéo deux fois. La première fois, on
+lui en cache des morceaux~: c'est la vue trouée. La deuxième fois, on la lui
+montre en entier~: c'est la vue complète. La première sert de question, la
+seconde sert de corrigé.
+\end{enclair}
+
+Reprenons le jeu du chapitre~\ref{chap:auto-supervision}, mais en donnant
+cette fois un nom précis à chaque chose. On part d'une vidéo. On en fabrique
+deux versions.
+
+\begin{definition}[La vue trouée, notée $x$][vue-trouee]
+La \emph{vue trouée} est la vidéo à laquelle on a retiré des morceaux. On la
+note $x$. Les morceaux retirés s'appellent les zones \emph{masquées}, et les
+morceaux que l'on a laissés s'appellent le \emph{contexte}. On dit aussi que
+$x$ est la vue \emph{corrompue}, ce qui veut simplement dire «~abîmée
+exprès~».
+\end{definition}
+
+\begin{definition}[La vue complète, notée $y$][vue-complete]
+La \emph{vue complète} est la même vidéo, sans rien retirer du tout. On la
+note $y$. On l'appelle aussi la vue \emph{propre}, au sens de «~intacte~».
+\end{definition}
+
+Attention à ne pas se tromper sur un point~: $x$ et $y$ ne sont pas deux
+vidéos différentes. C'est la même vidéo, la même seconde, la même scène. La
+seule différence, c'est qu'on a caché des morceaux dans l'une et pas dans
+l'autre.
+
+\begin{exemple}[Compter les jetons cachés]
+Reprenons un clip de la phase principale d'entraînement, celui du
+chapitre~\ref{chap:vit}~: seize images en $256 \times 256$, avec des patchs
+de $16$ et des tubelets de $2$. Nous avions compté
+$8 \times 16 \times 16 = 2\,048$ jetons.
+
+Disons que le masque en recouvre $1\,200$. Alors~:
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lr}
+\toprule
+\textbf{Ce que l'on compte} & \textbf{Combien} \\
+\midrule
+Jetons en tout dans le clip        & $2\,048$ \\
+Jetons masqués (le trou)           & $1\,200$ \\
+Jetons de contexte (ce qui reste)  & $848$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La machine ne verra donc que $848$ jetons, et devra parler des $1\,200$
+autres. Retenez ces nombres~: ils vont nous resservir tout au long du
+chapitre.
+\end{exemple}
+
+\begin{schema}{La même vidéo, vue deux fois. À gauche la vue trouée $x$,
+où seuls les jetons bleus sont visibles. À droite la vue complète $y$, où
+tout est visible.}[jepa-vues]
+
+% --- vue trouée ---
+\foreach \i in {0,1,2,3,4,5}{
+  \foreach \j in {0,1,2,3,4}{
+    \fill[mbAzure!25, draw=mbAzure!60, line width=0.4pt]
+          (\i*0.5, \j*0.5) rectangle ++(0.46,0.46);
+  }
+}
+\foreach \i in {1,2,3}{
+  \foreach \j in {1,2,3}{
+    \fill[mbSlate!30, draw=mbSlate!70, line width=0.4pt, dashed]
+          (\i*0.5, \j*0.5) rectangle ++(0.46,0.46);
+  }
+}
+\node[font=\sffamily\small, text=mbInk] at (1.5,-0.55)
+     {la vue trouée $x$};
+\node[etiquette, text=mbAzure!80!black] at (1.5,-1.05) {bleu : le contexte};
+\node[etiquette, text=mbSlate] at (1.5,-1.45) {gris : les zones masquées};
+
+% --- vue complète ---
+\begin{scope}[xshift=5.5cm]
+\foreach \i in {0,1,2,3,4,5}{
+  \foreach \j in {0,1,2,3,4}{
+    \fill[mbTeal!22, draw=mbTeal!60, line width=0.4pt]
+          (\i*0.5, \j*0.5) rectangle ++(0.46,0.46);
+  }
+}
+\node[font=\sffamily\small, text=mbInk] at (1.5,-0.55)
+     {la vue complète $y$};
+\node[etiquette, text=mbTeal!80!black] at (1.5,-1.05) {tout est visible};
+\end{scope}
+\end{schema}
+
+Nous avons nos deux vues. Il faut maintenant deux appareils pour les
+regarder. Et là, une petite surprise nous attend~: ces deux appareils sont
+bâtis de la même façon, mais leurs boutons ne sont pas réglés pareil.
+
+\section{L'élève et le professeur : deux encodeurs, presque jumeaux}
+
+\begin{enclair}
+La vue trouée est regardée par un premier encodeur, que nous appellerons
+l'\emph{élève}. La vue complète est regardée par un second encodeur, que
+nous appellerons le \emph{professeur}. L'élève est celui qui apprend~: on
+lui tourne ses boutons à chaque pas. Le professeur, lui, ne travaille pas~:
+il se contente de recopier l'élève, très lentement.
+\end{enclair}
+
+Avant d'aller plus loin, il faut une convention d'écriture. Nous avons vu au
+chapitre~\ref{chap:apprendre} qu'un modèle est une machine à boutons, et
+qu'apprendre revient à tourner ces boutons. Un gros modèle en a des
+millions. Plutôt que de les nommer un par un, on leur donne un seul nom
+collectif, avec une lettre grecque.
+
+\begin{notation}[Les lettres grecques des boutons][lettres-grecques]
+\begin{itemize}
+  \item $\theta$ se lit «~thêta~». C'est le nom collectif de \emph{tous} les
+        boutons de l'encodeur élève. Écrire $E_{\theta}$ veut donc dire
+        «~l'encodeur, réglé avec les boutons $\theta$~».
+  \item $\bar{\theta}$ se lit «~thêta barre~». C'est le nom collectif de
+        tous les boutons de l'encodeur professeur. La petite barre au-dessus
+        rappelle qu'il s'agit d'une \emph{moyenne} de l'élève~: nous verrons
+        cela en détail dans la section~\ref{sec:ema}.
+  \item $\varphi$ se lit «~phi~». C'est le nom collectif des boutons du
+        prédicteur, la pièce que nous montons juste après.
+\end{itemize}
+Aucune de ces lettres ne cache une difficulté. Ce sont des étiquettes, rien
+de plus. On aurait pu les appeler $A$, $B$ et $C$.
+\end{notation}
+
+Voici ce que fait chacun des deux encodeurs.
+
+\textbf{L'encodeur élève, $E_{\theta}$.} Il reçoit la vue trouée $x$,
+c'est-à-dire seulement les $848$ jetons de contexte de notre exemple. Il ne
+voit rien d'autre. Il les fait discuter entre eux, comme nous l'avons vu au
+chapitre~\ref{chap:vit}, et il ressort $848$ jetons enrichis. C'est lui, et
+lui seul, qui apprend. À chaque pas d'entraînement, ses boutons bougent.
+
+\textbf{L'encodeur professeur, $E_{\bar{\theta}}$.} Il reçoit la vue
+complète $y$, donc les $2\,048$ jetons, sans aucun trou. Il ressort $2\,048$
+jetons enrichis. Ces jetons-là serviront de \emph{corrigé}~: ce sont les
+réponses que l'élève doit essayer de retrouver. Le professeur, lui,
+n'apprend pas au sens habituel~: aucun calcul d'erreur ne vient tourner ses
+boutons. Il se contente de suivre l'élève de très loin.
+
+\begin{intuition}
+Pensez à un élève qui fait un devoir avec la moitié des pages arrachées, et
+à un professeur qui a le sujet complet sous les yeux. Le professeur ne fait
+pas d'effort~: il lit. Mais c'est sa copie qui sert de référence. Et le
+professeur n'est pas quelqu'un d'autre~: c'est le même élève, quelques
+milliers de pas plus tôt, une version un peu plus posée de lui-même.
+\end{intuition}
+
+\begin{notation}[Les autres noms de ces deux encodeurs][x-encodeur]
+Dans l'article, et dans le code publié sur internet, ces deux encodeurs
+portent des noms tirés des lettres des deux vues. L'encodeur élève, celui
+qui regarde la vue trouée $x$, s'appelle le \emph{$x$-encodeur}. L'encodeur
+professeur, celui qui regarde la vue complète $y$, s'appelle le
+\emph{$y$-encodeur}. Ce sont exactement les mêmes pièces que notre élève et
+notre professeur~: seul le nom change. Nous emploierons les deux façons de
+dire, pour que vous soyez à l'aise le jour où vous ouvrirez le code.
+\end{notation}
+
+\begin{schema}{La paire d'encodeurs. Les deux appareils sont bâtis de la
+même façon, mais un seul des deux apprend~: le professeur se contente de
+recopier l'élève, très lentement.}[jepa-paire]
+
+\node[bloc, font=\sffamily\scriptsize, minimum width=28mm] (el) at (0,0)
+     {encodeur élève\\$E_{\theta}$\\[1pt]\scriptsize il apprend};
+\node[bloc calcul, font=\sffamily\scriptsize, minimum width=28mm]
+     (pr) at (0,-2.6)
+     {encodeur professeur\\$E_{\bar{\theta}}$\\[1pt]\scriptsize il recopie};
+
+\node[donnee, font=\sffamily\scriptsize, minimum width=15mm]
+     (vx) at (-3.7,0) {vue trouée\\$x$};
+\node[donnee, font=\sffamily\scriptsize, minimum width=15mm]
+     (vy) at (-3.7,-2.6) {vue complète\\$y$};
+\draw[fleche] (vx) -- (el);
+\draw[fleche] (vy) -- (pr);
+
+\draw[fleche] (el.east) -- ++(1.0,0)
+      node[right, font=\sffamily\scriptsize, text=mbInk, align=left]
+      {848 jetons\\enrichis};
+\draw[fleche] (pr.east) -- ++(1.0,0)
+      node[right, font=\sffamily\scriptsize, text=mbInk, align=left]
+      {2 048 cibles};
+
+\draw[fleche pointillee] (el) -- (pr);
+\node[etiquette, align=center] at (-1.35,-1.3)
+     {recopie\\très lentement};
+\end{schema}
+
+\begin{definition}[Cible][cible]
+On appelle \emph{cible} la sortie du professeur~: c'est le paquet de nombres
+que la machine essaie de retrouver. Le mot est celui du tir à l'arc~: c'est
+ce que l'on vise. Attention à ne pas la confondre avec les \emph{étiquettes}
+du chapitre~\ref{chap:auto-supervision}, qui étaient écrites par des
+humains~: ici, la cible est fabriquée par la machine elle-même, et personne
+ne l'a jamais écrite nulle part.
+\end{definition}
+
+Une question doit vous venir à l'esprit, et elle est excellente~: pourquoi
+faire deux encodeurs, alors qu'un seul suffirait~? Après tout, on pourrait
+donner $x$ et $y$ au même appareil. Gardez cette question bien au chaud~: la
+réponse arrive à la section~\ref{sec:effondrement}, et c'est une des plus
+jolies idées du livre.
+
+Pour l'instant, il nous manque encore une pièce, et c'est celle qui fait le
+lien entre les deux côtés.
+
+\section{Le prédicteur : la pièce qui fait le pont}
+
+\begin{enclair}
+L'élève ne voit que les morceaux visibles. Il ne peut donc rien dire des
+morceaux cachés. Il faut une pièce supplémentaire, qui prenne ce que l'élève
+a compris et qui en tire une réponse pour les endroits qu'il n'a jamais vus.
+Cette pièce s'appelle le \emph{prédicteur}.
+\end{enclair}
+
+Cette pièce, nous l'avons déjà croisée au
+chapitre~\ref{chap:auto-supervision}~: c'est elle qui, dans notre petit
+programme, partait du résumé et tentait de deviner la moitié cachée de
+l'image. Nous la retrouvons ici, en beaucoup plus grand. Il est donc temps
+de lui donner son écriture officielle.
+
+\begin{notation}[Le prédicteur s'écrit $P_{\varphi}$][notation-predicteur]
+On note le prédicteur $P_{\varphi}$, ce qui se lit «~$P$ de phi~» et veut
+dire~: le prédicteur, réglé avec les boutons $\varphi$. Le
+chapitre~\ref{chap:auto-supervision} nous avait déjà prévenus d'une chose
+qu'il ne faut pas oublier~: à la fin de l'entraînement, c'est l'encodeur que
+l'on garde précieusement, pas le prédicteur. Une chose change tout de même
+ici~: notre prédicteur ne rend plus une seule réponse, mais une réponse par
+jeton reçu.
+\end{notation}
+
+Le prédicteur reçoit deux choses, et il faut bien les distinguer.
+
+\textbf{Un~: les jetons de contexte}, c'est-à-dire les $848$ jetons que
+l'élève vient d'enrichir. Ce sont les indices dont on dispose.
+
+\textbf{Deux~: les jetons de masque.} Voilà une nouveauté qu'il faut
+expliquer, car elle surprend toujours. Pour les $1\,200$ endroits cachés, on
+ne peut évidemment pas donner le contenu, puisque c'est justement ce que
+l'on cache. On donne alors à la place un jeton spécial, qui ne dit qu'une
+seule chose~: «~ici, à cet endroit précis, il manquait quelque chose~».
+
+\begin{definition}[Jeton de masque, noté $\Delta_y$][jeton-masque]
+Un \emph{jeton de masque} est un jeton qui ne contient aucune information
+sur l'image, mais qui porte une adresse~: la position spatiale et temporelle
+du morceau caché. Son contenu est un paquet de nombres appris pendant
+l'entraînement, le même pour tous les trous~; seule l'adresse change. On
+note l'ensemble de ces jetons $\Delta_y$, et $\Delta$ se lit «~delta~».
+\end{definition}
+
+\begin{intuition}
+Un jeton de masque, c'est une enveloppe vide sur laquelle on a écrit
+l'adresse. On la tend au prédicteur en disant~: «~remplis-la~». Sans
+l'adresse, le prédicteur ne saurait pas de quel trou on parle, et il
+répondrait la même chose pour tous.
+\end{intuition}
+
+Le prédicteur met bout à bout ces deux paquets de jetons, les fait discuter
+entre eux — c'est encore un transformeur, exactement comme au
+chapitre~\ref{chap:vit} — et ressort un jeton pour chaque jeton d'entrée.
+
+\begin{exemple}[Le compte exact des jetons dans le prédicteur]
+Avec nos chiffres, le prédicteur reçoit~:
+
+\[
+  \underbrace{848}_{\text{jetons de contexte}}
+  \;+\;
+  \underbrace{1\,200}_{\text{jetons de masque}}
+  \;=\;
+  2\,048 \ \text{jetons en entrée},
+\]
+
+et il ressort $2\,048$ jetons en sortie. Notez bien ce résultat, car il va
+compter énormément dans quelques chapitres~: \textbf{le prédicteur produit
+une réponse pour tout le monde, y compris pour les endroits qui étaient déjà
+visibles.} Nous verrons au chapitre suivant que V-JEPA~2 jette une bonne
+partie de ces réponses, et au chapitre~10 que c'est précisément là que se
+cache le défaut que V-JEPA~2.1 vient corriger.
+\end{exemple}
+
+Nous avons enfin toutes les pièces. Assemblons-les.
+
+\section{Le schéma complet, monté sous vos yeux}
+
+Voici la machine entière, figure~\ref{fig:jepa-central}. C'est le dessin le
+plus important du livre~: tous les chapitres suivants ne feront que le
+compléter ou le corriger. Prenez le temps de le suivre du doigt, de gauche à
+droite.
+
+\begin{schema}{L'architecture JEPA au complet. En haut, le chemin de
+l'élève, qui part de la vue trouée. En bas, celui du professeur, qui part de
+la vue complète. À droite, on compare les deux~: cet écart est la perte. La
+barre rouge marque l'endroit où la correction n'a pas le droit de
+passer.}[jepa-central]
+
+% ---- chemin de l'élève (en haut) ----
+\node[donnee, font=\sffamily\scriptsize, minimum width=16mm] (x) at (0,0)
+     {vue trouée\\$x$};
+\node[bloc, font=\sffamily\scriptsize, minimum width=19mm] (enc) at (2.9,0)
+     {encodeur élève\\$E_{\theta}$};
+\node[bloc accent, font=\sffamily\scriptsize, minimum width=19mm]
+     (pred) at (6.0,0) {prédicteur\\$P_{\varphi}$};
+\node[bloc, font=\sffamily\scriptsize, minimum width=16mm, draw=mbAmber,
+      fill=mbAmber!8] (sortie) at (8.9,0) {prédiction};
+
+\draw[fleche] (x) -- (enc);
+\draw[fleche] (enc) -- (pred);
+\node[etiquette] at (4.45,0.42) {848 jetons};
+\draw[fleche] (pred) -- (sortie);
+
+\node[bloc, font=\sffamily\scriptsize, minimum width=19mm, minimum height=6mm,
+      draw=mbSlate!70, fill=mbMist] (masque) at (6.0,1.7)
+     {jetons de masque $\Delta_y$};
+\draw[fleche] (masque) -- (pred);
+
+% ---- chemin du professeur (en bas) ----
+\node[donnee, font=\sffamily\scriptsize, minimum width=16mm] (y) at (0,-3.3)
+     {vue complète\\$y$};
+\node[bloc calcul, font=\sffamily\scriptsize, minimum width=19mm]
+     (encp) at (2.9,-3.3) {encodeur professeur\\$E_{\bar{\theta}}$};
+\node[bloc calcul, font=\sffamily\scriptsize, minimum width=16mm]
+     (target) at (8.9,-3.3) {cible};
+
+\draw[fleche] (y) -- (encp);
+\draw[fleche] (encp) -- (target);
+\node[etiquette] at (5.4,-2.88) {2 048 jetons};
+
+% ---- la comparaison ----
+\draw[<->, draw=mbRose!85!black, line width=1pt] (sortie) -- (target);
+\node[annotation bulle, align=center, anchor=east] at (8.35,-1.65)
+     {on compare :\\cet écart,\\c'est la perte};
+
+% ---- la copie lente ----
+\draw[fleche pointillee] (enc) -- (encp);
+\node[etiquette, align=center, anchor=east] at (2.72,-1.65)
+     {copie très lente\\(moyenne mobile)};
+
+% ---- le gradient bloqué ----
+\draw[line width=2pt, draw=mbRose!85!black] (7.3,-3.75) -- (7.3,-2.85);
+\node[annotation, text=mbRose!85!black, align=center] at (7.3,-4.35)
+     {gradient bloqué :\\rien ne revient par ici};
+\end{schema}
+
+Récapitulons le trajet en cinq phrases, dans l'ordre du dessin.
+
+\begin{enumerate}
+  \item La vue trouée $x$ entre dans l'encodeur élève, qui en ressort les
+        jetons de contexte enrichis.
+  \item Ces jetons sont mis bout à bout avec les jetons de masque, qui
+        portent les adresses des trous.
+  \item Le prédicteur fait discuter tout ce beau monde et produit une
+        prédiction pour chaque position.
+  \item Pendant ce temps, la vue complète $y$ est passée dans l'encodeur
+        professeur, qui produit les cibles.
+  \item On compare la prédiction à la cible. L'écart est la \emph{perte}, et
+        c'est lui que l'entraînement fait baisser.
+\end{enumerate}
+
+Il reste, sur ce dessin, deux choses que nous n'avons pas encore
+expliquées~: la flèche en pointillé de la copie lente, et la barre rouge du
+gradient bloqué. Elles ont l'air de petits détails de dessin. Ce sont en
+réalité deux \emph{garde-fous}, et sans eux tout s'écroule.
+
+Le mot mérite une explication, car nous allons l'employer sans arrêt. Un
+garde-fou, dans la vie de tous les jours, c'est la barrière que l'on pose au
+bord d'un pont pour empêcher les gens de tomber. Elle ne sert à rien tant
+que tout va bien~; elle sert le jour où quelqu'un glisse. Nos deux
+garde-fous sont exactement cela~: deux barrières qui ne gênent personne tant
+que la machine travaille honnêtement, et qui l'empêchent de tomber le jour
+où elle essaie de tricher. Nous allons voir pourquoi, mais donnons d'abord
+son vrai nom à cette machine.
+
+\section{JEPA : le nom décodé mot à mot}
+
+\begin{enclair}
+Cette architecture porte un nom très court, fait de quatre lettres~: JEPA.
+Chacune de ces lettres est la première lettre d'un mot anglais. Nous allons
+les traduire un par un, et vous verrez qu'il n'y a rien d'autre, derrière
+ces quatre lettres, que la machine que nous venons de monter.
+\end{enclair}
+
+Ce nom s'écrit JEPA et se prononce «~jé-pa~». Il vient de \emph{Joint
+Embedding Predictive Architecture}, une idée proposée
+par~\textcite{lecun2022path}. Voici le décodage.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llp{6.6cm}}
+\toprule
+\textbf{Lettre} & \textbf{Mot anglais} & \textbf{Ce que cela veut dire ici} \\
+\midrule
+J & \emph{Joint} &
+«~conjoint~», c'est-à-dire à deux. Il y a deux chemins, celui de l'élève et
+celui du professeur, et ils travaillent ensemble. \\[2pt]
+E & \emph{Embedding} &
+le \emph{plongement}, c'est-à-dire le fait de transformer une image en un
+paquet de nombres. Nous l'avons vu au chapitre~\ref{chap:vit}. \\[2pt]
+P & \emph{Predictive} &
+«~prédictive~»~: il y a une pièce qui devine, le prédicteur. \\[2pt]
+A & \emph{Architecture} &
+la façon dont les pièces sont assemblées. Ni plus, ni moins. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{definition}[JEPA][jepa]
+Une \emph{architecture prédictive à plongements conjoints}, ou JEPA, est un
+assemblage où deux encodeurs transforment deux vues d'une même donnée en
+paquets de nombres, et où un prédicteur essaie de retrouver le paquet du
+second à partir du paquet du premier. La comparaison se fait toujours entre
+paquets de nombres, jamais entre pixels.
+\end{definition}
+
+\begin{enia}
+Cette idée n'est pas propre à la vidéo. On l'a appliquée au son, aux images
+fixes avec I-JEPA~\parencite{assran2023ijepa}, puis à la vidéo avec la
+famille V-JEPA, dont le «~V~» veut dire \emph{video}. V-JEPA~2.1, le modèle
+de ce livre, est le dernier membre de cette famille. Toute la partie~IV
+consistera à ajouter des pièces à ce squelette, sans jamais le changer.
+\end{enia}
+
+Le nom est posé, la machine est montée. Nous pouvons maintenant aborder le
+danger qui menace tout ce montage — et comprendre enfin pourquoi il faut
+deux encodeurs plutôt qu'un.
+
+\section{Le grand danger : l'effondrement}
+\label{sec:effondrement}
+
+\begin{enclair}
+Notre machine a une faille énorme. Si on la laisse faire, elle va trouver
+une solution qui donne une erreur parfaitement nulle, sans rien apprendre du
+tout. Il lui suffit de répondre toujours la même chose. C'est ce qu'on
+appelle l'\emph{effondrement}, et c'est le cauchemar de tous ceux qui
+entraînent ce genre de modèles.
+\end{enclair}
+
+Reprenons ce que nous demandons à la machine~: «~fais en sorte que ta
+prédiction ressemble à la cible~». Et rappelons-nous du
+chapitre~\ref{chap:apprendre}~: une machine qui apprend ne cherche pas à
+bien faire. Elle cherche à faire baisser un nombre. Si elle trouve un moyen
+malhonnête de faire baisser ce nombre, elle le prendra, sans le moindre
+remords.
+
+Or, il existe ici un moyen malhonnête, et il est même très facile à trouver.
+
+\begin{definition}[Effondrement des représentations][effondrement]
+Il y a \emph{effondrement} quand l'encodeur se met à sortir le même paquet
+de nombres quelle que soit l'image qu'on lui donne. Les représentations ne
+distinguent alors plus rien, et le modèle, bien que très content de lui,
+est devenu complètement inutile.
+\end{definition}
+
+\begin{exemple}[Pourquoi la triche donne un zéro parfait]
+Imaginons que les deux encodeurs se mettent d'accord pour toujours sortir le
+paquet $(0 \,;\, 0 \,;\, 0)$, quoi qu'on leur montre. Et que le prédicteur,
+de son côté, réponde toujours $(0 \,;\, 0 \,;\, 0)$ lui aussi.
+
+Calculons l'erreur. On mesure l'écart en additionnant les différences prises
+en valeur absolue, c'est-à-dire sans se soucier du signe~:
+
+\[
+  |0 - 0| \;+\; |0 - 0| \;+\; |0 - 0| \;=\; 0 .
+\]
+
+L'erreur vaut zéro. C'est le meilleur score possible, celui qu'aucun modèle
+honnête n'atteindra jamais. Et pourtant ce modèle-là ne sait strictement
+rien~: il donne la même réponse pour un chat, une rue et une plage.
+\end{exemple}
+
+\begin{schema}{L'effondrement. Trois vidéos qui n'ont rien à voir entre
+elles ressortent de l'encodeur avec exactement le même paquet de nombres.
+L'erreur est nulle, et le modèle est bon à jeter.}[jepa-effondrement]
+
+\node[donnee, font=\sffamily\scriptsize, minimum width=15mm] (a) at (0,1.5)
+     {un chat};
+\node[donnee, font=\sffamily\scriptsize, minimum width=15mm] (b) at (0,0)
+     {une rue};
+\node[donnee, font=\sffamily\scriptsize, minimum width=15mm] (c) at (0,-1.5)
+     {une plage};
+
+\node[bloc, font=\sffamily\scriptsize, minimum width=21mm, minimum height=24mm]
+     (e) at (3.5,0) {encodeur\\effondré};
+
+\draw[fleche] (a) -- (e);
+\draw[fleche] (b) -- (e);
+\draw[fleche] (c) -- (e);
+
+\node[bloc, font=\sffamily\scriptsize, draw=mbRose, fill=mbRose!8,
+      minimum width=19mm] (s1) at (7.1,1.5) {$(0\,;0\,;0)$};
+\node[bloc, font=\sffamily\scriptsize, draw=mbRose, fill=mbRose!8,
+      minimum width=19mm] (s2) at (7.1,0)   {$(0\,;0\,;0)$};
+\node[bloc, font=\sffamily\scriptsize, draw=mbRose, fill=mbRose!8,
+      minimum width=19mm] (s3) at (7.1,-1.5){$(0\,;0\,;0)$};
+
+\draw[fleche] (e) -- (s1);
+\draw[fleche] (e) -- (s2);
+\draw[fleche] (e) -- (s3);
+
+\draw[accolade] (8.2,-1.9) -- (8.2,1.9);
+\node[annotation, align=center, anchor=west] at (8.6,0)
+     {toujours\\la même\\réponse};
+
+\node[annotation, align=center] at (3.5,-2.4)
+     {erreur nulle, savoir nul};
+\end{schema}
+
+\begin{intuition}
+C'est l'élève qui a compris que le professeur note la ressemblance entre les
+deux copies, et pas leur contenu. Il rend une feuille blanche. Le
+professeur, qui est en réalité le même élève, rend lui aussi une feuille
+blanche. Les deux copies se ressemblent parfaitement. Note maximale, et
+aucun apprentissage.
+\end{intuition}
+
+Voilà pourquoi la question posée tout à l'heure était si bonne. Si l'on
+utilisait \emph{un seul} encodeur des deux côtés, et qu'on le laissait
+corriger ses boutons librement à partir des deux chemins, il découvrirait
+cette triche en quelques centaines de pas. Nous le verrons se produire pour
+de vrai, en direct, dans la section de code de ce chapitre.
+
+Il faut donc empêcher la machine de tricher. Les auteurs emploient pour
+cela deux garde-fous, et nous les prenons l'un après l'autre.
+
+\section{Premier garde-fou : le gradient bloqué}
+
+\begin{enclair}
+Quand la machine se trompe, une correction remonte à l'envers dans tout le
+montage pour tourner les boutons dans le bon sens. Le premier garde-fou
+consiste à poser une barrière sur le chemin du professeur~: la correction a
+le droit de remonter du côté de l'élève, mais pas du côté du corrigé. On
+interdit ainsi à la machine de bouger la cible qu'elle est censée viser.
+\end{enclair}
+
+Rappelons d'abord d'où vient ce mot de gradient, vu au
+chapitre~\ref{chap:apprendre}. Après avoir mesuré l'erreur, on calcule pour
+chaque bouton dans quel sens et de combien il faudrait le tourner pour que
+l'erreur diminue. Cette information voyage en sens inverse du calcul, de la
+sortie vers l'entrée. C'est le gradient.
+
+Maintenant, réfléchissons à ce que la machine ferait si on la laissait
+libre. Elle doit rapprocher deux choses~: la prédiction et la cible. Il y a
+deux façons de rapprocher deux points~:
+
+\begin{enumerate}
+  \item déplacer la prédiction vers la cible — c'est ce que l'on veut,
+        puisque cela oblige l'élève à comprendre la scène~;
+  \item déplacer la cible vers la prédiction — c'est la triche, puisqu'il
+        suffit alors d'écraser tout le monde au même endroit.
+\end{enumerate}
+
+\begin{exemple}[Les deux façons de refermer un écart]
+Prenons un seul nombre, pour voir la chose en face. La prédiction vaut
+$0{,}5$ et la cible vaut $0{,}9$. L'écart entre les deux vaut donc
+$0{,}9 - 0{,}5 = 0{,}4$.
+
+\textbf{La façon honnête}~: on fait monter la prédiction de $0{,}5$ jusqu'à
+$0{,}9$. L'écart tombe à $0$. Pour y arriver, l'élève a bien été obligé de
+mieux regarder l'image.
+
+\textbf{La façon tricheuse}~: on fait descendre la cible de $0{,}9$ jusqu'à
+$0{,}5$. L'écart tombe à $0$ lui aussi, et pourtant personne n'a rien
+appris. Pire~: si on laisse faire, la prédiction et la cible vont continuer
+à se rapprocher l'une de l'autre jusqu'à valoir toutes les deux zéro.
+
+Les deux façons donnent le même score. Voilà pourquoi il faut interdire la
+seconde~: la machine, elle, ne voit aucune différence entre les deux.
+\end{exemple}
+
+La deuxième façon est de très loin la plus facile. La machine la
+choisirait tout de suite. On la lui interdit donc, tout simplement.
+
+\begin{definition}[Gradient bloqué, noté $\mathrm{sg}(\cdot)$][stop-gradient]
+Le \emph{gradient bloqué} est une instruction qui dit~: «~calcule cette
+valeur normalement, mais ne fais remonter aucune correction par ce
+chemin~». On l'écrit $\mathrm{sg}(\cdot)$, d'après l'anglais
+\emph{stop-gradient}, et l'on met entre les parenthèses ce que l'on veut
+protéger. Dans notre montage, on protège la cible.
+\end{definition}
+
+\begin{schema}{Le trajet de la correction. Les flèches grises du haut sont
+le calcul, qui va de gauche à droite. Les flèches orange du dessous sont la
+correction, qui revient en arrière. La barre rouge lui interdit d'entrer
+dans le chemin du professeur.}[jepa-stopgrad]
+
+\node[bloc, font=\sffamily\scriptsize, minimum width=21mm] (e1) at (0,0)
+     {encodeur élève};
+\node[bloc accent, font=\sffamily\scriptsize, minimum width=21mm]
+     (p1) at (3.7,0) {prédicteur};
+\node[bloc, font=\sffamily\scriptsize, minimum width=16mm, draw=mbAmber,
+      fill=mbAmber!8] (l1) at (7.4,0) {la perte};
+\node[bloc calcul, font=\sffamily\scriptsize, minimum width=21mm]
+     (e2) at (3.7,-3.0) {encodeur professeur};
+
+% --- le calcul, vers la droite ---
+\draw[fleche] (e1) -- (p1);
+\draw[fleche] (p1) -- (l1);
+\draw[fleche] (e2) -| (l1);
+\node[etiquette] at (1.85,0.42) {le calcul avance};
+
+% --- la correction, vers la gauche, en dessous ---
+\draw[fleche accent, dashed] (l1.south) to[bend left=22] (p1.south);
+\draw[fleche accent, dashed] (p1.south) to[bend left=22] (e1.south);
+\node[annotation, align=center] at (3.7,-1.5)
+     {la correction revient par ici};
+
+% --- la barrière ---
+\draw[line width=2pt, draw=mbRose!85!black] (6.6,-3.28) -- (6.6,-2.72);
+\node[annotation, text=mbRose!85!black, align=center] at (6.6,-3.85)
+     {barrière : la correction\\n'a pas le droit de passer};
+\end{schema}
+
+\begin{piege}
+C'est l'erreur la plus fréquente, et surtout la plus silencieuse, de tout ce
+domaine. Si vous oubliez le gradient bloqué, votre programme ne plantera
+pas. Il n'affichera aucun message. La courbe d'erreur descendra même
+magnifiquement vers zéro, ce qui vous rendra très fier. Et vous aurez
+entraîné, pendant des jours, un modèle qui répond la même chose à tout.
+Nous verrons au chapitre~25 comment repérer ce désastre à temps.
+\end{piege}
+
+Ce premier garde-fou est indispensable, mais il ne suffit pas tout à fait. Il
+empêche la cible de reculer, mais il ne dit rien de la manière dont le
+professeur, lui, doit évoluer. C'est le rôle du second garde-fou.
+
+\section{Second garde-fou : le professeur qui suit de loin}
+\label{sec:ema}
+
+\begin{enclair}
+Le professeur n'apprend pas tout seul~: il recopie l'élève. Mais il le
+recopie très lentement, en n'attrapant à chaque pas qu'une toute petite
+part du chemin. Résultat~: il est toujours en retard sur l'élève, et
+c'est exactement ce retard qui empêche les deux de se mettre d'accord sur
+une réponse vide, c'est-à-dire une réponse qui ne dit rien de ce que l'on
+regarde.
+\end{enclair}
+
+La recette porte un nom un peu impressionnant, mais l'opération tient en une
+seule ligne de calcul.
+
+\begin{definition}[Moyenne mobile exponentielle (EMA)][ema]
+La \emph{moyenne mobile exponentielle} est une façon de mettre à jour une
+valeur en gardant beaucoup de l'ancienne et très peu de la nouvelle. On
+choisit un nombre $m$ compris entre $0$ et $1$, appelé
+\emph{coefficient}, et à chaque pas on remplace l'ancienne valeur par~:
+
+\[
+  \bar{\theta} \;\leftarrow\; m \times \bar{\theta} \;+\; (1 - m) \times \theta .
+\]
+
+La flèche $\leftarrow$ se lit «~devient~». À gauche du signe~$+$, ce que
+l'on garde du professeur. À droite, ce que l'on prend de l'élève. Les trois
+lettres EMA sont les premières lettres des trois mots anglais
+\emph{Exponential Moving Average}, qui veulent dire exactement cela~:
+moyenne mobile exponentielle.
+\end{definition}
+
+Ce nom fait peur, alors regardons-le de près~: il contient trois mots, et
+chacun dit une chose simple. \emph{Moyenne}, parce que la nouvelle valeur
+est un mélange de l'ancienne et de celle de l'élève. \emph{Mobile}, parce
+que l'on refait ce mélange à chaque pas, sans jamais s'arrêter. Et
+\emph{exponentielle}, parce qu'un vieux réglage ne disparaît pas d'un coup~:
+il est multiplié par $m$ à chaque pas, donc il compte de moins en moins,
+mais toujours un tout petit peu. Au bout de dix pas, ce qu'il en restait a
+été multiplié dix fois de suite par $m$. Voilà tout ce que ce grand mot veut
+dire.
+
+Dans V-JEPA~2.1, ce coefficient vaut $m = 0{,}99925$. Traduisons ce nombre
+en français courant~: à chaque pas, le professeur garde
+$99{,}925\,\%$ de ce qu'il était, et n'attrape que $0{,}075\,\%$ de l'élève.
+C'est très, très peu.
+
+\begin{exemple}[Trois pas de moyenne mobile, calculés à la main]
+Prenons un seul bouton, pour que tout tienne sur une ligne. Le professeur
+est réglé sur $1{,}0$ et l'élève sur $2{,}0$. L'élève ne bouge pas, pour
+simplifier. Faisons trois pas.
+
+\textbf{Premier pas}~:
+\[
+  0{,}99925 \times 1{,}0 \;+\; 0{,}00075 \times 2{,}0
+  \;=\; 0{,}99925 + 0{,}0015 \;=\; 1{,}0007500 .
+\]
+
+\textbf{Deuxième pas}~: on recommence, mais en partant de $1{,}00075$~:
+\[
+  0{,}99925 \times 1{,}0007500 \;+\; 0{,}0015 \;=\; 1{,}0014994 .
+\]
+
+\textbf{Troisième pas}~:
+\[
+  0{,}99925 \times 1{,}0014994 \;+\; 0{,}0015 \;=\; 1{,}0022483 .
+\]
+
+Regardons maintenant l'écart qui sépare le professeur de l'élève~:
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lrr}
+\toprule
+& \textbf{Professeur} & \textbf{Écart avec l'élève} \\
+\midrule
+Au départ      & $1{,}0000000$ & $1{,}0000000$ \\
+Après 1 pas    & $1{,}0007500$ & $0{,}9992500$ \\
+Après 2 pas    & $1{,}0014994$ & $0{,}9985006$ \\
+Après 3 pas    & $1{,}0022483$ & $0{,}9977517$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+En trois pas, l'écart n'a diminué que de deux millièmes. Autrement dit~: le
+professeur n'a presque pas bougé. Et ce n'est pas un défaut, c'est
+précisément ce que l'on cherche.
+\end{exemple}
+
+Pour se faire une idée du rythme, deux repères sont bien utiles.
+
+\textbf{Repère un~: le temps de demi-parcours.} Il faut environ $924$ pas
+pour que l'écart entre le professeur et l'élève soit divisé par deux. Dans
+notre exemple, le professeur passe alors de $1{,}0$ à $1{,}5$, soit la
+moitié du chemin vers $2{,}0$.
+
+\textbf{Repère deux~: la mémoire.} On calcule $1 \div 0{,}00075 \approx
+1\,333$. On dit que le professeur «~se souvient~» d'environ $1\,333$ pas
+d'entraînement~: sa valeur est une sorte de moyenne des mille trois
+cents derniers réglages de l'élève.
+
+\begin{graphe}{Le professeur rattrape l'élève, mais très lentement.
+L'élève est fixé à $2$ (trait orange). Le professeur part de $1$~: il lui
+faut $924$ pas pour faire la moitié du chemin, et près de cinq mille pas
+pour arriver tout près.}[jepa-ema]
+\begin{axis}[mbaxis,
+    xlabel={pas d'entraînement},
+    ylabel={valeur du bouton},
+    xmin=0, xmax=5000, ymin=0.9, ymax=2.15,
+    legend pos=north west,
+]
+% repères du demi-parcours, tracés avant les courbes
+\addplot[mbSlate!60, dashed, thin, forget plot]
+        coordinates {(924,0.9) (924,1.5)};
+\addplot[mbSlate!60, dashed, thin, forget plot]
+        coordinates {(0,1.5) (924,1.5)};
+
+\addplot[mbBlue, thick, domain=0:5000, samples=200, no marks]
+        {2 - exp(-0.00075*x)};
+\addlegendentry{le professeur}
+\addplot[mbAmber, thick, dashed, domain=0:5000, samples=2, no marks] {2};
+\addlegendentry{l'élève}
+
+\node[circle, fill=mbRose, inner sep=1.6pt] at (axis cs:924,1.5) {};
+\node[anchor=west, font=\sffamily\scriptsize, text=mbRose!85!black]
+     at (axis cs:1100,1.42) {924 pas : la moitié du chemin};
+\end{axis}
+\end{graphe}
+
+Reste à comprendre \emph{pourquoi} cette lenteur protège de l'effondrement.
+L'explication tient en une phrase~: pour que la triche fonctionne, il
+faudrait que l'élève et le professeur s'écrasent \emph{ensemble}, au même
+moment, sur la même réponse vide. Mais le professeur ne suit qu'avec un
+millier de pas de retard. Dès que l'élève se met à donner des réponses toutes pareilles, le
+professeur, lui, continue de fournir des cibles variées, héritées d'un passé
+où l'élève ne trichait pas encore. L'élève reçoit donc immédiatement une
+erreur, et la triche ne lui rapporte plus rien.
+
+\begin{piege}
+Le coefficient $m$ se règle avec prudence, car les deux extrêmes sont
+mauvais, et de façons opposées.
+
+Si $m$ est trop petit — disons $0{,}5$ — le professeur rattrape l'élève
+presque instantanément. Les deux deviennent le même appareil, et l'on
+retombe droit dans l'effondrement.
+
+Si $m$ est trop grand — disons $0{,}99999999$ — le professeur ne bouge
+pratiquement plus. Il continue à donner les cibles de son premier jour, où
+ses boutons étaient encore tirés au hasard. L'élève passe alors son temps à
+imiter du bruit.
+\end{piege}
+
+\begin{aretenir}
+Les deux garde-fous ne font pas la même chose, et il faut les deux. Le
+gradient bloqué empêche la machine de \emph{tirer la cible vers elle}. La
+moyenne mobile fait avancer la cible \emph{avec du retard}, pour que
+personne ne puisse s'entendre sur une réponse vide.
+\end{aretenir}
+
+Nos deux garde-fous sont en place. Voyons maintenant à quoi ressemble un
+pas d'entraînement complet, du début à la fin.
+
+\section{Un pas d'entraînement, du début à la fin}
+
+Voici l'enchaînement exact, dans l'ordre où vous l'écrirez dans votre
+programme. Ces neuf étapes se répètent plus de cent mille fois. Nous les
+retrouverons, presque mot pour mot, au chapitre~24, quand nous coderons pour
+de bon.
+
+\begin{enumerate}
+  \item On prend un lot de vidéos.
+  \item On tire un masque au hasard, et l'on fabrique la vue trouée $x$. La
+        vue complète $y$, elle, est la vidéo telle quelle.
+  \item L'encodeur élève regarde $x$ et produit les jetons de contexte.
+  \item On ajoute les jetons de masque, qui portent les adresses des trous.
+  \item Le prédicteur produit une réponse pour chaque position.
+  \item L'encodeur professeur regarde $y$ et produit les cibles. On pose ici
+        le gradient bloqué.
+  \item On mesure l'écart entre les réponses et les cibles~: c'est la perte.
+  \item La correction remonte, et l'on tourne les boutons de l'élève et du
+        prédicteur.
+  \item On met à jour le professeur avec la moyenne mobile. Puis on
+        recommence au point~1.
+\end{enumerate}
+
+Ces neuf étapes forment une boucle~: la neuvième ramène à la première, et
+l'on repart pour un tour. La figure~\ref{fig:jepa-boucle} la montre d'un
+seul coup d'œil, en regroupant les neuf étapes en quatre moments.
+
+\begin{schema}{La boucle d'entraînement. Les neuf étapes se rangent en
+quatre moments, et le quatrième ramène au premier. C'est ce tour complet
+que la machine répète plus de cent mille fois.}[jepa-boucle]
+
+\node[bloc, font=\sffamily\scriptsize, minimum width=30mm] (a) at (0,0)
+     {\textbf{1--2. Préparer}\\on cache des morceaux\\et l'on obtient $x$ et $y$};
+\node[bloc accent, font=\sffamily\scriptsize, minimum width=30mm]
+     (b) at (5.4,0)
+     {\textbf{3--5. Deviner}\\l'élève regarde, le\\prédicteur répond};
+\node[bloc, font=\sffamily\scriptsize, minimum width=30mm, draw=mbAmber,
+      fill=mbAmber!8] (c) at (5.4,-2.6)
+     {\textbf{6--7. Comparer}\\on mesure l'écart\\avec les cibles};
+\node[bloc calcul, font=\sffamily\scriptsize, minimum width=30mm]
+     (d) at (0,-2.6)
+     {\textbf{8--9. Corriger}\\on tourne les boutons,\\puis le professeur suit};
+
+\draw[fleche] (a) -- (b);
+\draw[fleche] (b) -- (c);
+\draw[fleche] (c) -- (d);
+\draw[fleche accent] (d) -- (a);
+
+\node[annotation, align=center] at (2.7,-1.3)
+     {et l'on recommence\\encore et encore};
+\end{schema}
+
+\begin{surlesdonnees}
+Pour donner l'échelle réelle~: dans V-JEPA~2.1, cette boucle tourne
+$135\,000$ fois pendant la phase principale, puis $12\,000$ fois de plus
+pendant une phase finale à plus haute résolution. Cela fait $147\,000$
+répétitions au total, sur des centaines de machines à la fois. Avec un
+coefficient de $0{,}99925$ et un temps de demi-parcours de $924$ pas, l'écart
+entre le professeur et l'élève aura eu le temps d'être divisé par deux
+environ cent soixante fois, puisque $147\,000 \div 924 \approx 159$. Le
+professeur est donc très lent à l'échelle d'un pas, mais pas du tout à
+l'échelle de l'entraînement complet.
+\end{surlesdonnees}
+
+Assez de théorie. Faisons tourner tout cela.
+
+\section{Passons au code}
+
+Nous allons écrire trois petits programmes. Le premier refait le calcul de
+la moyenne mobile, pour vérifier les trois nombres que nous venons de poser
+à la main. Le deuxième
+monte un entraînement \emph{sans} garde-fou, et nous regardons le modèle
+s'effondrer sous nos yeux. Le troisième remet les deux garde-fous, et nous
+vérifions que tout tient. Tout cela tourne en quelques secondes sur
+n'importe quel ordinateur.
+
+Commençons par la moyenne mobile.
+
+\begin{code}{python}[La moyenne mobile du professeur, pas à pas]
+m = 0.99925
+professeur, eleve = 1.0, 2.0
+
+for pas in range(1, 4):
+    professeur = m * professeur + (1 - m) * eleve
+    print(f"pas {pas} : professeur = {professeur:.7f}"
+          f"   ecart = {eleve - professeur:.7f}")
+\end{code}
+
+À l'exécution, on obtient exactement les nombres du tableau de tout à
+l'heure~:
+
+\begin{code}{text}[Ce que le programme affiche]
+pas 1 : professeur = 1.0007500   ecart = 0.9992500
+pas 2 : professeur = 1.0014994   ecart = 0.9985006
+pas 3 : professeur = 1.0022483   ecart = 0.9977517
+\end{code}
+
+Si l'on laisse tourner la boucle plus longtemps, on retrouve aussi nos deux
+repères~: au pas $924$, le professeur vaut $1{,}5001$, soit presque exactement
+la moitié du chemin~; au pas $5\,000$, il vaut $1{,}9765$.
+
+Passons maintenant à l'effondrement. Pour le voir arriver, nous avons besoin
+d'un instrument de mesure, et c'est important~: la perte, à elle seule, ne
+nous préviendra de rien, puisqu'elle descendra joliment. Nous allons donc
+mesurer autre chose, que nous appellerons la \emph{diversité}~: à quel point
+les sorties de l'encodeur diffèrent les unes des autres. Si ce nombre tombe
+vers zéro, c'est que toutes les réponses se ressemblent, et donc que le
+modèle s'est effondré.
+
+Cette mesure repose sur une petite opération que nous n'avons pas encore
+rencontrée, et qu'il faut donc expliquer avant de s'en servir.
+
+\begin{definition}[L'écart-type][ecart-type]
+L'\emph{écart-type} d'une liste de nombres dit à quel point ces nombres sont
+étalés. On regarde d'abord leur moyenne, puis de combien chacun s'en écarte.
+Si tous les nombres de la liste sont égaux, l'écart-type vaut exactement
+zéro. Plus ils sont éparpillés, plus il est grand. En Python, on l'obtient
+avec \co{python}{.std()}.
+\end{definition}
+
+\begin{exemple}[Deux listes, deux écarts-types]
+La liste $(5 \,;\, 5 \,;\, 5)$ a pour moyenne $5$, et aucun de ses nombres
+ne s'écarte de cette moyenne. Son écart-type vaut donc $0$. C'est exactement
+la situation de l'effondrement~: tout le monde répond la même chose.
+
+La liste $(3 \,;\, 5 \,;\, 7)$ a elle aussi pour moyenne $5$, mais ses
+nombres s'en écartent de $2$, de $0$ et de $2$. Son écart-type vaut $2$, et
+c'est bien ce que rend Python si vous le lui demandez. C'est la situation
+d'un modèle en bonne santé~: les réponses sont variées.
+\end{exemple}
+
+Notre diversité n'est rien d'autre que cela~: l'écart-type des sorties de
+l'encodeur, mesuré d'un exemple à l'autre, puis moyenné pour n'avoir qu'un
+seul nombre à surveiller.
+
+\begin{code}{python}[Un entraînement sans le moindre garde-fou]
+import torch
+import torch.nn as nn
+
+torch.manual_seed(0)
+
+encodeur = nn.Sequential(nn.Linear(8, 16), nn.GELU(), nn.Linear(16, 16))
+predicteur = nn.Sequential(nn.Linear(16, 16), nn.GELU(), nn.Linear(16, 16))
+optim = torch.optim.Adam(
+    list(encodeur.parameters()) + list(predicteur.parameters()), lr=1e-3)
+
+x = torch.randn(64, 8)             # a la place de la vue trouee : du hasard
+y = x + 0.1 * torch.randn(64, 8)   # a la place de la vue complete
+
+for pas in range(1, 301):
+    cible = encodeur(y)                # AUCUN gradient bloque ici
+    prediction = predicteur(encodeur(x))
+    perte = (prediction - cible).abs().mean()
+
+    optim.zero_grad()
+    perte.backward()
+    optim.step()
+
+    if pas % 100 == 0 or pas == 1:
+        diversite = cible.std(dim=0).mean().item()
+        print(f"pas {pas:4d} : perte = {perte.item():.6f}"
+              f"   diversite = {diversite:.6f}")
+\end{code}
+
+Voici ce que cela donne~:
+
+\begin{code}{text}[Le modèle s'effondre]
+pas    1 : perte = 0.273260   diversite = 0.219396
+pas  100 : perte = 0.039338   diversite = 0.066842
+pas  200 : perte = 0.007948   diversite = 0.017721
+pas  300 : perte = 0.002699   diversite = 0.007204
+\end{code}
+
+Lisons ces quatre lignes ensemble, car elles racontent toute l'histoire de
+ce chapitre. La colonne de la perte descend vers zéro~: du point de vue de
+la machine, tout va très bien, elle fait exactement ce qu'on lui a demandé.
+Mais celle de la diversité descend elle aussi, et c'est la catastrophe~:
+partie de
+$0{,}22$, la diversité est tombée à $0{,}007$, soit trente fois moins. Les
+sorties se sont écrasées les unes sur les autres. En trois cents pas à
+peine, sur un ordinateur ordinaire, nous venons de reproduire le désastre
+que nous décrivions plus haut.
+
+Remettons maintenant les deux garde-fous. Trois choses changent, et
+seulement trois~: un professeur séparé, dont les boutons ne sont jamais
+tournés par la correction~; un gradient bloqué autour de la cible~; et la mise à
+jour par moyenne mobile à la fin de chaque pas.
+
+\begin{code}{python}[Le même entraînement, avec les deux garde-fous]
+eleve = nn.Sequential(nn.Linear(8, 16), nn.GELU(), nn.Linear(16, 16))
+predicteur = nn.Sequential(nn.Linear(16, 16), nn.GELU(), nn.Linear(16, 16))
+
+professeur = nn.Sequential(nn.Linear(8, 16), nn.GELU(), nn.Linear(16, 16))
+professeur.load_state_dict(eleve.state_dict())   # il part de l'eleve
+for p in professeur.parameters():
+    p.requires_grad_(False)                      # il n'apprendra jamais seul
+
+optim = torch.optim.Adam(
+    list(eleve.parameters()) + list(predicteur.parameters()), lr=1e-3)
+m = 0.996                                        # coefficient de la moyenne
+
+x = torch.randn(64, 8)                           # de nouvelles donnees
+y = x + 0.1 * torch.randn(64, 8)
+
+for pas in range(1, 301):
+    with torch.no_grad():                        # <-- le gradient bloque
+        cible = professeur(y)
+
+    prediction = predicteur(eleve(x))
+    perte = (prediction - cible).abs().mean()
+
+    optim.zero_grad()
+    perte.backward()
+    optim.step()
+
+    with torch.no_grad():                        # <-- la moyenne mobile
+        for pp, pe in zip(professeur.parameters(), eleve.parameters()):
+            pp.mul_(m).add_(pe, alpha=1 - m)
+
+    if pas % 100 == 0 or pas == 1:
+        diversite = cible.std(dim=0).mean().item()
+        print(f"pas {pas:4d} : perte = {perte.item():.6f}"
+              f"   diversite = {diversite:.6f}")
+\end{code}
+
+Et le résultat~:
+
+\begin{code}{text}[Le modèle tient debout]
+pas    1 : perte = 0.247933   diversite = 0.171066
+pas  100 : perte = 0.069328   diversite = 0.188252
+pas  200 : perte = 0.048201   diversite = 0.232273
+pas  300 : perte = 0.038985   diversite = 0.275197
+\end{code}
+
+Comparons les deux tableaux, colonne par colonne. La perte descend dans les
+deux cas — c'est bien la preuve qu'elle ne nous apprend rien à elle seule.
+Mais la diversité, elle, fait le contraire~: elle tombait à $0{,}007$ sans
+garde-fou, elle \emph{monte} à $0{,}275$ avec. Les représentations, au lieu
+de s'écraser, se sont écartées les unes des autres. Le modèle a commencé à
+distinguer ses entrées, et c'est exactement le comportement que nous
+voulions.
+
+\begin{plusloin}
+Vous avez peut-être remarqué que nous avons pris $m = 0{,}996$ dans ce petit
+programme, et non $0{,}99925$ comme dans l'article. C'est volontaire, et
+c'est une règle générale~: le bon coefficient dépend du nombre de pas que
+dure l'entraînement. Ici nous n'en faisons que trois cents, alors que
+l'article en fait cent quarante-sept mille. Avec $0{,}99925$, notre
+professeur n'aurait pas eu le temps de bouger. Essayez, vous verrez~: la
+diversité ne monte alors que de $0{,}171$ à $0{,}189$, au lieu de $0{,}275$.
+Elle ne s'effondre pas, mais elle n'avance presque plus, faute de temps.
+\end{plusloin}
+
+\begin{aretenir}
+Une architecture JEPA tient en cinq pièces et deux garde-fous. Les pièces~:
+la vue trouée $x$, la vue complète $y$, l'encodeur élève $E_{\theta}$,
+l'encodeur professeur $E_{\bar{\theta}}$ et le prédicteur $P_{\varphi}$. Les
+garde-fous~: le gradient bloqué, qui empêche de tirer la cible vers soi, et
+la moyenne mobile, qui fait avancer le professeur avec du retard. Et une
+seule idée au-dessus de tout cela~: on compare des représentations, jamais
+des pixels.
+\end{aretenir}
+
+\vspace{0.5em}
+
+Nous savons désormais comment la machine est bâtie, et pourquoi elle ne
+s'écroule pas. Il nous reste à écrire, noir sur blanc, ce que
+l'entraînement cherche à faire baisser. Cela tient en une seule ligne de
+symboles~: c'est la formule officielle de V-JEPA~2. Nous la découperons
+symbole par symbole, sans en laisser un seul de côté, au chapitre suivant. Nous y verrons non seulement
+\emph{quoi} la machine doit prédire, mais aussi, et c'est le point capital,
+\emph{à quels endroits} on lui demande des comptes. Car un détail se cache
+là — un tout petit détail, presque invisible — et c'est de ce détail que
+naîtra V-JEPA~2.1.
+
+\phantomsection
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Deux pas de moyenne mobile]
+Un professeur est réglé sur $3{,}0$, un élève sur $5{,}0$, et le coefficient
+vaut $m = 0{,}99$. Calculez la valeur du professeur après un pas, puis après
+deux pas. De combien l'écart a-t-il diminué~?
+\end{exercice}
+
+\begin{solution}
+Premier pas~: $0{,}99 \times 3{,}0 + 0{,}01 \times 5{,}0 = 2{,}97 + 0{,}05
+= 3{,}02$.
+
+Deuxième pas~: $0{,}99 \times 3{,}02 + 0{,}05 = 2{,}9898 + 0{,}05 =
+3{,}0398$.
+
+L'écart valait $5{,}0 - 3{,}0 = 2{,}0$ au départ. Il vaut maintenant
+$5{,}0 - 3{,}0398 = 1{,}9602$. Il a donc diminué de $0{,}0398$, soit environ
+deux pour cent en deux pas. Remarquez au passage que $m = 0{,}99$ est
+beaucoup plus rapide que le $0{,}99925$ de l'article~: le professeur y
+attrape un centième de l'élève à chaque pas, contre moins d'un millième dans
+V-JEPA~2.1.
+\end{solution}
+
+\begin{exercice}[Compter les jetons du prédicteur]
+Un clip contient $4\,096$ jetons. Le masque en recouvre $2\,500$. Combien de
+jetons l'encodeur élève reçoit-il~? Combien le prédicteur reçoit-il en
+entrée~? Combien en ressort-il~?
+\end{exercice}
+
+\begin{solution}
+L'encodeur élève ne voit que le contexte, soit $4\,096 - 2\,500 = 1\,596$
+jetons.
+
+Le prédicteur reçoit ces $1\,596$ jetons de contexte, plus $2\,500$ jetons
+de masque, soit $1\,596 + 2\,500 = 4\,096$ jetons en entrée.
+
+Et il en ressort $4\,096$, puisqu'il produit une réponse par jeton reçu.
+Gardez bien en tête que $1\,596$ de ces réponses concernent des endroits qui
+étaient déjà visibles~: nous verrons bientôt que V-JEPA~2 les jette, et que
+c'est là son point faible.
+\end{solution}
+
+\begin{exercice}[Trouver l'erreur]
+Un collègue vous montre sa boucle d'entraînement. Elle contient la ligne
+suivante~:
+
+\begin{center}
+\term{cible = professeur(y)}
+\end{center}
+
+Sa courbe d'erreur descend magnifiquement vers zéro en deux heures, et il
+est très content. Que lui dites-vous~?
+\end{exercice}
+
+\begin{solution}
+Qu'il a très probablement oublié le gradient bloqué, et qu'il faut écrire
+cette ligne à l'intérieur d'un \term{with torch.no\_grad():}.
+
+Il faut aussi lui expliquer pourquoi sa jolie courbe est un mauvais signe et
+non un bon~: une erreur qui descend vers zéro en deux heures, sur un
+problème difficile, ne veut pas dire que le modèle a compris quelque chose.
+Cela veut dire, presque toujours, qu'il a trouvé une réponse vide.
+Conseillez-lui de tracer la diversité de ses représentations à côté de sa
+perte~: c'est ce deuxième nombre qui dit la vérité.
+\end{solution}
+
+\begin{exercice}[Le compte des nombres]
+Un lecteur affirme~: «~JEPA est meilleur parce qu'il a moins de nombres à
+deviner qu'une méthode qui redessine les pixels~». A-t-il raison~?
+\end{exercice}
+
+\begin{solution}
+Non, et c'est le piège classique de ce chapitre. Rien ne garantit qu'une
+représentation contienne moins de nombres qu'une zone de pixels~; elle peut
+même en contenir beaucoup plus.
+
+Ce qui change, ce n'est pas la quantité, c'est la nature de ce qu'on
+demande. Les pixels sont imposés du dehors, avec tout leur hasard~: la
+position exacte de chaque brin d'herbe doit être devinée, alors qu'elle est
+indevinable. La représentation, elle, est fabriquée par le modèle lui-même,
+qui a donc le droit d'y laisser tomber ce qui n'est pas prévisible et de n'y
+garder que ce qui compte.
+\end{solution}
+
+\begin{exercice}[Régler le coefficient]
+Vous choisissez $m = 0{,}5$ pour la moyenne mobile de votre professeur. Que
+va-t-il se passer, et pourquoi~?
+\end{exercice}
+
+\begin{solution}
+Avec $m = 0{,}5$, le professeur attrape la moitié de l'élève à chaque pas.
+En cinq ou six pas, il lui est devenu presque identique.
+
+Or, c'est justement le retard du professeur qui empêchait l'effondrement.
+Sans ce retard, l'élève et le professeur peuvent s'écraser ensemble sur une
+réponse vide, et plus rien ne les en empêche. Vous verrez donc la perte
+plonger vers zéro et la diversité des représentations s'effondrer, exactement
+comme dans notre deuxième programme.
+\end{solution}
+
+\begin{exercice}[À quoi servent les adresses]
+Que se passerait-il si les jetons de masque ne portaient pas l'adresse du
+trou, mais étaient tous rigoureusement identiques~?
+\end{exercice}
+
+\begin{solution}
+Le prédicteur recevrait plusieurs enveloppes vides toutes
+pareilles, et il n'aurait aucun moyen de savoir laquelle correspond
+au coin en haut à gauche et laquelle correspond au bas de l'image.
+
+N'ayant pas de raison de les traiter différemment, il donnerait à peu près
+la même réponse pour tous les trous — sans doute une sorte de moyenne de ce
+qu'il y a d'habitude dans une vidéo. La perte ne descendrait pas très bas, et
+surtout le modèle n'apprendrait rien de la façon dont la scène est rangée
+dans l'espace.
+L'adresse n'est donc pas un détail de rangement~: c'est elle qui rend la
+question possible à poser.
+\end{solution}
