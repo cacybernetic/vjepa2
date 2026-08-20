@@ -239,12 +239,17 @@ trois ensemble, l'\oe{}il reconstitue la couleur.}[canaux-rvb]
         }
       \end{scope}
     }
-    \node[font=\sffamily\scriptsize\bfseries, text=red!60!black]
-         at (2.75,2.15) {canal rouge};
-    \node[font=\sffamily\scriptsize\bfseries, text=green!45!black]
-         at (3.30,1.65) {canal vert};
-    \node[font=\sffamily\scriptsize\bfseries, text=blue!60!black]
-         at (3.85,1.15) {canal bleu};
+    % Chaque nom est posé dans la bande de sa propre mosaïque, celle qui
+    % reste visible au-dessus de la mosaïque suivante.
+    \node[font=\sffamily\scriptsize\bfseries, text=red!60!black,
+          fill=white, fill opacity=0.75, text opacity=1, inner sep=1.2pt]
+         at (1.20,2.15) {canal rouge};
+    \node[font=\sffamily\scriptsize\bfseries, text=green!45!black,
+          fill=white, fill opacity=0.75, text opacity=1, inner sep=1.2pt]
+         at (1.75,1.65) {canal vert};
+    \node[font=\sffamily\scriptsize\bfseries, text=blue!60!black,
+          fill=white, fill opacity=0.75, text opacity=1, inner sep=1.2pt]
+         at (2.30,1.15) {canal bleu};
     \draw[fleche accent] (4.9,0.7) -- (6.1,0.7);
     \node[etiquette, above] at (5.5,0.78) {on mélange};
     \begin{scope}[xshift=6.4cm, yshift=-0.5cm]
@@ -310,17 +315,18 @@ utilisent un mot unique, qui a l'air savant mais qui ne cache rien de
 compliqué : le \emph{tenseur}. Approchons-le par étapes, en montant une
 marche à la fois.
 
-\begin{schema}{La même idée, à quatre étages. Un nombre tout seul ; une
-liste de nombres ; un tableau de nombres ; puis une pile de tableaux. Le
-mot « tenseur » désigne tout cela d'un coup, quel que soit le nombre
-d'étages.}[echelle-tenseur]
+\begin{schema}{La même idée, en quatre marches. Un nombre tout seul ; une
+liste de nombres ; un tableau de nombres ; puis une pile de tableaux. À
+chaque marche, on ajoute une direction pour se déplacer, c'est-à-dire un
+axe. Le mot « tenseur » désigne tout cela d'un coup, quel que soit le nombre
+d'axes.}[echelle-tenseur]
   \begin{scope}[x=1cm, y=1cm]
     % 1. un nombre
     \draw[draw=mbSlate!50, fill=mbBlue!10, line width=0.6pt]
           (0,-0.75) rectangle (0.5,-1.25);
     \node[font=\scriptsize, text=mbInk] at (0.25,-1) {7};
     \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
-          at (0.25,-2.9) {un nombre\\ (0 étage)};
+          at (0.25,-2.9) {un nombre\\ (aucun axe)};
     % 2. une liste
     \begin{scope}[xshift=2cm]
       \foreach \ci in {0,...,3}{
@@ -328,7 +334,7 @@ d'étages.}[echelle-tenseur]
               (\ci*0.5,-0.75) rectangle ++(0.5,-0.5);
       }
       \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
-            at (1,-2.9) {une liste\\ (1 étage)};
+            at (1,-2.9) {une liste\\ (1 axe)};
     \end{scope}
     % 3. un tableau
     \begin{scope}[xshift=5.2cm]
@@ -339,7 +345,7 @@ d'étages.}[echelle-tenseur]
         }
       }
       \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
-            at (1,-2.9) {un tableau\\ (2 étages)};
+            at (1,-2.9) {un tableau\\ (2 axes)};
     \end{scope}
     % 4. une pile de tableaux
     \begin{scope}[xshift=8.6cm]
@@ -354,7 +360,7 @@ d'étages.}[echelle-tenseur]
         \end{scope}
       }
       \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
-            at (1.3,-2.9) {une pile\\ (3 étages)};
+            at (1.3,-2.9) {une pile\\ (3 axes)};
     \end{scope}
   \end{scope}
 \end{schema}
@@ -602,15 +608,17 @@ problèmes que tout le reste du livre s'emploie à résoudre.
   \item \textbf{Il y a beaucoup trop de nombres.} Aucun modèle ne peut
         traiter trois millions de valeurs une par une. Il faudra donc
         d'abord les regrouper en petits carrés de $16 \times 16$ pixels :
-        c'est ce que nous ferons au chapitre~4, consacré au transformeur de
+        c'est ce que nous ferons au chapitre consacré au transformeur de
         vision.
   \item \textbf{La finesse coûte cher.} Chaque fois que la résolution
         monte, la facture explose. C'est pour cela que l'entraînement
         commence en basse résolution et ne monte qu'à la toute fin.
   \item \textbf{Lire une vidéo prend du temps.} Une vidéo est stockée
         compressée ; il faut la décompresser image par image avant de
-        pouvoir en faire quoi que ce soit. En production, ce travail-là
-        devient souvent plus lent que le modèle lui-même. Nous y
+        pouvoir en faire quoi que ce soit. En production — c'est-à-dire
+        quand le modèle travaille pour de vrai, tous les jours, au service
+        d'une application — ce travail-là devient souvent plus lent que le
+        modèle lui-même. Nous y
         reviendrons longuement dans la partie consacrée à la mise en
         service.
 \end{itemize}

@@ -2,9 +2,9 @@
 \label{chap:apprendre}
 
 \begin{quote}\itshape
-Nous savons maintenant qu'une image n'est qu'un grand tas de nombres. Mais
-un tas de nombres ne fait rien tout seul. Dans ce chapitre, nous allons
-voir comment une machine part d'un réglage complètement au hasard, se
+Une image, nous venons de le voir, n'est rien d'autre qu'un grand tas de
+nombres. Mais un tas de nombres ne fait rien tout seul. Dans ce chapitre,
+nous allons voir comment une machine part d'un réglage pris au hasard, se
 trompe, remarque qu'elle s'est trompée, et se corrige toute seule. C'est
 cela, et rien d'autre, qu'on appelle « apprendre ».
 \end{quote}
@@ -76,7 +76,10 @@ question.}[boutons]
     \node[font=\sffamily\small\bfseries, text=mbBlue] at (2.5,0.45)
          {le modèle};
     % --- les trois boutons ---
-    \foreach \mbk/\mbang/\mbnom in {0/55/a, 1/-30/b, 2/120/c}{
+    % Les boutons sont numérotés, et non nommés a, b, c : le modèle de la
+    % page suivante n'en a que deux, et il ne faut pas que le lecteur croie
+    % qu'il en manque un.
+    \foreach \mbk/\mbang/\mbnom in {0/55/1, 1/-30/2, 2/120/3}{
       \begin{scope}[shift={(1.3+\mbk*1.2, 1.6)}]
         \draw[draw=mbSlate!65, fill=white, line width=0.9pt] (0,0) circle (0.34);
         \draw[draw=mbAmber!85!black, line width=1.3pt] (0,0) -- (\mbang:0.27);
@@ -128,8 +131,8 @@ de bonbons, quel que soit le nombre de pièces.
 \end{exemple}
 
 \begin{intuition}
-Le bouton $a$, c'est la pente : plus il est grand, plus la machine est
-généreuse à chaque pièce. Le bouton $b$, c'est le cadeau de départ : il
+Le bouton $a$, c'est l'inclinaison de la droite : plus il est grand, plus la
+machine est généreuse à chaque pièce. Le bouton $b$, c'est le cadeau de départ : il
 décale toute la réponse vers le haut ou vers le bas, même quand on n'a mis
 aucune pièce.
 \end{intuition}
@@ -259,11 +262,12 @@ représentent : ce sont des distances verticales entre les vrais points et la
 droite que dessine le modèle.
 
 \begin{schema}{Les trois enfants sont les points bleus. La droite en trait
-plein est la réponse du modèle : elle donne un bonbon deviné pour chaque
-nombre de pièces. Les traits rouges verticaux sont les écarts, c'est-à-dire
-ce que la machine s'est trompée sur chaque enfant. Régler les boutons, c'est
-faire pivoter et glisser cette droite jusqu'à ce que les traits rouges
-soient les plus courts possible.}[erreur-droite]
+plein est la réponse du modèle. Ici, ses deux boutons sont encore à zéro :
+elle est couchée sur l'axe et annonce zéro bonbon à tout le monde. Les
+traits rouges verticaux sont les écarts, c'est-à-dire de combien la machine
+s'est trompée sur chaque enfant : $2$, $5$ et $8$ bonbons. Régler les
+boutons, ce sera faire pivoter et monter cette droite jusqu'à ce que les
+traits rouges soient les plus courts possible.}[erreur-droite]
   \begin{scope}[x=1.25cm, y=0.36cm]
     % --- axes ---
     \draw[->, draw=mbSlate, line width=0.7pt] (0,0) -- (3.9,0)
@@ -278,12 +282,13 @@ soient les plus courts possible.}[erreur-droite]
       \draw[draw=mbSlate!60, line width=0.6pt] (-0.07,\mbk) -- (0.07,\mbk);
       \node[font=\sffamily\scriptsize, text=mbSlate, left] at (-0.09,\mbk) {\mbk};
     }
-    % --- la droite du modèle : y = 2,4 x + 1 ---
-    \draw[draw=mbAmber!85!black, line width=1.2pt] (0,1) -- (3.6,9.64);
-    \node[font=\sffamily\scriptsize, text=mbAmber!75!black, anchor=west]
-          at (3.05,10.0) {la droite du modèle};
+    % --- la droite du modèle, boutons à zéro : y = 0 ---
+    \draw[draw=mbAmber!85!black, line width=1.4pt] (0,0) -- (3.6,0);
+    \draw[draw=mbAmber!65, line width=0.5pt] (0.45,-1.55) -- (0.45,-0.15);
+    \node[font=\sffamily\scriptsize, text=mbAmber!75!black, align=center]
+          at (0.45,-2.45) {la droite du modèle,\\ boutons à zéro};
     % --- écarts verticaux ---
-    \foreach \mbx/\mby/\mbp/\mbe in {1/2/3.4/1{,}4, 2/5/5.8/0{,}8, 3/8/8.2/0{,}2}{
+    \foreach \mbx/\mby/\mbp/\mbe in {1/2/0/2, 2/5/0/5, 3/8/0/8}{
       \draw[draw=mbRose, line width=1.1pt] (\mbx,\mby) -- (\mbx,\mbp);
       \node[font=\sffamily\scriptsize, text=mbRose, anchor=west]
             at (\mbx+0.08,{(\mby+\mbp)/2}) {\mbe};
@@ -393,11 +398,11 @@ lourd dans la décision.
 \begin{exemple}[La formule donne-t-elle le même résultat que la poussée ?]
 Vérifions. Avec $a = 0$ et $b = 0$, les écarts valent $-2$, $-5$ et $-8$, et
 les pièces valent $1$, $2$ et $3$. La pente selon $a$ vaut donc
-\[
+\begin{align*}
   \frac{2}{3}\bigl[(-2)\times 1 + (-5)\times 2 + (-8)\times 3\bigr]
-  = \frac{2}{3}\bigl[-2 - 10 - 24\bigr]
-  = \frac{2}{3}\times(-36) = -24 .
-\]
+    &= \frac{2}{3}\bigl[-2 - 10 - 24\bigr] \\[2pt]
+    &= \frac{2}{3}\times(-36) = -24 .
+\end{align*}
 La formule annonce $-24$, et notre petite poussée avait mesuré $-23{,}95$.
 Les deux méthodes s'accordent. Le minuscule écart vient de ce que notre
 poussée de $0{,}01$ n'était pas infiniment petite ; en poussant encore
@@ -470,9 +475,10 @@ plate.}[vallee]
     \fill[mbBlue] (2,2) circle (0.13cm);
     \node[font=\sffamily\scriptsize, text=mbBlue, anchor=south west]
           at (2.12,2.12) {le modèle};
-    % --- sens du déplacement ---
-    \draw[fleche accent] (1.85,1.55) -- (1.05,1.05);
-    \node[font=\sffamily\scriptsize\itshape, text=mbAmber!75!black,
+    % --- sens du déplacement (en vert, pour ne pas le confondre avec
+    %     la tangente, qui est ambre et en pointillés) ---
+    \draw[->, draw=mbTeal, line width=1.1pt] (1.85,1.55) -- (1.05,1.05);
+    \node[font=\sffamily\scriptsize\itshape, text=mbTeal,
           anchor=east] at (1.0,1.35) {on va par là};
     % --- le fond ---
     \fill[mbGreen] (0,0) circle (0.1cm);
@@ -706,8 +712,8 @@ taux d'apprentissage par dix et relancer.
 V-JEPA~2.1 ne garde pas le même pas du début à la fin. Pendant les douze
 mille premières étapes, il l'augmente doucement de $10^{-4}$ à
 $5{,}25 \times 10^{-4}$ : on appelle cela une montée en douceur, et cela
-évite de tout casser au tout début, quand les boutons sont encore n'importe
-comment. Ensuite il le laisse constant très longtemps. Enfin, sur les douze
+évite de tout casser au tout début, quand les boutons sont encore réglés
+n'importe comment. Ensuite il le laisse constant très longtemps. Enfin, sur les douze
 mille dernières étapes, il le fait redescendre jusqu'à $10^{-6}$, c'est-à-dire
 presque zéro : les pas deviennent minuscules et le modèle se pose tout
 doucement au fond de la vallée, au lieu de continuer à sautiller autour.
@@ -747,6 +753,18 @@ Un \emph{pas} — on dit aussi une \emph{itération} — est un tour complet de
 la boucle : on prend un lot, on prédit, on mesure l'erreur, on calcule les
 pentes, on bouge les paramètres. Un pas, un lot.
 \end{definition}
+
+\begin{piege}
+Le mot « pas » sert malheureusement à deux choses, et il faut les séparer
+dans votre tête une bonne fois pour toutes. \emph{Faire un pas}, c'est faire
+un tour de boucle : c'est ce que nous venons de définir, et cela se compte
+($135\,000$ pas pour V-JEPA~2.1). \emph{La longueur du pas}, c'est le taux
+d'apprentissage $\pas$ de la section précédente : c'est de combien on bouge
+les boutons pendant ce tour, et cela se règle. On peut donc faire beaucoup
+de pas très courts, ou peu de pas très longs. Quand un texte parle de
+« pas », demandez-vous toujours s'il compte des tours ou s'il mesure une
+longueur.
+\end{piege}
 
 \begin{definition}[L'époque][epoque]
 Une \emph{époque} est le temps qu'il faut pour que le modèle ait vu une fois
@@ -856,7 +874,7 @@ tout le monde. Au milieu, il a saisi la règle générale : il ne touche pas
 tous les points, et c'est très bien ainsi. À droite, il passe exactement par
 chaque point, son erreur est nulle — mais entre les points il fait n'importe
 quoi, et sur un point nouveau il se trompera lourdement.}[surapprentissage]
-  \begin{scope}[x=0.72cm, y=0.62cm]
+  \begin{scope}[x=0.76cm, y=0.66cm]
     % ============ panneau 1 : trop simple ============
     \begin{scope}
       \draw[draw=mbSlate!35, line width=0.6pt] (0,0) rectangle (4.4,4.6);
@@ -871,7 +889,7 @@ quoi, et sur un point nouveau il se trompera lourdement.}[surapprentissage]
             at (2.2,-1.4) {il n'a rien\\ appris du tout};
     \end{scope}
     % ============ panneau 2 : juste ============
-    \begin{scope}[xshift=5.1cm]
+    \begin{scope}[shift={(5.1,0)}]
       \draw[draw=mbSlate!35, line width=0.6pt] (0,0) rectangle (4.4,4.6);
       \draw[draw=mbGreen, line width=1.2pt] (0.25,0.9) -- (4.15,4.0);
       \foreach \mbx/\mby in {0.3/0.9, 0.9/1.9, 1.5/1.7, 2.1/2.9,
@@ -884,7 +902,7 @@ quoi, et sur un point nouveau il se trompera lourdement.}[surapprentissage]
             at (2.2,-1.4) {il a compris\\ la tendance};
     \end{scope}
     % ============ panneau 3 : par cœur ============
-    \begin{scope}[xshift=10.2cm]
+    \begin{scope}[shift={(10.2,0)}]
       \draw[draw=mbSlate!35, line width=0.6pt] (0,0) rectangle (4.4,4.6);
       \draw[draw=mbAmber!85!black, line width=1.2pt, smooth]
             plot coordinates {(0.3,0.9) (0.9,1.9) (1.5,1.7) (2.1,2.9)
@@ -985,20 +1003,21 @@ a = torch.tensor(0.0, requires_grad=True)
 b = torch.tensor(0.0, requires_grad=True)
 pas = 0.1
 
+# 1. je prends mes donnees : ici, les trois enfants d'un seul coup.
 for etape in range(2):
-    prediction = a * x + b                       # 1. je predis
-    erreur = ((prediction - y) ** 2).mean()      # 2. je mesure mon erreur
-    erreur.backward()                            # 3. je demande les pentes
+    prediction = a * x + b                       # 2. je calcule ma prediction
+    erreur = ((prediction - y) ** 2).mean()      # 3. je mesure mon erreur
+    erreur.backward()                            # 4. je calcule les pentes
 
     print(f"etape {etape} : a = {a.item():.2f}, b = {b.item():.2f}, "
           f"erreur = {erreur.item():.4f}, "
           f"pente_a = {a.grad.item():.2f}, pente_b = {b.grad.item():.2f}")
 
-    with torch.no_grad():                        # 4. je bouge les boutons
+    with torch.no_grad():                        # 5. je bouge les boutons
         a -= pas * a.grad
         b -= pas * b.grad
 
-    a.grad.zero_()                               # 5. j'efface les pentes
+    a.grad.zero_()          # puis j'efface les pentes pour le tour suivant
     b.grad.zero_()
 
 print(f"apres 2 etapes : a = {a.item():.2f}, b = {b.item():.2f}")
@@ -1048,7 +1067,7 @@ for _ in range(200):
     b.grad.zero_()
 
 print(f"a = {a.item():.3f}   b = {b.item():.3f}")   # -> a = 2.993   b = -0.985
-print(f"erreur = {erreur.item():.6f}")              # -> erreur = 0.000032
+print(f"erreur = {erreur.item():.6f}")              # -> erreur = 0.000034
 \end{code}
 
 Le bouton $a$ vaut $2{,}993$ et le bouton $b$ vaut $-0{,}985$. La machine a

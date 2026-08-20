@@ -1,0 +1,1221 @@
+\chapter{Apprendre sans étiquettes : l'auto-supervision}
+\label{chap:auto-supervision}
+
+\begin{quote}\itshape
+Au chapitre précédent, la machine avait toujours la bonne réponse écrite à
+côté de la question. Nous allons voir maintenant que, pour les vidéos, cette
+bonne réponse n'existe pas et n'existera jamais. Nous allons donc apprendre
+à la machine un nouveau jeu : cacher elle-même un morceau de ce qu'elle
+regarde, et essayer de le deviner. Personne ne lui souffle rien. Et
+pourtant, elle apprend.
+\end{quote}
+
+\begin{prerequis}
+Les chapitres~\ref{chap:image-video} et~\ref{chap:apprendre}. Il faut savoir
+qu'une image est une grille de nombres et connaître sa forme, et il faut
+avoir compris la boucle en cinq gestes : je prédis, je mesure mon erreur, je
+calcule les pentes, je bouge les boutons, je recommence. Nous n'aurons besoin
+de rien d'autre. Aucun mot nouveau ne sera employé sans être expliqué juste
+avant.
+\end{prerequis}
+
+Reprenons la machine à bonbons du chapitre précédent. Pour qu'elle apprenne,
+il nous fallait trois choses : les questions (le nombre de pièces), les
+réponses (le nombre de bonbons), et la boucle qui corrige les boutons. Sans
+les réponses, la deuxième étape de la boucle s'arrête net : impossible de
+mesurer un écart, donc impossible de savoir dans quel sens tourner quoi que
+ce soit.
+
+Tout ce chapitre part de cette question, et d'elle seule : \emph{et si
+personne n'écrit les réponses ?}
+
+\section{La bonne réponse écrite à côté : l'étiquette}
+
+\begin{enclair}
+Une étiquette, c'est le petit mot qu'un humain colle sur une donnée pour
+dire ce qu'elle contient. « Ceci est un chat. » Sans ce petit mot, la
+méthode du chapitre précédent ne fonctionne pas.
+\end{enclair}
+
+Quand nous avons entraîné la machine à bonbons, nous connaissions les trois
+réponses : deux bonbons pour Léa, cinq pour Sami, huit pour Nina. Ces trois
+nombres n'étaient pas tombés du ciel. Trois enfants les avaient comptés, et
+quelqu'un les avait notés sur un papier. Ce travail de notation a un nom.
+
+\begin{definition}[L'étiquette][etiquette]
+Une \emph{étiquette} est la bonne réponse que l'on écrit à côté d'une donnée,
+pour dire à la machine ce qu'elle aurait dû répondre. Sur une photo, ce peut
+être le mot « chat ». Sur un enregistrement de voix, ce peut être la phrase
+prononcée. Sur une image médicale, ce peut être « sain » ou « malade ». Une
+étiquette est toujours écrite par quelqu'un : elle ne se fabrique pas toute
+seule.
+\end{definition}
+
+\begin{definition}[L'apprentissage supervisé][supervise]
+On parle d'\emph{apprentissage supervisé} quand on entraîne une machine avec
+des données accompagnées de leurs étiquettes. Le mot « supervisé » veut dire
+« surveillé » : à chaque essai, quelqu'un — au travers de l'étiquette qu'il a
+écrite à l'avance — corrige la machine. C'est exactement ce que nous avons
+fait au chapitre~\ref{chap:apprendre}.
+\end{definition}
+
+\begin{exemple}[Reconnaître un chat d'un chien]
+Vous voulez une machine qui, devant une photo, dise « chat » ou « chien ».
+Vous rassemblez dix mille photos. Puis, une par une, vous les ouvrez, vous
+regardez, et vous tapez le bon mot à côté. Dix mille fois. Quand c'est fini,
+vous avez dix mille étiquettes, et vous pouvez lancer la boucle du chapitre
+précédent : la machine prédit, on compare sa prédiction à l'étiquette, on
+mesure l'écart, on corrige les boutons.
+
+Retenez bien le prix payé ici : \emph{dix mille regards humains}. C'est ce
+prix-là que nous allons regarder de plus près.
+\end{exemple}
+
+Tant qu'on parle de dix mille photos, tout va bien. Une petite équipe y passe
+quelques semaines et le travail est fait. Voyons ce qui se passe quand on
+change d'échelle.
+
+\section{Le mur : ce que coûte vraiment une étiquette}
+
+\begin{enclair}
+Étiqueter est un travail humain. Un travail humain prend du temps. Et quand
+le nombre de données devient très grand, ce temps devient si long qu'aucune
+entreprise, aucun pays, aucune génération ne pourrait le fournir.
+\end{enclair}
+
+Faisons le calcul ensemble, avec des nombres simples et vérifiables.
+
+Imaginons la tâche la plus facile qui soit : regarder une photo et taper un
+seul mot. Une personne rapide met environ cinq secondes par photo, en
+comptant le temps de regarder et le temps de taper. Maintenant, comptons le
+temps de travail d'une personne dans une année : disons sept heures par jour,
+deux cent vingt jours par an — les week-ends et les congés en moins. Cela
+fait $7 \times 220 = 1\,540$ heures de travail par an.
+
+\begin{exemple}[Étiqueter cent quarante-deux millions d'images]
+V-JEPA~2.1 s'entraîne, entre autres, sur un ensemble de $142\,000\,000$
+d'images. Étiquetons-les à cinq secondes pièce :
+
+\[
+  142\,000\,000 \times 5 = 710\,000\,000 \text{ secondes.}
+\]
+
+Convertissons en heures en divisant par $3\,600$ :
+
+\[
+  \frac{710\,000\,000}{3\,600} \approx 197\,000 \text{ heures.}
+\]
+
+Puis en années de travail d'une personne, en divisant par $1\,540$ :
+
+\[
+  \frac{197\,000}{1\,540} \approx 128 \text{ ans.}
+\]
+
+Cent vingt-huit ans de travail, pour une seule personne, sans jamais
+s'arrêter. Et c'était la tâche la plus \emph{facile} : un mot par image.
+\end{exemple}
+
+Et les vidéos ? La plus grosse source de V-JEPA~2.1 représente à elle seule
+$1\,600\,000$ heures de film. Notez bien : il ne s'agit plus du temps qu'il
+faut pour étiqueter, mais du temps qu'il faudrait rien que pour
+\emph{regarder} ces vidéos une fois, à vitesse normale.
+
+\[
+  \frac{1\,600\,000}{1\,540} \approx 1\,039 \text{ ans.}
+\]
+
+Plus de mille ans de visionnage. Il faudrait avoir commencé à regarder à
+l'époque des premiers châteaux forts pour finir aujourd'hui — et on n'aurait
+encore rien écrit.
+
+\begin{surlesdonnees}
+Le mur devient encore bien plus haut dès qu'on demande une étiquette plus
+fine qu'un simple mot. Pour apprendre à une machine à dire, \emph{pour chaque
+pixel}, s'il appartient à la route, au trottoir ou à un piéton, il faut
+colorier l'image à la main, contour par contour. Sur des photos de rue, ce
+travail prend de l'ordre d'une heure et demie par image.
+
+Sur nos cent quarante-deux millions d'images, cela ferait
+$142\,000\,000 \times 1{,}5 = 213\,000\,000$ heures, soit environ
+$213\,000\,000 / 1\,540 \approx 138\,000$ ans. Cent trente-huit mille ans de
+coloriage. Autant dire : jamais.
+\end{surlesdonnees}
+
+La figure~\ref{fig:montagne-heures} met ces trois durées côte à côte. Le
+troisième bâton ne tient pas sur la page, et c'est bien le message du dessin.
+
+\begin{schema}{Le temps de travail humain qu'il faudrait pour étiqueter les
+données de V-JEPA~2.1, comparé à une carrière entière. Le premier bâton est
+tout ce qu'une personne peut fournir dans sa vie. Le deuxième est le prix
+d'un simple mot par image. Le troisième, celui du coloriage pixel par pixel,
+sort de la page : il faudrait mille fois plus de temps que ce que la feuille
+peut montrer.}[montagne-heures]
+  \begin{scope}[x=1cm, y=1cm]
+    \draw[draw=mbSlate!45, line width=0.7pt] (0,-0.25) -- (0,3.45);
+    % Les trois légendes sont posées de la même façon : juste au-dessus de
+    % leur bâton, alignées à gauche sur l'axe.
+    % --- une carrière ---
+    \node[font=\sffamily\scriptsize, text=mbSlate, anchor=west]
+         at (0.05,3.15) {une carrière entière : $40$ ans};
+    \draw[draw=mbTeal, fill=mbTeal!25, line width=0.8pt]
+          (0,2.4) rectangle (0.9,2.9);
+    % --- un mot par image ---
+    \node[font=\sffamily\scriptsize, text=mbSlate, anchor=west]
+         at (0.05,2.05) {étiqueter les images, un mot chacune : $128$ ans};
+    \draw[draw=mbAmber!85!black, fill=mbAmber!25, line width=0.8pt]
+          (0,1.3) rectangle (2.88,1.8);
+    % --- le coloriage : le bâton sort de la page ---
+    \node[font=\sffamily\scriptsize, text=mbSlate, anchor=west]
+         at (0.05,0.95) {les colorier pixel par pixel : $138\,000$ ans};
+    \draw[draw=mbRose, fill=mbRose!25, line width=0.8pt]
+          (0,0.2) rectangle (7.9,0.7);
+    \draw[draw=white, line width=1.6pt] (7.45,0.1) -- (7.6,0.8);
+    \draw[draw=white, line width=1.6pt] (7.7,0.1) -- (7.85,0.8);
+    \draw[fleche accent] (8.0,0.45) -- (8.7,0.45);
+    \node[annotation, text width=2.4cm, anchor=west] at (8.85,0.45)
+         {et cela continue\\ bien au-delà};
+    \node[font=\sffamily\scriptsize\itshape, text=mbSlate, anchor=west]
+         at (0.05,-0.65) {longueur des bâtons : temps de travail d'une seule
+                          personne};
+  \end{scope}
+\end{schema}
+
+Vous voyez le problème. Nous savons faire apprendre une machine, mais notre
+méthode réclame un carburant — les étiquettes — que nous ne pouvons pas
+produire en quantité suffisante. Or les données brutes, elles, sont partout :
+des milliards de photos et de vidéos existent déjà, sans le moindre petit mot
+écrit à côté.
+
+\begin{aretenir}
+Les données brutes sont abondantes et presque gratuites. Les étiquettes sont
+rares et très chères. Toute la suite du livre découle de ce déséquilibre :
+il faut trouver un moyen d'apprendre à partir de ce qui est abondant.
+\end{aretenir}
+
+La question devient donc : peut-on fabriquer la bonne réponse \emph{sans
+personne} ? La réponse est oui, et elle est étonnamment simple.
+
+\section{L'idée qui change tout : cacher un morceau}
+
+\begin{intuition}
+Si je cache un bout de quelque chose que j'ai sous les yeux, je connais déjà
+la bonne réponse : c'est le bout que je viens de cacher. Je peux donc me
+poser une question à moi-même, et me corriger tout seul. Aucun humain n'est
+nécessaire.
+\end{intuition}
+
+Faisons l'expérience sur vous, tout de suite. Lisez cette phrase :
+
+\begin{center}
+\itshape « Le chat boit du \underline{\hphantom{xxxxxxx}}. »
+\end{center}
+
+Vous avez pensé « lait ». Personne ne vous a donné la réponse. Vous l'avez
+trouvée parce que vous connaissez les chats, les boissons, et la façon dont
+les phrases sont construites. Autrement dit : \emph{pour remplir le trou, il
+a fallu comprendre le reste}. C'est toute l'idée.
+
+Maintenant, regardez ce que cela donne si l'on cache un morceau d'une image.
+Si je masque le museau d'un chien sur une photo, vous pouvez encore le
+dessiner de tête, à peu près : vous savez où il va, de quelle couleur il est,
+quelle forme il a. Pour cela, vous vous êtes servi des oreilles, des yeux, de
+la fourrure autour. Vous avez compris la photo.
+
+\begin{definition}[L'apprentissage auto-supervisé][ssl]
+On parle d'\emph{apprentissage auto-supervisé} quand la machine fabrique
+elle-même ses questions et ses réponses à partir des données brutes, sans
+aucune étiquette écrite par un humain. Le préfixe « auto » veut dire
+« par elle-même » : c'est elle qui se surveille. On l'abrège souvent en
+\emph{SSL}, initiales de l'anglais \emph{self-supervised learning}.
+\end{definition}
+
+La figure~\ref{fig:etiquette-vs-ssl} met les deux façons de faire côte à côte.
+Regardez surtout la différence de rythme entre la colonne de gauche et celle
+de droite.
+
+\begin{schema}{Deux façons d'obtenir la bonne réponse. À gauche,
+l'apprentissage supervisé : un humain regarde chaque image et écrit une
+étiquette, une par une. À droite, l'apprentissage auto-supervisé : la machine
+recouvre elle-même un morceau de l'image, et le morceau caché devient la
+bonne réponse. À gauche, il faut un humain à chaque image ; à droite,
+personne.}[etiquette-vs-ssl]
+  \begin{scope}[x=0.94cm, y=0.94cm]
+    %================ colonne de gauche : supervisé ================
+    \node[font=\sffamily\bfseries\small, text=mbSlate] at (2.2,4.95)
+         {Apprentissage supervisé};
+    % le personnage : une tête et un buste très simples
+    \begin{scope}[shift={(0.2,2.6)}]
+      \draw[draw=mbSlate, fill=mbMist, line width=0.8pt] (0,0.55) circle (0.32);
+      \draw[draw=mbSlate, fill=mbMist, line width=0.8pt]
+            (-0.42,-0.5) -- (0.42,-0.5) -- (0.3,0.18) -- (-0.3,0.18) -- cycle;
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (0,-0.95) {un humain};
+    \end{scope}
+    % trois images à étiqueter
+    \foreach \mbk/\mby in {0/3.6, 1/2.6, 2/1.6}{
+      \draw[draw=mbSlate!55, fill=white, line width=0.7pt]
+            (1.6,\mby-0.35) rectangle (2.5,\mby+0.35);
+      \draw[fleche] (0.75,\mby) -- (1.5,\mby);
+      \node[font=\sffamily\scriptsize, text=mbInk] at (3.5,\mby)
+           {« chat »};
+      \draw[fleche] (2.6,\mby) -- (2.95,\mby);
+    }
+    \node[annotation, text width=4cm] at (2.2,0.7)
+         {une image, un regard, un mot\\ puis on recommence
+          142 millions de fois};
+    % séparateur
+    \draw[draw=mbSlate!30, dashed, line width=0.7pt] (5.2,0.3) -- (5.2,5.25);
+    %================ colonne de droite : auto-supervisé ============
+    \node[font=\sffamily\bfseries\small, text=mbSlate] at (8.6,4.95)
+         {Apprentissage auto-supervisé};
+    % l'image complète
+    \draw[draw=mbSlate!55, fill=white, line width=0.7pt]
+          (6.3,2.85) rectangle (7.5,3.75);
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (6.9,2.55)
+         {l'image};
+    \draw[fleche accent] (7.65,3.3) -- (8.35,3.3);
+    % l'image masquée
+    \draw[draw=mbSlate!55, fill=white, line width=0.7pt]
+          (8.5,2.85) rectangle (9.7,3.75);
+    \fill[mbSlate!35] (8.8,3.05) rectangle (9.4,3.55);
+    \node[font=\sffamily\scriptsize, text=mbSlate, align=center,
+          text width=3.6cm] at (9.1,4.15)
+         {la machine recouvre un carré};
+    % la réponse
+    \draw[fleche] (9.85,3.3) -- (10.6,3.3);
+    \draw[draw=mbAmber!85!black, fill=mbAmber!18, line width=0.9pt]
+          (10.7,3.05) rectangle (11.3,3.55);
+    \node[annotation, text width=3.2cm] at (11.1,2.25)
+         {le morceau caché\\ \emph{est} la bonne réponse};
+    \node[annotation, text width=4.6cm] at (8.9,1.0)
+         {aucun humain n'intervient :\\ on peut le faire des milliards
+          de fois, jour et nuit};
+  \end{scope}
+\end{schema}
+
+Ce petit changement de point de vue a une conséquence énorme, et il faut
+prendre le temps de la mesurer. Dans la colonne de gauche, le nombre
+d'exemples d'entraînement est limité par le nombre d'heures que des humains
+acceptent d'y passer. Dans la colonne de droite, il est limité par le nombre
+de vidéos qui existent et par la puissance des machines. Ce ne sont pas du
+tout les mêmes limites.
+
+\begin{exemple}[Le même carré, deux rôles]
+Prenons une image de $8 \times 8$ cases. Je recouvre les seize cases du coin
+en haut à droite. Ce que je donne à la machine, c'est l'image avec son trou.
+Ce que je lui demande, c'est de reconstituer les seize cases manquantes. Et
+comme je viens de les recouvrir moi-même, je les connais parfaitement : je
+peux donc comparer sa réponse à la vérité et calculer une erreur, exactement
+comme au chapitre~\ref{chap:apprendre}.
+
+Le même carré joue donc deux rôles à la fois : il est \emph{la question}
+quand on le cache, et \emph{la réponse} quand on le compare. Voilà pourquoi
+on n'a plus besoin de personne.
+\end{exemple}
+
+Ce jeu de cache-cache porte un nom, et il faut le connaître, car nous allons
+l'employer jusqu'à la fin du livre.
+
+\section{La tâche prétexte : un jeu que l'on jette après}
+
+\begin{definition}[La tâche prétexte][pretexte]
+Une \emph{tâche prétexte} est un exercice que l'on invente pour faire
+travailler la machine, alors que la réponse à cet exercice ne nous intéresse
+pas du tout. Le mot « prétexte » a ici son sens courant : une bonne excuse. Ce
+qui nous intéresse, ce n'est pas que la machine sache remplir des trous ; c'est
+tout ce qu'elle a été \emph{obligée} de comprendre pour y arriver.
+\end{definition}
+
+Cette idée surprend souvent au début, alors prenons une comparaison de la vie
+de tous les jours.
+
+\begin{intuition}
+Un professeur de musique demande à son élève de jouer des gammes pendant des
+mois. Personne n'a jamais acheté de billet pour aller écouter des gammes. La
+gamme est un prétexte : ce que le professeur veut vraiment, ce sont des
+doigts agiles et une oreille juste. Le jour du concert, l'élève ne jouera
+aucune gamme, mais tout ce qu'il jouera en profitera.
+
+Pour notre machine, c'est pareil. Remplir des trous est la gamme. Reconnaître
+une action, mesurer une distance, suivre un objet : voilà le concert.
+\end{intuition}
+
+Les chercheurs ont inventé beaucoup de gammes différentes. La
+figure~\ref{fig:pretextes} en montre quatre parmi les plus connues. Elles ont
+toutes le même point commun : la bonne réponse se fabrique toute seule, en
+partant de l'image entière.
+
+\begin{schema}{Quatre tâches prétextes. Dans les quatre cas, on abîme
+volontairement l'image d'une façon dont on garde le secret, et l'on demande à
+la machine de retrouver ce qui a été fait. Comme c'est nous qui avons abîmé
+l'image, nous connaissons toujours la bonne réponse, sans avoir eu besoin de
+la moindre étiquette.}[pretextes]
+  \begin{scope}[x=0.87cm, y=0.87cm]
+    \foreach \mbx/\mbtitre/\mbquestion in {%
+      0/{le puzzle}/{remets les morceaux\\ dans l'ordre},
+      3.6/{la rotation}/{de quel angle\\ ai-je tourné ?},
+      7.2/{la couleur}/{remets les couleurs\\ sur le gris},
+      10.8/{le trou}/{devine ce qui\\ manque}}{
+      \draw[draw=mbSlate!55, fill=white, line width=0.7pt]
+            (\mbx,0) rectangle (\mbx+2.4,1.8);
+      \node[font=\sffamily\small\bfseries, text=mbBlue] at (\mbx+1.2,2.15)
+           {\mbtitre};
+      \node[font=\sffamily\scriptsize, text=mbSlate, align=center,
+            text width=2.6cm] at (\mbx+1.2,-0.75) {\mbquestion};
+    }
+    % 1. puzzle : quatre cases mélangées, numérotées dans le désordre
+    \foreach \mbi/\mbj/\mbn in {0/0/3, 1/0/1, 0/1/4, 1/1/2}{
+      \draw[draw=mbSlate!45, fill=mbBlue!8, line width=0.5pt]
+            (0.25+\mbi*1.05, 0.2+\mbj*0.75)
+            rectangle (1.2+\mbi*1.05, 0.85+\mbj*0.75);
+      \node[font=\sffamily\scriptsize, text=mbSlate]
+           at (0.72+\mbi*1.05, 0.52+\mbj*0.75) {\mbn};
+    }
+    % 2. rotation : une petite maison penchée, et la flèche qui tourne
+    %    reste à l'intérieur du cadre
+    \begin{scope}[shift={(4.8,0.72)}, rotate=-35, scale=0.82]
+      \draw[draw=mbTeal, fill=mbTeal!12, line width=0.8pt]
+            (-0.45,-0.4) rectangle (0.45,0.25);
+      \draw[draw=mbTeal, fill=mbTeal!22, line width=0.8pt]
+            (-0.58,0.25) -- (0,0.7) -- (0.58,0.25) -- cycle;
+    \end{scope}
+    \draw[fleche accent] (4.15,1.42) to[bend left=28] (5.45,1.42);
+    % 3. couleur : la même petite image, grise à gauche, colorée à droite
+    \fill[mbSlate!25] (7.45,0.2) rectangle (8.35,1.6);
+    \fill[mbAmber!45] (8.35,0.2) rectangle (9.25,1.6);
+    \foreach \mbj in {0.55,0.9,1.25}{
+      \draw[draw=white, line width=0.5pt] (7.45,\mbj) -- (9.25,\mbj);
+    }
+    \draw[draw=white, line width=0.5pt] (7.9,0.2) -- (7.9,1.6);
+    \draw[draw=white, line width=0.5pt] (8.8,0.2) -- (8.8,1.6);
+    \draw[draw=mbSlate!70, line width=0.8pt] (8.35,0.2) -- (8.35,1.6);
+    \draw[draw=mbSlate!45, line width=0.5pt] (7.45,0.2) rectangle (9.25,1.6);
+    % 4. trou : un carré bien franc posé au milieu de l'image
+    \fill[mbBlue!10] (11.05,0.2) rectangle (12.95,1.6);
+    \draw[draw=mbSlate!45, line width=0.5pt] (11.05,0.2) rectangle (12.95,1.6);
+    \fill[mbSlate!60] (11.7,0.55) rectangle (12.4,1.15);
+    \node[font=\sffamily\small\bfseries, text=white] at (12.05,0.85) {?};
+  \end{scope}
+\end{schema}
+
+V-JEPA~2.1 a choisi la quatrième : le trou. On recouvre une partie de la
+vidéo et l'on demande de deviner ce qui se trouvait dessous. Nous verrons
+dans la partie~II que ce choix n'est pas un hasard : c'est celui qui oblige le
+plus la machine à comprendre en même temps ce qu'il y a dans la scène et
+comment cela bouge.
+
+\begin{piege}
+Ne cherchez jamais à juger un modèle auto-supervisé sur sa tâche prétexte.
+Une machine qui remplit très bien les trous n'est pas forcément une machine
+utile ; et une machine qui les remplit imparfaitement peut être excellente
+pour tout le reste. C'est même parfois le contraire de ce qu'on croit : à la
+fin de ce chapitre, notre petit programme atteindra un plancher d'erreur qu'il
+est \emph{impossible} de franchir, et ce sera une très bonne nouvelle.
+
+La seule question qui compte est celle-ci : \emph{ce que la machine a appris
+en jouant sert-il à autre chose ?}
+\end{piege}
+
+Ce « quelque chose » que la machine garde après avoir joué, il faut
+maintenant lui donner un nom. C'est le vrai produit de tout le travail, et
+c'est le sujet de la section suivante.
+
+\section{Ce que l'on garde vraiment : la représentation}
+
+\begin{enclair}
+Quand la machine regarde une image, elle en fabrique un petit résumé en
+nombres. Ce résumé s'appelle une représentation. C'est lui, et lui seul, que
+l'on garde à la fin. Tout le reste — le jeu des trous, les réponses données —
+part à la poubelle.
+\end{enclair}
+
+Repensez à ce que vous faites quand un ami vous raconte un film. Il ne vous
+récite pas les deux heures image par image. Il vous dit : « c'est l'histoire
+d'un pêcheur qui cherche son fils ». En quelques mots, il a gardé ce qui
+compte et jeté le reste. Ce petit paquet d'informations essentielles, c'est
+exactement ce que la machine fabrique, sauf qu'elle l'écrit avec des nombres
+au lieu de mots.
+
+\begin{definition}[L'encodeur][encodeur]
+Un \emph{encodeur} est la partie du modèle qui prend une image ou une vidéo
+en entrée, et qui en ressort un résumé beaucoup plus petit. On peut le voir
+comme un entonnoir : beaucoup de nombres entrent, peu de nombres sortent.
+C'est la pièce maîtresse de tout le livre : à la fin, c'est l'encodeur, et
+presque rien d'autre, que l'on met en production.
+\end{definition}
+
+\begin{definition}[La représentation][representation]
+La \emph{représentation} d'une image est la liste de nombres que l'encodeur
+produit à partir d'elle. On dit aussi les \emph{caractéristiques}, ou en
+anglais les \emph{features}. Deux images qui se ressemblent doivent donner
+deux représentations proches ; deux images très différentes, deux
+représentations éloignées.
+\end{definition}
+
+\begin{definition}[L'espace latent][latent]
+L'ensemble de tous les résumés possibles s'appelle l'\emph{espace latent}.
+« Latent » veut dire « caché », « qui ne se voit pas directement » : ces
+nombres ne sont ni des pixels ni des mots, ce sont les notes internes de la
+machine. Dire qu'une représentation « vit dans l'espace latent », c'est
+simplement dire que c'est une liste de nombres inventée par le modèle, et non
+quelque chose que l'on peut afficher tel quel à l'écran.
+\end{definition}
+
+La figure~\ref{fig:entonnoir} montre l'encodeur au travail.
+
+\begin{schema}{L'encodeur, dessiné comme un entonnoir. Une image entre par le
+haut, avec ses centaines de milliers de nombres. Un petit paquet de nombres
+sort par le bas : c'est la représentation. Ce petit paquet vit dans ce qu'on
+appelle l'espace latent. Tout l'enjeu du livre est de le rendre aussi riche
+que possible.}[entonnoir]
+  \begin{scope}[x=1cm, y=1cm]
+    % l'image d'entrée, dessinée en petite grille
+    \foreach \mbi in {0,...,5}{
+      \foreach \mbj in {0,...,3}{
+        \pgfmathsetmacro{\mbton}{8 + 12*mod(\mbi+2*\mbj,4)}
+        \draw[draw=mbSlate!35, fill=mbBlue!\mbton, line width=0.3pt]
+              (\mbi*0.42, 3.9+\mbj*0.42) rectangle
+              (\mbi*0.42+0.42, 3.9+\mbj*0.42+0.42);
+      }
+    }
+    \node[font=\sffamily\scriptsize, text=mbSlate, align=center]
+         at (-1.9,4.7) {une image\\ $196\,608$ nombres};
+    \draw[fleche] (-0.75,4.7) -- (-0.15,4.7);
+    % l'entonnoir
+    \draw[draw=mbBlue, fill=mbBlue!8, line width=1pt]
+          (0,3.6) -- (2.52,3.6) -- (1.6,1.7) -- (0.92,1.7) -- cycle;
+    \node[font=\sffamily\scriptsize\bfseries, text=mbBlue] at (1.26,3.25)
+         {l'encodeur};
+    % la sortie : une petite barre de nombres
+    \foreach \mbk/\mbv in {0/0.31, 1/-0.72, 2/1.04, 3/0.15, 4/-0.48}{
+      \draw[draw=mbAmber!85!black, fill=mbAmber!14, line width=0.7pt]
+            (-0.35+\mbk*0.72, 0.85) rectangle (0.32+\mbk*0.72, 1.35);
+      \node[font=\sffamily\scriptsize, text=mbInk]
+           at (-0.015+\mbk*0.72, 1.1) {\mbv};
+    }
+    \draw[fleche accent] (1.26,1.62) -- (1.26,1.42);
+    \node[font=\sffamily\scriptsize\bfseries, text=mbAmber!75!black,
+          align=center] at (1.26,0.45) {la représentation};
+    \node[annotation, text width=3.6cm] at (5.7,1.1)
+         {beaucoup moins de nombres,\\ mais ceux qui comptent};
+    \draw[trait annotation] (3.9,1.1) -- (3.15,1.1);
+    \node[annotation, text width=3.4cm] at (5.7,4.4)
+         {rien n'est étiqueté ici :\\ c'est une image brute};
+    \draw[trait annotation] (4.0,4.4) -- (2.75,4.4);
+  \end{scope}
+\end{schema}
+
+Mettons des nombres sur ce dessin, car c'est plus parlant.
+
+\begin{exemple}[De deux cent mille nombres à mille]
+Une image en couleur de $256 \times 256$ pixels contient
+$256 \times 256 \times 3 = 196\,608$ nombres : nous l'avions calculé au
+chapitre~\ref{chap:image-video}. Supposons que l'encodeur la résume en
+$1\,024$ nombres. Le rapport vaut
+
+\[
+  \frac{196\,608}{1\,024} = 192 .
+\]
+
+Le résumé est donc cent quatre-vingt-douze fois plus petit que l'image. Toute
+la difficulté du métier tient dans cette division : il faut jeter cent
+quatre-vingt-onze nombres sur cent quatre-vingt-douze, et jeter les bons.
+\end{exemple}
+
+\begin{remarque}
+Vous vous demandez peut-être : pourquoi jeter ? Pourquoi ne pas tout garder ?
+Parce qu'un résumé qui garde tout n'est pas un résumé : c'est une copie, et
+une copie n'a rien compris. La contrainte de place est précisément ce qui
+force la machine à distinguer l'important de l'accessoire. Dans le résumé
+d'un film, « un pêcheur cherche son fils » tient en six mots parce qu'on a
+renoncé à la couleur des rideaux.
+\end{remarque}
+
+Nous avons donc un jeu (la tâche prétexte), et un produit (la représentation).
+Il nous manque encore une chose : un moyen de savoir si ce produit est bon.
+
+\section{Comment savoir si une représentation est bonne}
+
+\begin{enclair}
+On bloque l'encodeur pour qu'il ne bouge plus, on branche derrière lui une
+toute petite machine à apprendre, et on regarde jusqu'où elle arrive. Si
+même une machine minuscule s'en sort bien, c'est que le résumé était déjà
+bien rangé.
+\end{enclair}
+
+Voici l'idée, en deux gestes. Premier geste : on décide que l'encodeur ne
+changera plus. Ses boutons sont fixés une fois pour toutes ; on dit qu'on le
+\emph{gèle}.
+
+\begin{definition}[L'encodeur gelé][gele]
+Geler un encodeur, c'est décider que ses paramètres ne seront plus modifiés.
+On s'en sert alors comme d'une machine toute faite : on lui donne une image,
+il rend une représentation, et rien à l'intérieur ne bouge. C'est ainsi que
+V-JEPA~2.1 est évalué du début à la fin du papier — et c'est aussi, nous le
+verrons dans la partie~VII, ce qui rend son déploiement, c'est-à-dire sa mise
+au travail pour de vrai, si peu coûteux.
+\end{definition}
+
+\begin{exemple}[Ce que le gel permet]
+Imaginons que vous ayez dix mille photos et trois questions différentes à
+leur poser : à quelle distance est chaque objet, où sont les voitures, et de
+quelle sorte de scène il s'agit. Comme l'encodeur ne bouge plus, vous lui
+faites lire vos dix mille photos une seule fois, vous rangez les dix mille
+résumés dans un fichier, et vous n'y touchez plus. Vos trois questions se
+règlent ensuite sur ces résumés déjà calculés, sans jamais rouvrir
+l'encodeur. Chacune vous coûte quelques minutes, au lieu de recommencer un
+entraînement complet à chaque fois.
+\end{exemple}
+
+Deuxième geste : on branche derrière lui une toute petite machine à apprendre,
+qui, elle, a le droit d'apprendre. C'est elle qui aura besoin d'étiquettes —
+mais très peu, puisqu'elle est minuscule.
+
+\begin{definition}[La sonde][sonde]
+Une \emph{sonde} est une petite machine à apprendre que l'on branche derrière
+un encodeur gelé pour mesurer la qualité de ses représentations. Quand elle
+se réduit à une seule \emph{couche} — c'est-à-dire une seule rangée de boutons
+qui multiplient les nombres reçus et les additionnent — on parle de
+\emph{sonde linéaire}. C'est un instrument de mesure, comme un thermomètre :
+elle est volontairement faible, parce qu'une sonde faible ne peut pas
+rattraper un mauvais résumé.
+\end{definition}
+
+\begin{schema}{Le principe de l'évaluation par sonde. L'encodeur porte un
+cadenas : il est gelé, ses boutons ne bougent plus. Derrière lui, une toute
+petite sonde apprend, elle, à répondre à une question précise. Si elle y
+arrive avec très peu d'exemples, c'est que l'information était déjà bien
+rangée dans la représentation.}[sonde]
+  \begin{scope}[x=1cm, y=1cm]
+    \draw[draw=mbSlate!55, fill=white, line width=0.7pt]
+          (0,0.55) rectangle (1.1,1.55);
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (0.55,0.2) {une image};
+    \draw[fleche] (1.25,1.05) -- (1.9,1.05);
+    % encodeur gelé
+    \node[bloc, minimum width=24mm, minimum height=13mm] (enc) at (3.2,1.05)
+         {l'encodeur};
+    % le cadenas, dessiné à la main : un corps et une anse
+    \begin{scope}[shift={(3.2,2.15)}]
+      \draw[draw=mbSlate, line width=0.9pt] (-0.16,0.1) arc (180:0:0.16);
+      \draw[draw=mbSlate, fill=mbMist, line width=0.9pt]
+            (-0.24,-0.28) rectangle (0.24,0.12);
+      \fill[mbSlate] (0,-0.08) circle (0.05);
+    \end{scope}
+    \node[font=\sffamily\scriptsize\itshape, text=mbSlate] at (3.2,2.7)
+         {gelé : plus aucun bouton ne bouge};
+    \draw[fleche accent] (4.45,1.05) -- (5.15,1.05);
+    \node[font=\sffamily\scriptsize, text=mbAmber!75!black]
+         at (4.8,0.2) {la représentation};
+    % la sonde, volontairement petite
+    \node[bloc accent, minimum width=13mm, minimum height=8mm] (sonde)
+         at (5.9,1.05) {\scriptsize la sonde};
+    \draw[fleche] (6.6,1.05) -- (7.25,1.05);
+    \node[font=\sffamily\small, text=mbInk, align=center] at (8.15,1.05)
+         {la réponse\\ \scriptsize « chat »};
+    \node[annotation, text width=3.1cm] at (8.0,2.35)
+         {toute petite, et c'est\\ la seule qui apprend};
+    \draw[trait annotation] (7.0,2.1) -- (6.15,1.55);
+  \end{scope}
+\end{schema}
+
+\begin{intuition}
+Pourquoi prendre une sonde volontairement faible ? Parce qu'on cherche à
+mesurer la qualité du \emph{rangement}, pas la puissance de l'instrument de
+mesure.
+
+Imaginez deux ateliers. Dans le premier, les outils sont rangés par taille,
+étiquetés, à portée de main. Dans le second, tout est jeté en vrac dans une
+caisse. Envoyez un enfant chercher une clé de douze : dans le premier
+atelier, il la trouve en dix secondes ; dans le second, jamais. Si vous
+envoyez un mécanicien professionnel, il finira par la trouver dans les deux
+cas — et vous n'aurez rien appris sur le rangement. La sonde, c'est l'enfant.
+\end{intuition}
+
+Nous reviendrons longuement sur ces mesures dans la partie~III, où nous
+verrons comment on note vraiment une représentation. Pour l'instant, retenez
+le principe : \emph{encodeur gelé, petite sonde, peu d'étiquettes}.
+
+Ces deux gestes découpent le travail en deux temps. Le premier porte un nom
+qu'il faut absolument connaître, car il revient dans tous les articles et
+dans tout le reste du livre.
+
+\begin{definition}[Le pré-entraînement][preentrainement]
+Le \emph{pré-entraînement} est le long entraînement de départ, celui où la
+machine joue à la tâche prétexte sur des montagnes de données brutes, sans
+aucune étiquette. Le préfixe « pré » veut dire « avant » : c'est ce qui se
+passe \emph{avant} qu'on lui demande quoi que ce soit d'utile. C'est de loin
+la partie la plus coûteuse, et elle ne se fait qu'une seule fois.
+\end{definition}
+
+\begin{exemple}[Les deux temps, en chiffres]
+Pour V-JEPA~2.1, le pré-entraînement, c'est cent trente-cinq mille pas sur
+cent soixante-trois millions d'images et de vidéos, sans une seule étiquette.
+C'est un travail que l'on ne fait qu'une fois, et les auteurs en ont publié
+le résultat pour que personne n'ait à le recommencer.
+
+L'utilisation, c'est tout autre chose : une petite sonde, quelques milliers
+d'exemples étiquetés, et l'affaire est réglée. C'est ce deuxième temps, et
+lui seul, que vous ferez tourner sur votre machine — y compris à la fin de ce
+chapitre.
+\end{exemple}
+
+\begin{aretenir}
+L'auto-supervision se déroule toujours en deux temps, et il ne faut jamais
+les confondre :
+
+\begin{enumerate}
+  \item \textbf{Le pré-entraînement.} La machine joue au jeu des trous sur des
+        montagnes de données brutes, sans la moindre étiquette. C'est long,
+        c'est cher en calcul, et cela ne se fait qu'une fois. C'est ici que
+        naît la représentation.
+  \item \textbf{L'utilisation}, que l'on appelle aussi l'évaluation quand on
+        cherche à noter le modèle. On gèle l'encodeur et l'on branche derrière
+        une petite sonde, entraînée avec un tout petit nombre d'étiquettes,
+        pour la tâche qui nous intéresse vraiment.
+\end{enumerate}
+
+Les étiquettes n'ont donc pas complètement disparu : elles ont été repoussées
+à la toute fin, en quantité minuscule.
+\end{aretenir}
+
+Voyons maintenant à quelle échelle tout cela se joue dans le papier que nous
+expliquons.
+
+\section{À quelle échelle : les chiffres de V-JEPA 2.1}
+
+Jusqu'ici, nous avons parlé de dix mille photos, puis de cent quarante-deux
+millions. Mettons les vrais chiffres du papier sur la table, pour que vous
+sachiez de quoi il retourne.
+
+\begin{surlesdonnees}
+Le jeu de données de V-JEPA~2.1 s'appelle \emph{VisionMix163M}. Son nom vient
+tout simplement du nombre d'\emph{échantillons} qu'il contient — un
+échantillon, c'est un élément de la collection, ici une image ou une vidéo :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lrl}
+\toprule
+\textbf{Source} & \textbf{Échant.} & \textbf{Ce que c'est} \\
+\midrule
+LVD-142M    & $142{,}0$ M & des images choisies avec soin \\
+YT-1B       & $19{,}0$ M  & des vidéos prises sur internet \\
+HowTo100M   & $1{,}1$ M   & des vidéos qui expliquent \\
+Kinetics    & $0{,}733$ M & des actions filmées de loin \\
+SSv2        & $0{,}168$ M & des gestes filmés de près \\
+\midrule
+\textbf{Total} & $\approx 163$ M & d'où le nom \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Faites l'addition vous-même :
+$142 + 19 + 1{,}1 + 0{,}733 + 0{,}168 = 163{,}0$ millions. Mises bout à bout,
+ces vidéos durent environ $1{,}7$ million d'heures, dont $1\,600\,000$ pour la
+seule source YT-1B.
+
+Et voici le point qui doit rester : \textbf{aucun de ces cent soixante-trois
+millions d'échantillons n'a été étiqueté à la main pour cet entraînement}.
+Le calcul de la section~2 nous a montré qu'il aurait fallu, au minimum, cent
+vingt-huit ans pour les images seules. Ce livre entier raconte comment on
+s'en passe.
+\end{surlesdonnees}
+
+\begin{remarque}
+Vous avez peut-être remarqué que certains de ces jeux de données possèdent
+bel et bien des étiquettes : Kinetics et SSv2 sont même nés pour cela. Elles
+existent, mais V-JEPA~2.1 ne les regarde pas pendant le pré-entraînement. Il
+ne prend que les pixels. Les étiquettes ne réapparaissent qu'à la toute fin,
+pour entraîner les sondes et pour noter les résultats.
+\end{remarque}
+
+Assez parlé. Il est temps de faire tourner tout cela pour de vrai, sur votre
+machine, avec un programme que vous pouvez lire en entier.
+
+\section{Passons au code}
+
+Nous allons construire le plus petit exemple d'auto-supervision possible, et
+vérifier de nos yeux qu'il fonctionne. Le programme tient en une page, et il
+suit exactement les deux temps de l'encadré précédent : d'abord jouer au jeu
+des trous sans aucune étiquette, ensuite geler et brancher une sonde.
+
+Voici notre monde miniature. Chaque image fait $8 \times 8$ cases, et contient
+une seule barre : soit une barre \emph{couchée}, c'est-à-dire horizontale,
+soit une barre \emph{debout}, c'est-à-dire verticale. Elle est posée
+n'importe où. Nous dirons toujours « couchée » et « debout », y compris dans
+le programme.
+
+\begin{schema}{Notre monde miniature et le jeu que nous allons y jouer.
+Chaque image contient une barre, couchée ou debout. On coupe l'image en deux :
+la moitié gauche est donnée à la machine, la moitié droite est cachée et
+devient la bonne réponse. La machine ne saura jamais qu'il existe des mots
+comme « couchée » et « debout ».}[monde-barres]
+  \begin{scope}[x=1cm, y=1cm]
+    % --- image 1 : barre horizontale ---
+    \begin{scope}[shift={(0,0)}]
+      \foreach \mbi in {0,...,7}{
+        \foreach \mbj in {0,...,7}{
+          \draw[draw=mbSlate!30, fill=white, line width=0.3pt]
+                (\mbi*0.3,\mbj*0.3) rectangle (\mbi*0.3+0.3,\mbj*0.3+0.3);
+        }
+      }
+      \foreach \mbi in {0,...,7}{
+        \draw[draw=mbSlate!30, fill=mbBlue!45, line width=0.3pt]
+              (\mbi*0.3,1.5) rectangle (\mbi*0.3+0.3,1.8);
+      }
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (1.2,-0.4)
+           {barre couchée};
+    \end{scope}
+    % --- image 2 : barre verticale ---
+    \begin{scope}[shift={(3.1,0)}]
+      \foreach \mbi in {0,...,7}{
+        \foreach \mbj in {0,...,7}{
+          \draw[draw=mbSlate!30, fill=white, line width=0.3pt]
+                (\mbi*0.3,\mbj*0.3) rectangle (\mbi*0.3+0.3,\mbj*0.3+0.3);
+        }
+      }
+      \foreach \mbj in {0,...,7}{
+        \draw[draw=mbSlate!30, fill=mbTeal!45, line width=0.3pt]
+              (0.6,\mbj*0.3) rectangle (0.9,\mbj*0.3+0.3);
+      }
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (1.2,-0.4)
+           {barre debout};
+    \end{scope}
+    % --- la coupe en deux ---
+    \begin{scope}[shift={(6.6,0)}]
+      \foreach \mbi in {0,...,7}{
+        \foreach \mbj in {0,...,7}{
+          \draw[draw=mbSlate!30, fill=white, line width=0.3pt]
+                (\mbi*0.3,\mbj*0.3) rectangle (\mbi*0.3+0.3,\mbj*0.3+0.3);
+        }
+      }
+      \foreach \mbi in {0,...,7}{
+        \draw[draw=mbSlate!30, fill=mbBlue!45, line width=0.3pt]
+              (\mbi*0.3,0.9) rectangle (\mbi*0.3+0.3,1.2);
+      }
+      \fill[mbSlate!45, opacity=0.85] (1.2,0) rectangle (2.4,2.4);
+      \draw[draw=mbSlate, line width=1pt, dashed] (1.2,-0.1) -- (1.2,2.5);
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (0.6,-0.4)
+           {donné};
+      \node[font=\sffamily\scriptsize, text=white] at (1.8,1.2) {caché};
+      \node[font=\sffamily\scriptsize, text=mbSlate] at (1.8,-0.4)
+           {à deviner};
+    \end{scope}
+    \draw[accolade] (6.6,2.6) -- (9.0,2.6);
+    \node[annotation, text width=3.4cm] at (7.8,3.4)
+         {la question et la réponse\\ sortent de la même image :\\
+          aucune étiquette};
+  \end{scope}
+\end{schema}
+
+Commençons par fabriquer ces images. Le programme ci-dessous ne contient rien
+que nous n'ayons expliqué : des tenseurs, comme au
+chapitre~\ref{chap:image-video}, et des tirages au hasard.
+
+\begin{code}{python}[Fabriquer le monde miniature]
+import torch
+
+torch.manual_seed(0)          # pour que vous obteniez les memes nombres
+
+def fabrique_images(n):
+    """n images de 8x8 : soit une barre couchee, soit une barre debout."""
+    images = torch.zeros(n, 8, 8)
+    genre = torch.randint(0, 2, (n,))    # 0 = couchee, 1 = debout
+    place = torch.randint(0, 8, (n,))    # a quelle ligne, ou a quelle colonne
+    for i in range(n):
+        if genre[i] == 0:
+            images[i, place[i], :] = 1.0     # une ligne entiere
+        else:
+            images[i, :, place[i]] = 1.0     # une colonne entiere
+    return images, genre.float()
+
+images, genre = fabrique_images(2000)
+gauche = images[:, :, :4].reshape(-1, 32)   # 8 lignes x 4 colonnes = 32
+droite = images[:, :, 4:].reshape(-1, 32)   # l'autre moitie
+\end{code}
+
+Deux mots sur les deux dernières lignes, car elles contiennent un geste que
+nous referons souvent. L'écriture \co{python}{images[:, :, :4]} veut dire :
+« garde toutes les images, toutes les lignes, mais seulement les quatre
+premières colonnes » — c'est notre moitié gauche. Quant à
+\co{python}{reshape(-1, 32)}, il met chaque petite grille de $8 \times 4$ à
+plat, en une seule rangée de $8 \times 4 = 32$ nombres, comme si l'on
+découpait les lignes d'un tableau pour les recoller bout à bout. Le $-1$ dit
+simplement à la machine : « débrouille-toi pour le nombre d'images, tu sais
+compter ».
+
+Notez bien que \co{python}{genre} existe. C'est une \emph{variable},
+c'est-à-dire un nom que nous donnons à une valeur pour pouvoir la retrouver
+plus loin dans le programme ; celle-ci retient, pour chaque image, si la
+barre était couchée ou debout. Nous allons pourtant l'ignorer complètement
+pendant tout le pré-entraînement : elle attendra sagement la toute fin, pour
+la sonde. C'est notre façon d'imiter la réalité : les étiquettes existent
+quelque part dans le monde, mais on ne s'en sert presque pas.
+
+Construisons maintenant les deux pièces du modèle. La première, nous la
+connaissons : c'est l'encodeur, qui résume les trente-deux nombres de la
+moitié gauche en seize nombres. La seconde est nouvelle, et il faut lui
+donner son nom.
+
+\begin{definition}[Le prédicteur][predicteur]
+Le \emph{prédicteur} est la pièce qui part du résumé fabriqué par l'encodeur
+et qui tente de deviner ce qui a été caché. C'est lui qui joue, à proprement
+parler, au jeu des trous. À la fin de l'entraînement, c'est pourtant
+l'encodeur que l'on garde précieusement ; le prédicteur, lui, n'a servi qu'à
+faire travailler son voisin. Nous verrons dans la partie~V qu'il sait tout de
+même rendre un dernier service, quand on veut deviner la suite d'une vidéo.
+\end{definition}
+
+Chez nous, ce prédicteur part des seize nombres du résumé et tente de
+reconstituer les trente-deux nombres cachés.
+
+Trois outils de PyTorch apparaissent pour la première fois. Prenons-les un par
+un, car nous les retrouverons dans tout le livre.
+
+\begin{enclair}
+\co{python}{torch.nn.Linear(32, 16)} fabrique une \emph{couche} : une rangée
+de boutons qui prend trente-deux nombres en entrée, les multiplie chacun par
+un poids, additionne le tout, et rend seize nombres. C'est exactement la
+machine à bonbons du chapitre~\ref{chap:apprendre}, en beaucoup plus large :
+au lieu des deux boutons $a$ et $b$, celle-ci en possède
+$32 \times 16 + 16 = 528$.
+
+\co{python}{torch.nn.ReLU()} est une règle minuscule appliquée après la
+couche : tout nombre négatif est remplacé par zéro, les autres passent tels
+quels. Sans elle, empiler deux couches ne servirait à rien, car deux
+multiplications à la suite se ramènent toujours à une seule. C'est cette
+petite règle qui permet à un modèle d'apprendre autre chose que des droites.
+Quant à \mbox{\co{python}{Sequential}}, il sert simplement à mettre ces deux
+pièces bout à bout.
+
+\co{python}{torch.optim.Adam} remplace la ligne
+\co{python}{a -= pas * a.grad} que nous écrivions à la main. C'est la même
+descente de gradient, avec une amélioration : Adam règle tout seul la
+longueur du pas de chaque bouton, en se souvenant des pentes passées. Le
+réglage \co{python}{lr=0.01} est le taux d'apprentissage de départ, celui du
+chapitre~\ref{chap:apprendre}. Restent deux lignes de service.
+\co{python}{optim.step()} bouge tous les boutons d'un coup, et
+\co{python}{optim.zero_grad()} efface les pentes avant le tour suivant. Ce
+sont les deux gestes que nous écrivions bouton par bouton au chapitre
+précédent.
+\end{enclair}
+
+Ces trois outils paraissent abstraits tant qu'on ne les a pas vus tourner sur
+de vrais nombres. Faisons-le en tout petit.
+
+\begin{exemple}[Une couche minuscule, calculée à la main]
+Prenons une couche qui reçoit deux nombres et n'en rend qu'un seul. Elle
+possède donc deux poids — disons $0{,}5$ et $-2$ — plus un décalage de $4$,
+qui est exactement le bouton $b$ de la machine à bonbons. Donnons-lui les
+nombres $3$ et $1$ :
+\[
+  0{,}5 \times 3 \;+\; (-2) \times 1 \;+\; 4
+  \;=\; 1{,}5 - 2 + 4 \;=\; 3{,}5 .
+\]
+La couche rend donc $3{,}5$, et la règle ReLU le laisse passer tel quel
+puisqu'il est positif.
+
+Refaisons le calcul avec les nombres $1$ et $4$ :
+\[
+  0{,}5 \times 1 \;+\; (-2) \times 4 \;+\; 4
+  \;=\; 0{,}5 - 8 + 4 \;=\; -3{,}5 .
+\]
+Cette fois le résultat est négatif : ReLU le remplace par $0$, et c'est ce
+zéro qui poursuivra le voyage. Voilà tout le mystère. Notre vrai encodeur
+fait la même chose, mais avec trente-deux nombres à l'entrée, seize à la
+sortie, et $528$ boutons au lieu de trois.
+\end{exemple}
+
+\begin{code}{python}[Le pré-entraînement, sans la moindre étiquette]
+encodeur = torch.nn.Sequential(torch.nn.Linear(32, 16), torch.nn.ReLU())
+predicteur = torch.nn.Linear(16, 32)
+
+params = list(encodeur.parameters()) + list(predicteur.parameters())
+optim = torch.optim.Adam(params, lr=0.01)
+
+for etape in range(1, 601):
+    erreur = ((predicteur(encodeur(gauche)) - droite) ** 2).mean()
+    optim.zero_grad()
+    erreur.backward()
+    optim.step()
+    if etape in (1, 100, 300, 600):
+        print(f"etape {etape:3d} : erreur = {erreur.item():.4f}")
+\end{code}
+
+Vous reconnaissez la boucle en cinq gestes du chapitre~\ref{chap:apprendre},
+à un détail près : la bonne réponse, \co{python}{droite}, n'a été écrite par
+personne. Elle a été découpée dans l'image elle-même.
+
+Voici ce que le programme affiche :
+
+\begin{code}{text}[Ce que le programme écrit à l'écran]
+etape   1 : erreur = 0.1648
+etape 100 : erreur = 0.0487
+etape 300 : erreur = 0.0483
+etape 600 : erreur = 0.0483
+\end{code}
+
+L'erreur tombe de $0{,}1648$ à $0{,}0483$, puis ne bouge plus. Cette
+stagnation n'est pas une panne, et c'est même le passage le plus instructif
+du chapitre.
+
+\begin{piege}
+Quand une barre est debout dans la moitié \emph{droite} de l'image, la moitié
+gauche est entièrement vide. On demande alors à la machine de deviner une
+barre dont absolument rien, dans ce qu'elle voit, n'indique la position.
+Vous-même, devant une moitié gauche toute blanche, ne feriez pas mieux.
+
+Dans notre tirage, cela arrive pour $25{,}8\,\%$ des images. Il existe donc
+un plancher sous lequel l'erreur ne peut pas descendre, et le modèle l'a
+simplement atteint. Ne confondez jamais « le modèle a cessé de progresser »
+avec « le modèle est mauvais » : il faut d'abord se demander si ce qu'on lui
+demande est seulement possible.
+\end{piege}
+
+Passons au deuxième temps : geler, brancher une sonde, et compter les points.
+Nous n'accorderons à la sonde que \emph{vingt} exemples étiquetés — c'est
+volontairement très peu.
+
+Une dernière nouveauté, et ce sera la seule. Jusqu'ici, notre erreur était la
+moyenne des carrés des écarts, parce que nous prédisions des nombres. Ici, la
+sonde doit répondre à une question par oui ou par non : cette barre est-elle
+debout ? Pour ce genre de question, on emploie une autre mesure d'erreur,
+\co{python}{binary_cross_entropy_with_logits}. Son nom fait peur, mais son
+idée tient en une phrase : elle punit d'autant plus la machine qu'elle s'est
+trompée \emph{avec assurance}. Répondre « oui » à moitié convaincu quand la
+réponse était non coûte peu ; répondre « oui, absolument certain » quand la
+réponse était non coûte très cher.
+
+La sonde rend un seul nombre par image. On lit ce nombre ainsi : s'il est
+plus grand que zéro, la machine dit « debout » ; sinon, elle dit « couchée ».
+C'est le rôle du test \co{python}{> 0} à l'avant-dernière ligne. Au passage,
+le mot \emph{logits}, dans le nom de la mesure d'erreur, désigne simplement
+ce nombre brut, celui qu'on lit avant de le traduire en « oui » ou en
+« non ». Quant au petit \co{python}{squeeze(1)}, il ne fait que retirer un
+axe devenu inutile, pour que les formes des deux tenseurs se correspondent :
+rien de plus qu'un rangement, au sens du chapitre~\ref{chap:image-video}.
+
+\begin{code}{python}[Geler, puis brancher une sonde sur vingt étiquettes]
+def sonde(entrees, cibles, entrees_test, cibles_test):
+    """Une seule couche, qui apprend a repondre : couchee ou debout ?"""
+    tete = torch.nn.Linear(entrees.shape[1], 1)
+    opt = torch.optim.Adam(tete.parameters(), lr=0.05)
+    for _ in range(300):
+        p = tete(entrees).squeeze(1)
+        perte = torch.nn.functional.binary_cross_entropy_with_logits(p, cibles)
+        opt.zero_grad()
+        perte.backward()
+        opt.step()
+    with torch.no_grad():
+        prediction = (tete(entrees_test).squeeze(1) > 0).float()
+        return (prediction == cibles_test).float().mean().item()
+
+test_images, test_genre = fabrique_images(1000)
+test_gauche = test_images[:, :, :4].reshape(-1, 32)
+
+with torch.no_grad():                  # l'encodeur est gele : aucun gradient
+    h = encodeur(gauche)
+    h_test = encodeur(test_gauche)
+
+torch.manual_seed(1)
+print("sonde sur la representation :",
+      f"{sonde(h[:20], genre[:20], h_test, test_genre)*100:.1f} %")
+torch.manual_seed(1)
+print("sonde sur les pixels bruts  :",
+      f"{sonde(gauche[:20], genre[:20], test_gauche, test_genre)*100:.1f} %")
+\end{code}
+
+Et voici le résultat, mesuré sur mille images que la machine n'avait jamais
+vues :
+
+\begin{code}{text}[Le verdict]
+sonde sur la representation : 80.4 %
+sonde sur les pixels bruts  : 61.8 %
+\end{code}
+
+Arrêtons-nous, car ces deux lignes résument tout le chapitre.
+
+La même sonde, avec les mêmes vingt étiquettes et le même nombre d'étapes,
+obtient $80{,}4\,\%$ de bonnes réponses quand on la branche sur la
+représentation, contre $61{,}8\,\%$ quand on la branche directement sur les
+pixels. La différence ne vient pas de la sonde, qui est identique dans les
+deux cas. Elle vient de ce que l'encodeur a appris \emph{en jouant à un jeu
+qui n'avait rien à voir}. Personne ne lui a jamais montré le mot « debout »
+ni le mot « couchée ».
+
+\begin{remarque}
+Et $80{,}4\,\%$, est-ce beaucoup ? Refaisons le calcul du piège précédent. Dans
+$25{,}8\,\%$ des cas, la moitié gauche est vide et personne ne peut répondre
+autrement qu'en tirant à pile ou face, ce qui rapporte la moitié des points,
+soit environ $12{,}9\,\%$. Le meilleur score atteignable est donc de l'ordre de
+$74{,}2 + 12{,}9 \approx 87\,\%$. Avec $80{,}4\,\%$, notre encodeur n'est pas
+loin du maximum possible, et il l'a obtenu avec vingt étiquettes.
+\end{remarque}
+
+Vous n'avez pas à recopier ces morceaux à la main : le programme entier, tel
+que nous venons de le construire, est rangé dans le fichier
+\term{scripts/03-auto-supervision.py} qui accompagne ce livre. Lancez-le par
+la commande \co{text}{python 03-auto-supervision.py} et vous devez retrouver,
+à la décimale près, les nombres imprimés ci-dessus.
+
+Si vous obtenez autre chose, regardez d'abord la toute première ligne,
+\co{python}{torch.manual_seed(0)}. Un ordinateur ne sait pas tirer au sort
+comme on lance un dé : il fabrique des nombres qui \emph{ressemblent} à du
+hasard, en partant d'un nombre de départ qu'on appelle la \emph{graine}.
+Avec la même graine, il refait exactement les mêmes tirages, dans le même
+ordre. C'est ce qui vous permet de retrouver nos barres, nos vingt étiquettes
+et nos résultats à l'identique ; changez le $0$ en $1$, et tout le monde
+miniature change avec.
+
+\begin{enia}
+Changez maintenant les échelles, et vous avez V-JEPA~2.1. Les images de
+$8 \times 8$ deviennent des vidéos de soixante-quatre images en
+$384 \times 384$. Les seize nombres de la représentation deviennent des
+milliers. Les six cents étapes deviennent cent trente-cinq mille. Les deux
+mille images deviennent cent soixante-trois millions d'images et de vidéos.
+Le prédicteur, lui, devient une machine à calculer bien plus grosse, que nous
+démonterons pièce par pièce le moment venu.
+
+Mais la structure du programme, elle, ne change pas d'une ligne : cacher,
+deviner, mesurer, corriger — puis geler et brancher une sonde.
+\end{enia}
+
+\begin{aretenir}
+Les trois idées du chapitre, en trois phrases.
+
+\begin{enumerate}
+  \item Les étiquettes coûtent trop cher pour être produites à l'échelle des
+        vidéos : il fallait une autre source de bonnes réponses.
+  \item Cette source, c'est la donnée elle-même : on cache un morceau, et le
+        morceau caché fait office de bonne réponse.
+  \item Le jeu ne compte pas ; ce qui compte, c'est la représentation que la
+        machine fabrique en y jouant, et que l'on mesure avec une petite
+        sonde derrière un encodeur gelé.
+\end{enumerate}
+\end{aretenir}
+
+Il reste pourtant une question que nous avons soigneusement contournée, et
+elle est bien plus profonde qu'elle n'en a l'air. Dans notre petit programme,
+nous avons demandé à la machine de deviner les \emph{pixels} cachés : les
+trente-deux nombres de la moitié droite, un par un. Est-ce vraiment ce qu'il
+faut demander ?
+
+Réfléchissez un instant à ce que cela implique. Pour redessiner exactement
+les pixels d'une zone cachée dans une vraie vidéo, il faudrait deviner chaque
+brin d'herbe, chaque grain de la peau, chaque reflet dans une flaque. Or
+personne au monde ne peut prédire cela, et surtout, personne n'en a besoin.
+La machine passerait le plus clair de son temps sur un travail inutile.
+
+Il existe une autre possibilité, beaucoup plus fine : lui demander de deviner
+non pas les pixels cachés, mais \emph{le résumé} de la zone cachée. Non pas
+l'herbe brin par brin, mais l'idée « ici, il y a de l'herbe ». C'est-à-dire
+prédire dans l'espace latent que nous venons de définir.
+
+Cette question — \emph{dans quel espace faut-il deviner : celui des pixels,
+ou celui des idées ?} — est le cœur de tout le papier que ce livre
+explique. Sa réponse porte un nom, JEPA, et c'est le sujet de la partie~II.
+
+Avant d'y arriver, il nous manque encore une pièce. Nous savons ce que la
+machine doit apprendre, mais nous n'avons pas encore vu \emph{avec quoi} elle
+regarde. Quel est l'œil de la machine, celui qui découpe une vidéo en
+morceaux et les compare entre eux ? C'est le sujet du chapitre suivant.
+
+\phantomsection
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Le prix d'une étiquette]
+Vous devez faire étiqueter $500\,000$ images. Chaque étiquette prend huit
+secondes. Vous employez cinq personnes, qui travaillent chacune sept heures
+par jour. Combien de jours faudra-t-il ?
+\end{exercice}
+
+\begin{solution}
+Le travail total vaut $500\,000 \times 8 = 4\,000\,000$ secondes, soit
+$4\,000\,000 / 3\,600 \approx 1\,111$ heures. Chaque jour, les cinq personnes
+fournissent ensemble $5 \times 7 = 35$ heures. Il faut donc
+
+\[
+  \frac{1\,111}{35} \approx 32 \text{ jours.}
+\]
+
+Un mois de travail à cinq, pour un demi-million d'images seulement. Multipliez
+par deux cent quatre-vingt-quatre pour atteindre les cent quarante-deux
+millions d'images de V-JEPA~2.1, et vous retrouvez l'ordre de grandeur de la
+section~2.
+\end{solution}
+
+\begin{exercice}[Fabriquer une tâche prétexte]
+On vous donne un million de vidéos sans aucune étiquette. Proposez deux jeux
+que la machine pourrait jouer toute seule, et dites à chaque fois d'où sort
+la bonne réponse.
+\end{exercice}
+
+\begin{solution}
+Premier jeu : remettre les images dans l'ordre. On mélange l'ordre des images
+d'un clip et l'on demande de le rétablir ; la bonne réponse est l'ordre
+d'origine, que l'on connaît puisque c'est nous qui l'avons mélangé.
+
+Deuxième jeu : deviner la suite. On coupe le clip en deux et l'on demande de
+prédire la seconde moitié à partir de la première ; la bonne réponse est la
+seconde moitié, que l'on possède déjà.
+
+Dans les deux cas, la règle est la même : on abîme volontairement la donnée
+d'une façon dont on garde la trace, et cette trace est la bonne réponse.
+\end{solution}
+
+\begin{exercice}[Le taux de compression]
+Un clip de $16$ images en $256 \times 256$ pixels couleur est résumé par un
+encodeur en $2\,048$ nombres. Par combien l'information a-t-elle été divisée ?
+\end{exercice}
+
+\begin{solution}
+Le clip contient $16 \times 256 \times 256 \times 3 = 3\,145\,728$ nombres,
+comme nous l'avions calculé au chapitre~\ref{chap:image-video}. Le rapport
+vaut
+
+\[
+  \frac{3\,145\,728}{2\,048} = 1\,536 .
+\]
+
+Le résumé est mille cinq cent trente-six fois plus petit que le clip. Toute la
+question est de savoir si l'on a jeté les bons nombres — et c'est précisément
+ce que mesure une sonde.
+\end{solution}
+
+\begin{exercice}[Lire un résultat de sonde]
+Deux encodeurs sont évalués avec exactement la même sonde et les mêmes
+étiquettes. Le premier obtient $78\,\%$, le second $62\,\%$. Que peut-on en
+conclure, et que ne peut-on \emph{pas} en conclure ?
+\end{exercice}
+
+\begin{solution}
+On peut conclure que le premier encodeur range mieux, dans ses
+représentations, l'information dont cette tâche précise a besoin : une simple
+sonde y accède plus facilement.
+
+On ne peut pas conclure que le premier encodeur est meilleur en général. Il
+pourrait être moins bon sur une autre tâche, par exemple mesurer des
+distances plutôt que reconnaître des objets. Nous verrons dans la partie~V
+que c'est exactement ce qui arrive à V-JEPA~2 : excellent pour reconnaître une
+action, faible pour décrire chaque pixel. Un chiffre de sonde ne vaut que
+pour la question posée.
+\end{solution}
+
+\begin{exercice}[Le plancher d'erreur]
+Dans le programme de ce chapitre, l'erreur cesse de descendre à $0{,}0483$.
+Un collègue vous dit : « ton modèle est bloqué, augmente le taux
+d'apprentissage ». Que lui répondez-vous ?
+\end{exercice}
+
+\begin{solution}
+Qu'il faut d'abord vérifier si la tâche est possible. Ici, dans $25{,}8\,\%$
+des cas, la moitié gauche de l'image est entièrement vide alors qu'une barre
+se cache à droite : aucune information ne permet de la placer. Une partie de
+l'erreur est donc irréductible, et le modèle a simplement atteint ce plancher.
+
+Augmenter le taux d'apprentissage ne servirait à rien, et risquerait même de
+faire exploser l'entraînement, comme nous l'avons vu au
+chapitre~\ref{chap:apprendre}. La bonne réaction est de se demander ce que la
+machine \emph{pourrait} savoir, avant de lui reprocher de ne pas le savoir.
+\end{solution}
