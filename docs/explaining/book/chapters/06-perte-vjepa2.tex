@@ -1,0 +1,1843 @@
+\chapter{La perte de V-JEPA~2, expliquée symbole par symbole}
+\label{chap:perte-vjepa2}
+
+\begin{quote}\itshape
+Nous avons monté la machine au chapitre précédent. Nous savons qui regarde
+quoi, qui devine, et qui donne le corrigé. Il reste à écrire, noir sur
+blanc, le nombre que l'entraînement fait baisser. Ce nombre s'écrit en une
+seule ligne de symboles, et cette ligne fait peur à beaucoup de monde. Nous
+allons la découper en morceaux, et donner à chaque symbole sa ligne à lui.
+Aucun ne sera laissé de côté. Et tout à la fin, nous découvrirons dans cette
+ligne un tout petit détail, presque invisible, qui est le sujet de tout le
+reste du livre.
+\end{quote}
+
+\begin{prerequis}
+Le chapitre~\ref{chap:idee-jepa}, et lui seul. Voici ce qu'il faut en avoir
+retenu. Il faut savoir qu'une vidéo est regardée deux fois, une
+fois trouée et une fois complète ; que la version trouée s'appelle $x$ et la
+version complète $y$ ; que l'encodeur élève $E_{\theta}$ regarde $x$, que
+l'encodeur professeur $E_{\bar{\theta}}$ regarde $y$, et que le prédicteur
+$P_{\varphi}$ fait le pont entre les deux. Il faut aussi se souvenir du
+chapitre~\ref{chap:apprendre} : une perte est un nombre qui dit de combien
+la machine se trompe. Les seules opérations employées ici seront
+l'addition, la soustraction et la division.
+\end{prerequis}
+
+Au chapitre précédent, nous avons dit une phrase un peu vague, et nous
+allons enfin la remplacer par quelque chose de précis. Cette phrase, la
+voici : « on compare la prédiction à la cible, et l'écart entre les deux est
+la perte ».
+
+C'est une bonne phrase, mais elle ne suffit pas pour écrire un programme. Comparer,
+comment ? Sur quoi, exactement ? Et pour quels morceaux de la vidéo ? Tant
+que ces trois questions restent sans réponse, personne ne peut coder quoi
+que ce soit.
+
+La réponse à ces trois questions tient en une seule ligne de symboles. Cette
+ligne s'appelle, dans l'article, l'équation numéro un. Nous allons la
+construire ensemble, morceau par morceau, en commençant par le début.
+
+\section{Pourquoi on écrit une formule plutôt qu'une phrase}
+
+\begin{enclair}
+Une formule n'est rien d'autre qu'une phrase, écrite en abrégé. Chaque
+symbole remplace un mot ou un groupe de mots. On l'écrit ainsi pour deux
+raisons : c'est plus court, et surtout c'est plus précis. Une phrase peut
+souvent se comprendre de deux façons différentes. Une formule, non.
+\end{enclair}
+
+Prenons un exemple loin de notre sujet, pour bien voir l'idée. Imaginez que
+je vous dise : « pour connaître le prix, on prend le nombre de pommes et on
+compte deux euros chacune ». C'est clair, mais c'est long. On peut écrire la
+même chose ainsi :
+
+\[
+  \text{prix} = 2 \times \text{nombre de pommes} .
+\]
+
+Rien n'a changé. On a seulement remplacé des mots par des signes. Personne
+ne trouve cette ligne effrayante, et pourtant c'est déjà une formule.
+
+Maintenant, essayons une phrase un peu plus longue : « on regarde de combien
+la machine s'est trompée à chaque endroit caché, on additionne toutes ces
+erreurs, et on divise par le nombre d'endroits cachés ». Cette phrase-là
+tient, elle aussi, en une ligne de symboles. C'est exactement la ligne que
+nous allons écrire.
+
+\begin{intuition}
+Une formule, c'est une recette de cuisine écrite en abrégé. La recette
+dit : « prendre trois œufs, les battre, ajouter cent grammes de sucre ». La
+formule dit la même chose avec des signes. Si vous savez lire les signes,
+vous savez lire la recette. Et personne n'est né en sachant lire les signes :
+cela s'apprend, un signe à la fois. C'est ce que nous allons faire.
+\end{intuition}
+
+\begin{piege}
+Une formule ne cache jamais d'idée nouvelle. Elle ne fait que résumer des
+idées que l'on a déjà expliquées avec des mots. Si une formule vous
+paraît incompréhensible, ce n'est presque jamais parce que l'idée est
+difficile : c'est parce qu'un des symboles ne vous a pas été présenté. Le
+bon réflexe n'est donc pas de relire la formule dix fois, mais de repérer le
+symbole que l'on ne connaît pas, et d'aller chercher ce qu'il veut dire.
+\end{piege}
+
+Voilà pourquoi ce chapitre est bâti d'une drôle de façon. Nous allons
+d'abord raconter la formule en français, tranquillement. Ensuite nous
+l'écrirons. Et ensuite seulement nous prendrons chaque symbole, un par un,
+pour lui donner une ligne à lui tout seul.
+
+Commençons par la version en français.
+
+\section{La formule, d'abord racontée avec des mots}
+
+\begin{enclair}
+La machine a donné une réponse pour chaque endroit caché. Pour chacun de ces
+endroits, on regarde de combien elle s'est trompée. On additionne toutes ces
+erreurs. Puis on divise par le nombre d'endroits cachés, pour obtenir une
+moyenne. Ce nombre-là est la perte.
+\end{enclair}
+
+Un mot, avant de commencer, sur ce que veut dire « faire une moyenne ». Vous
+le faites déjà sans y penser. Trois enfants ont des billes : le premier en a
+$2$, le deuxième $4$, le troisième $6$. On les met toutes en tas, ce qui en
+fait $12$, puis on partage ce tas en trois parts égales. Chacun repart avec
+$4$ billes. Voilà une moyenne : on met tout ensemble, puis on redistribue en
+parts égales.
+
+Pourquoi diviser, ici, plutôt que de garder la simple addition ? Parce que
+sans cette division, une vidéo où l'on cache beaucoup de morceaux donnerait
+toujours une erreur plus grosse qu'une vidéo où l'on en cache peu — même si
+la machine travaillait aussi bien dans les deux cas. La division remet tout
+le monde sur un pied d'égalité.
+
+Ce point étant réglé, reprenons la machine du chapitre~\ref{chap:idee-jepa}
+et suivons-la du doigt. Vous vous souvenez peut-être de la boucle en neuf
+étapes que nous avions dressée à la fin de ce chapitre-là. Tout ce que nous
+allons faire ici, c'est ouvrir la septième de ces étapes — celle qui disait
+simplement « on mesure l'écart entre les réponses et les cibles » — et
+regarder ce qu'elle contient vraiment. Voici donc ce qui se passe, dans
+l'ordre.
+
+D'abord, la vue trouée $x$ entre dans l'encodeur élève. Celui-ci ne voit que
+les morceaux visibles, et il en ressort une version enrichie.
+
+Ensuite, on ajoute les jetons de masque, ces enveloppes vides qui portent
+l'adresse de chaque trou. Le prédicteur reçoit le tout et produit une
+réponse pour chaque position.
+
+Pendant ce temps, la vue complète $y$ est passée dans l'encodeur professeur,
+qui produit les cibles, c'est-à-dire les bonnes réponses.
+
+Enfin — et c'est le moment qui nous occupe dans ce chapitre — on prend
+chaque endroit caché, on met côte à côte la réponse de la machine et la
+bonne réponse, et on mesure l'écart. Puis on fait la moyenne de tous ces
+écarts.
+
+\begin{exemple}[La perte racontée sur trois trous]
+Supposons, pour l'instant, qu'il n'y ait que trois endroits cachés dans
+notre vidéo, et que l'on sache déjà mesurer l'écart à chacun d'eux. Disons
+que ces trois écarts valent $1{,}5$, $0{,}9$ et $0{,}6$.
+
+On les additionne : $1{,}5 + 0{,}9 + 0{,}6 = 3{,}0$. Puis on divise par
+trois, puisqu'il y a trois endroits :
+
+\[
+  \frac{3{,}0}{3} = 1{,}0 .
+\]
+
+La perte vaut donc $1{,}0$. C'est tout. Le reste du chapitre ne fera
+qu'expliquer comment on obtient ces trois écarts, et comment on écrit ce
+calcul en abrégé.
+\end{exemple}
+
+\begin{aretenir}
+Retenez la phrase, elle vous accompagnera jusqu'à la fin du livre :
+\textbf{la perte est la moyenne des écarts, mesurés aux endroits cachés}.
+Tout le reste n'est que de l'écriture.
+\end{aretenir}
+
+Nous avons la phrase. Écrivons-la maintenant en abrégé.
+
+\section{La formule écrite, et son tableau de décodage}
+
+Voici la ligne de symboles. Ne cherchez pas à la comprendre tout de suite :
+regardez-la comme on regarde une photo de groupe avant de reconnaître les
+visages un par un.
+
+\begin{equation}
+  \mathcal{L}_{\text{predict}}
+  \;=\;
+  \frac{1}{|M|}
+  \sum_{i \in M}
+  \Bigl\|
+    \; P_{\varphi}\bigl(E_{\theta}(x),\, \Delta_y\bigr)_i
+    \;-\;
+    \mathrm{sg}\bigl(E_{\bar{\theta}}(y)_i\bigr) \;
+  \Bigr\|_{1}
+  \label{eq:perte-vjepa2}
+\end{equation}
+
+Voilà. C'est la formule complète de V-JEPA~2, celle que l'article appelle
+son équation numéro un, recopiée sans rien enlever.
+
+Elle contient exactement treize symboles différents. Pas un de plus. Et vous
+en connaissez déjà la plupart, puisque nous les avons rencontrés dans les
+chapitres précédents. Voici le tableau complet, sans en laisser un seul de
+côté : gardez-le sous les yeux, nous allons le parcourir ligne par ligne.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{llp{6.1cm}}
+\toprule
+\textbf{Symbole} & \textbf{Se lit} & \textbf{Veut dire} \\
+\midrule
+$\mathcal{L}_{\text{predict}}$ & « L de prédiction » &
+le nom du nombre que l'on calcule : c'est la perte. \\[3pt]
+
+$\dfrac{1}{|M|}$ & « un sur taille de M » &
+on divise par le nombre d'endroits cachés : c'est ce qui fait la
+moyenne. \\[3pt]
+
+$\displaystyle\sum_{i \in M}$ & « somme, pour $i$ dans M » &
+« refais le calcul pour chaque endroit caché, et additionne tout ». \\[3pt]
+
+$x$ & « iks » &
+la vue trouée : la vidéo dont on a retiré des morceaux. \\[3pt]
+
+$y$ & « igrec » &
+la vue complète : la même vidéo, entière. \\[3pt]
+
+$E_{\theta}$ & « E de thêta » &
+l'encodeur élève, celui qui apprend. Ses boutons s'appellent $\theta$. \\[3pt]
+
+$E_{\bar{\theta}}$ & « E de thêta barre » &
+l'encodeur professeur, la copie lente de l'élève. \\[3pt]
+
+$P_{\varphi}$ & « P de phi » &
+le prédicteur, la pièce qui devine. Ses boutons s'appellent $\varphi$. \\[3pt]
+
+$\Delta_y$ & « delta y » &
+les jetons de masque : des enveloppes vides qui portent l'adresse des
+trous. \\[3pt]
+
+$\mathrm{sg}$ & « esse-gé » &
+le gradient bloqué : « ne fais remonter aucune correction par ce
+chemin ». \\[3pt]
+
+$M$ & « M » &
+la liste des endroits cachés. \\[3pt]
+
+$|M|$ & « taille de M » &
+combien il y a d'endroits cachés dans cette liste. \\[3pt]
+
+$\|\,\cdot\,\|_{1}$ & « norme un » &
+la façon de mesurer un écart : on additionne les différences sans se
+soucier du signe. \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Il reste un tout petit signe qui ne figure pas dans ce tableau, parce qu'il
+n'a pas de nom à lui : le minuscule $i$ posé en bas à droite de
+$P_{\varphi}(\ldots)_i$ et de $E_{\bar{\theta}}(y)_i$. Nous lui donnerons
+aussi son explication, un peu plus loin. Rien, vraiment rien, ne sera passé
+sous silence.
+
+Avant d'aller plus loin, arrêtons-nous une seconde sur le nom écrit à
+gauche du signe égal, car il annonce déjà la suite du livre.
+
+\begin{notation}[Le nom de la perte, $\mathcal{L}_{\text{predict}}$][nom-perte]
+Nous avions vu au chapitre~\ref{chap:apprendre} que l'on note souvent une
+perte par la lettre $\mathcal{L}$, d'après le mot anglais \emph{loss} qui
+veut dire « perte ». Ici, cette lettre porte en plus une petite étiquette
+écrite en bas : \emph{predict}, c'est-à-dire « prédiction ».
+
+Pourquoi préciser ? Parce que cette perte-ci mesure une chose bien
+particulière : ce que la machine a répondu \emph{aux endroits qu'elle devait
+prédire}, c'est-à-dire aux endroits cachés. Écrire l'étiquette, c'est déjà
+reconnaître qu'il pourrait en exister d'autres, mesurant autre chose.
+
+Dans V-JEPA~2, il n'y en a pas d'autre : cette perte est la seule. Mais
+gardez cette étiquette en mémoire, car au chapitre~10 nous en ajouterons une
+seconde, et il faudra bien pouvoir les distinguer.
+\end{notation}
+
+\begin{exemple}[Une étiquette, c'est juste un prénom]
+Dans une famille où tout le monde s'appelle Martin, on ajoute le prénom pour
+savoir de qui l'on parle : Martin Paul, Martin Sophie. Le nom de famille ne
+change pas, seul le prénom distingue.
+
+C'est exactement ce qui se passe ici. Le nom de famille est $\mathcal{L}$,
+et il veut dire « perte ». L'étiquette $\text{predict}$ est le prénom, et il
+dit \emph{quelle} perte. Écrire
+\[
+  \mathcal{L}_{\text{predict}} = 0{,}5
+\]
+se lit donc : « la perte des endroits à prédire vaut $0{,}5$ ». Nous
+calculerons ce nombre-là dans quelques pages.
+\end{exemple}
+
+Les trois dernières lignes du tableau sont les seules vraiment nouvelles :
+la norme L1, l'ensemble $M$ et sa taille $|M|$. Nous leur consacrerons les
+deux sections qui suivent. Mais avant, faisons un premier tour de la formule
+à grande vitesse, pour voir sa forme d'ensemble.
+
+\begin{enclair}
+Lisez la formule de la droite vers la gauche, comme on démonte une machine
+en commençant par l'extérieur.
+
+Tout à droite, entre les deux grandes barres, il y a une soustraction : la
+réponse de la machine moins la bonne réponse. C'est l'écart.
+
+Les deux grandes barres autour disent comment on transforme cet écart en un
+seul nombre positif.
+
+Le grand signe $\sum$, à gauche, dit qu'on additionne ce nombre pour tous
+les endroits cachés.
+
+Et la fraction $\frac{1}{|M|}$, tout à gauche, dit qu'on divise le total par
+le nombre d'endroits, pour obtenir une moyenne.
+
+Voilà. La formule dit exactement la même chose que notre phrase en français.
+\end{enclair}
+
+La figure~\ref{fig:formule-decoupee} montre ce découpage en quatre morceaux.
+
+\begin{schema}{La formule découpée en quatre morceaux. Les pastilles
+numérotées donnent l'ordre dans lequel il faut la lire : on commence par la
+droite, avec la soustraction, et l'on remonte vers la gauche jusqu'à la
+moyenne. La légende du dessous reprend les quatre numéros et dit, pour
+chacun, ce que ce morceau fabrique.}[formule-decoupee]
+
+% ================== la formule, morceau par morceau ==================
+% On place d'abord l'écart, qui est le plus large, puis on accroche les
+% autres morceaux à sa gauche et à sa droite.
+\node[font=\small, inner sep=2pt] (ecart) at (2.6,0)
+     {$P_{\varphi}\bigl(E_{\theta}(x), \Delta_y\bigr)_i
+       \;-\; \mathrm{sg}\bigl(E_{\bar{\theta}}(y)_i\bigr)$};
+\node[font=\normalsize, inner sep=2pt, anchor=east]
+      (bg) at ($(ecart.west)+(-0.18,0)$) {$\Bigl\|$};
+\node[font=\normalsize, inner sep=2pt, anchor=west]
+      (bd) at ($(ecart.east)+(0.18,0)$) {$\Bigr\|_{1}$};
+\node[font=\normalsize, inner sep=2pt, anchor=east]
+      (som) at ($(bg.west)+(-0.22,0)$) {$\displaystyle\sum_{i \in M}$};
+\node[font=\normalsize, inner sep=2pt, anchor=east]
+      (moy) at ($(som.west)+(-0.22,0)$) {$\dfrac{1}{|M|}$};
+
+% ---- les fonds colorés, posés derrière ----
+\begin{scope}[on background layer]
+  \node[fit=(moy), inner sep=3pt, rounded corners=2pt,
+        fill=mbBlue!12, draw=mbBlue!45, line width=0.5pt] (fmoy) {};
+  \node[fit=(som), inner sep=3pt, rounded corners=2pt,
+        fill=mbTeal!12, draw=mbTeal!45, line width=0.5pt] (fsom) {};
+  \node[fit=(bg)(bd), inner sep=3pt, rounded corners=2pt,
+        fill=mbAmber!10, draw=mbAmber!55, line width=0.5pt] (fbar) {};
+  \node[fit=(ecart), inner sep=2pt, rounded corners=2pt,
+        fill=mbViolet!10, draw=mbViolet!45, line width=0.5pt, dashed] (fec) {};
+\end{scope}
+
+% ---- les pastilles numérotées, au-dessus de chaque morceau ----
+\newcommand{\mbPastille}[3]{%
+  \node[circle, fill=#2, text=white, font=\sffamily\bfseries\scriptsize,
+        inner sep=1.6pt] at (#1) {#3};}
+\mbPastille{moy.north |- 0,0.72}{mbBlue}{4}
+\mbPastille{som.north |- 0,0.72}{mbTeal}{3}
+\mbPastille{bd.north |- 0,0.72}{mbAmber!85!black}{2}
+\mbPastille{ecart.north |- 0,0.72}{mbViolet}{1}
+
+% ---- le sens de lecture ----
+\draw[-{Stealth[round,length=2.4mm,width=1.8mm]}, draw=mbSlate!70,
+      line width=0.7pt] (5.35,1.15) -- (-1.55,1.15);
+\node[font=\sffamily\scriptsize\itshape, text=mbSlate] at (1.9,1.42)
+     {on lit la formule dans ce sens};
+
+% ================== la légende ==================
+\node[circle, fill=mbViolet, text=white, font=\sffamily\bfseries\scriptsize,
+      inner sep=1.6pt] at (-1.55,-1.30) {1};
+\node[font=\sffamily\scriptsize, text=mbInk, anchor=west] at (-1.25,-1.30)
+     {\textbf{la soustraction} — ce que la machine a répondu, moins ce
+      qu'il fallait répondre};
+
+\node[circle, fill=mbAmber!85!black, text=white,
+      font=\sffamily\bfseries\scriptsize, inner sep=1.6pt] at (-1.55,-1.85) {2};
+\node[font=\sffamily\scriptsize, text=mbInk, anchor=west] at (-1.25,-1.85)
+     {\textbf{les deux barres} — on efface les signes et on additionne :
+      l'écart devient un seul nombre positif};
+
+\node[circle, fill=mbTeal, text=white, font=\sffamily\bfseries\scriptsize,
+      inner sep=1.6pt] at (-1.55,-2.40) {3};
+\node[font=\sffamily\scriptsize, text=mbInk, anchor=west] at (-1.25,-2.40)
+     {\textbf{le signe somme} — on recommence pour chacun des endroits
+      cachés, et on additionne tout};
+
+\node[circle, fill=mbBlue, text=white, font=\sffamily\bfseries\scriptsize,
+      inner sep=1.6pt] at (-1.55,-2.95) {4};
+\node[font=\sffamily\scriptsize, text=mbInk, anchor=west] at (-1.25,-2.95)
+     {\textbf{la fraction} — on divise par le nombre d'endroits cachés :
+      c'est la moyenne};
+\end{schema}
+
+Nous avons vu la forme d'ensemble. Approchons-nous maintenant, et regardons
+de tout près la pièce qui se trouve au milieu de la formule : les deux
+grandes barres.
+
+\section{Zoom sur les deux grandes barres : la norme L1}
+
+\begin{enclair}
+Les deux grandes barres sont une machine à transformer un écart en un seul
+nombre positif. Elle travaille en deux temps : on efface les signes moins, et
+on additionne. C'est tout.
+\end{enclair}
+
+Avant tout le reste, il y a un petit problème à régler. Ce que le
+prédicteur produit n'est pas un nombre :
+c'est un \emph{jeton}, c'est-à-dire une liste de nombres, comme nous l'avons
+vu au chapitre~\ref{chap:vit}. La cible n'est pas un nombre non plus :
+c'est aussi une liste de nombres.
+
+Or une perte doit être \emph{un seul nombre}. On ne peut pas descendre une
+vallée dans plusieurs directions à la fois. Il faut donc une machine qui
+prenne deux listes et rende un seul nombre : c'est exactement le rôle des
+deux grandes barres.
+
+Cette machine fait deux choses, l'une après l'autre. Voyons la première.
+
+\subsection*{Premier temps : effacer les signes moins}
+
+Quand on soustrait deux listes, on obtient une liste d'écarts. Certains sont
+positifs, d'autres négatifs.
+
+\begin{exemple}[Soustraire deux listes]
+Le prédicteur a répondu $(0{,}5 \ ; \ -0{,}2 \ ; \ 1{,}0)$ et la bonne
+réponse était $(0{,}4 \ ; \ 0{,}1 \ ; \ 0{,}8)$. On soustrait terme à
+terme, c'est-à-dire le premier avec le premier, le deuxième avec le
+deuxième, et ainsi de suite :
+
+\[
+  0{,}5 - 0{,}4 = 0{,}1 , \qquad
+  -0{,}2 - 0{,}1 = -0{,}3 , \qquad
+  1{,}0 - 0{,}8 = 0{,}2 .
+\]
+
+Les trois écarts valent donc $(0{,}1 \ ; \ -0{,}3 \ ; \ 0{,}2)$. Remarquez
+le signe moins du deuxième : sur ce nombre-là, la machine a répondu trop
+\emph{bas}.
+\end{exemple}
+
+Nous avons déjà rencontré ce problème au chapitre~\ref{chap:apprendre}, avec
+la machine à bonbons : si l'on additionne les écarts tels quels, un $+5$ et
+un $-5$ s'annulent, et l'on croit à tort que la machine est parfaite. Il
+faut donc effacer les signes moins avant d'additionner.
+
+Là-bas, nous avions choisi de mettre chaque écart au carré, c'est-à-dire de
+le multiplier par lui-même. Ici, V-JEPA~2 fait autrement, et plus simplement
+encore : il prend la \emph{valeur absolue}.
+
+\begin{definition}[La valeur absolue][valeur-absolue]
+La \emph{valeur absolue} d'un nombre, c'est ce même nombre, débarrassé de
+son signe moins s'il en avait un. On l'écrit avec deux petites barres
+verticales autour du nombre. Ainsi $|3| = 3$, et $|-3| = 3$ aussi. On peut
+la voir comme une distance : elle dit à quelle distance de zéro se trouve le
+nombre, sans dire de quel côté.
+\end{definition}
+
+\begin{exemple}[Quelques valeurs absolues]
+Rien de plus simple : on regarde le nombre, et s'il porte un signe moins, on
+le raye.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{cc}
+\toprule
+\textbf{Le nombre} & \textbf{Sa valeur absolue} \\
+\midrule
+$7$        & $7$ \\
+$-7$       & $7$ \\
+$0{,}3$    & $0{,}3$ \\
+$-0{,}3$   & $0{,}3$ \\
+$0$        & $0$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Remarquez les deux premières lignes : $7$ et $-7$ donnent la même réponse.
+C'est exactement l'effet que nous cherchions, puisque nous voulions que se
+tromper de sept en trop coûte autant que se tromper de sept en moins.
+\end{exemple}
+
+\begin{intuition}
+Vous habitez au kilomètre zéro d'une route. Un ami habite trois kilomètres
+au nord, un autre trois kilomètres au sud. Si vous demandez « à quelle
+distance habites-tu ? », les deux répondent « trois kilomètres ». Aucun ne
+répond « moins trois ». La valeur absolue, c'est exactement cette
+réponse-là : la distance, sans la direction.
+\end{intuition}
+
+Les signes moins ont disparu. Il ne reste plus qu'un geste, et c'est le plus
+simple des deux.
+
+\subsection*{Second temps : additionner}
+
+Une fois les signes effacés, il ne reste plus qu'à additionner tous les
+écarts de la liste. On obtient enfin un seul nombre, et il est forcément
+positif.
+
+Cette machine complète — effacer les signes, puis additionner — porte un
+nom.
+
+\begin{definition}[La norme L1][norme-l1]
+La \emph{norme L1} d'une liste de nombres est la somme des valeurs absolues
+de ces nombres. On l'écrit en entourant la liste de deux grandes barres, et
+en écrivant un petit $1$ en bas à droite : $\|\,\cdot\,\|_{1}$. On la
+prononce « norme un ». Le mot \emph{norme} veut simplement dire « façon de
+mesurer la taille de quelque chose ».
+\end{definition}
+
+\begin{exemple}[Calculer une norme L1, en entier]
+Reprenons nos trois écarts, $(0{,}1 \ ; \ -0{,}3 \ ; \ 0{,}2)$.
+
+On efface les signes : $(0{,}1 \ ; \ 0{,}3 \ ; \ 0{,}2)$.
+
+On additionne : $0{,}1 + 0{,}3 + 0{,}2 = 0{,}6$.
+
+On écrit donc :
+\[
+  \bigl\| (0{,}1 \ ; \ -0{,}3 \ ; \ 0{,}2) \bigr\|_{1} = 0{,}6 .
+\]
+
+Trois nombres sont devenus un seul, et ce seul nombre dit de combien la
+machine s'est trompée sur ce jeton-là. Retenez ce $0{,}6$ : il nous servira
+tout à l'heure.
+\end{exemple}
+
+La figure~\ref{fig:norme-l1} montre les deux temps de l'opération.
+
+\begin{schema}{La norme L1, en deux temps. À gauche, les trois écarts tels
+qu'ils sortent de la soustraction : la longueur de chaque barre donne sa
+taille, et celle du milieu est rouge parce qu'elle est négative. Au milieu,
+les signes ont été effacés : les trois barres sont devenues des longueurs,
+toutes de la même couleur. À droite, on les met bout à bout, et la longueur
+obtenue est la norme L1.}[norme-l1]
+
+% Échelle : 1 unité de valeur = 4 cm. Ainsi 0,1 -> 0,4 et 0,3 -> 1,2.
+% Les trois barres sont empilées, ce qui permet de comparer leurs longueurs
+% d'un coup d'œil.
+
+% ================== 1. les écarts, avec leurs signes ==================
+\node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (0.75,1.55)
+     {les écarts};
+\node[font=\small, text=mbInk, anchor=east] at (-0.15,1.0)  {$0{,}1$};
+\node[font=\small, text=mbRose!85!black, anchor=east] at (-0.15,0.5) {$-0{,}3$};
+\node[font=\small, text=mbInk, anchor=east] at (-0.15,0.0)  {$0{,}2$};
+
+\fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+      (0,0.85) rectangle ++(0.4,0.3);
+\fill[mbRose!30, draw=mbRose!80, line width=0.6pt]
+      (0,0.35) rectangle ++(1.2,0.3);
+\fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+      (0,-0.15) rectangle ++(0.8,0.3);
+
+\node[font=\sffamily\scriptsize, text=mbRose!85!black, anchor=north west]
+      at (0,-0.42) {celui-ci est négatif};
+
+% ================== la première flèche ==================
+\draw[fleche accent] (2.15,0.5) -- (3.55,0.5);
+\node[font=\sffamily\scriptsize, text=mbAmber!80!black, align=center]
+      at (2.85,0.95) {on efface\\les signes};
+
+% ================== 2. les longueurs, toutes positives ==================
+\begin{scope}[shift={(4.35cm,0cm)}]
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (0.75,1.55)
+       {des longueurs};
+  \node[font=\small, text=mbInk, anchor=east] at (-0.15,1.0) {$0{,}1$};
+  \node[font=\small, text=mbInk, anchor=east] at (-0.15,0.5) {$0{,}3$};
+  \node[font=\small, text=mbInk, anchor=east] at (-0.15,0.0) {$0{,}2$};
+
+  \fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+        (0,0.85) rectangle ++(0.4,0.3);
+  \fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+        (0,0.35) rectangle ++(1.2,0.3);
+  \fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+        (0,-0.15) rectangle ++(0.8,0.3);
+
+  \node[font=\sffamily\scriptsize, text=mbSlate, anchor=north west]
+        at (0,-0.42) {plus aucun signe moins};
+\end{scope}
+
+% ================== la seconde flèche ==================
+\draw[fleche accent] (6.50,0.5) -- (7.90,0.5);
+\node[font=\sffamily\scriptsize, text=mbAmber!80!black, align=center]
+      at (7.20,0.95) {on les met\\bout à bout};
+
+% ================== 3. la somme ==================
+\begin{scope}[shift={(8.70cm,0cm)}]
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (1.2,1.55)
+       {une seule longueur};
+
+  \fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+        (0,0.35) rectangle ++(0.4,0.3);
+  \fill[mbAzure!45, draw=mbAzure!75, line width=0.6pt]
+        (0.4,0.35) rectangle ++(1.2,0.3);
+  \fill[mbAzure!30, draw=mbAzure!75, line width=0.6pt]
+        (1.6,0.35) rectangle ++(0.8,0.3);
+
+  \draw[accolade bas] (0,0.28) -- (2.4,0.28);
+  \node[font=\sffamily\small\bfseries, text=mbAzure!70!black] at (1.2,-0.28)
+       {en tout : $0{,}6$};
+  \node[font=\sffamily\scriptsize, text=mbSlate] at (1.2,-0.75)
+       {c'est la norme L1};
+\end{scope}
+\end{schema}
+
+\begin{plusloin}
+Pourquoi la valeur absolue plutôt que le carré du
+chapitre~\ref{chap:apprendre} ? Parce que les deux ne punissent pas de la
+même façon.
+
+Prenons deux écarts, un tout petit et un gros : $0{,}1$ et $1{,}0$.
+
+Avec la norme L1, le total vaut $0{,}1 + 1{,}0 = 1{,}1$. Le gros écart
+compte pour $1{,}0 / 1{,}1 \approx 91\,\%$ du total.
+
+Avec les carrés, le total vaut $0{,}01 + 1{,}00 = 1{,}01$. Le gros écart
+compte cette fois pour $1{,}00 / 1{,}01 \approx 99\,\%$ du total, et le petit
+pour à peine $1\,\%$.
+
+Le carré écrase donc les petits écarts et ne s'occupe presque plus que des
+gros. Or, dans une vidéo, les gros écarts arrivent souvent aux endroits
+imprévisibles : une porte qui claque, quelqu'un qui entre dans le champ.
+Avec le carré, la machine passerait son temps sur ces surprises qu'elle ne
+pouvait pas deviner. Avec la valeur absolue, elle continue d'écouter les
+petits écarts, ceux qui viennent des endroits qu'elle aurait vraiment pu
+mieux comprendre.
+\end{plusloin}
+
+Voilà les deux grandes barres expliquées. Il nous reste la lettre $M$ et sa
+taille $|M|$ : c'est encore plus simple, et c'est le sujet de la section qui
+vient.
+
+\section{Zoom sur la lettre M : la liste des endroits cachés}
+
+\begin{enclair}
+La lettre $M$ est la liste des adresses de tous les trous. Ce n'est pas un
+nombre, c'est une liste. Et $|M|$, avec les deux barres, est la longueur de
+cette liste, c'est-à-dire combien il y a de trous.
+\end{enclair}
+
+Reprenons notre clip de la phase principale, celui qui nous accompagne
+depuis le chapitre~\ref{chap:vit}. Il contient $2\,048$ jetons. On leur a
+donné un numéro, de $1$ jusqu'à $2\,048$, pour pouvoir en parler.
+
+Maintenant, on tire un masque au hasard. Certains jetons sont recouverts,
+d'autres restent visibles. Il faut bien noter quelque part lesquels sont
+recouverts. C'est ce que fait la lettre $M$.
+
+\begin{definition}[Un ensemble][ensemble]
+Un \emph{ensemble} est simplement une liste d'objets. Chaque objet n'y
+figure qu'une seule fois, et l'ordre dans lequel on les écrit n'a aucune
+importance. On note un ensemble entre accolades. Par exemple,
+$\{3 \ ; \ 17 \ ; \ 42\}$ est l'ensemble qui contient les trois nombres $3$,
+$17$ et $42$. Dire qu'un objet « appartient » à l'ensemble, c'est dire qu'il
+est dans la liste, et on l'écrit avec le petit signe $\in$, qui se lit
+« appartient à ».
+\end{definition}
+
+\begin{definition}[L'ensemble des endroits cachés, noté $M$][ensemble-m]
+On note $M$ l'ensemble des numéros des jetons masqués. La lettre $M$ vient
+de l'anglais \emph{masked}, qui veut dire « masqué ». Écrire $i \in M$ se lit
+« le jeton numéro $i$ fait partie des jetons masqués ».
+\end{definition}
+
+\begin{definition}[La taille d'un ensemble, notée $|M|$][taille-ensemble]
+Les deux barres autour d'un ensemble donnent le nombre d'objets qu'il
+contient. Ainsi, si $M = \{3 \ ; \ 17 \ ; \ 42\}$, alors $|M| = 3$.
+Attention : ce sont les mêmes barres que celles de la valeur absolue, mais
+elles ne font pas la même chose. Autour d'un nombre, elles effacent le
+signe ; autour d'un ensemble, elles comptent combien il y a d'objets dedans.
+C'est le contexte
+qui dit laquelle des deux on emploie.
+\end{definition}
+
+\begin{exemple}[Un masque minuscule, écrit en entier]
+Prenons une toute petite vidéo qui ne contiendrait que huit jetons,
+numérotés de $1$ à $8$. On tire un masque, et il recouvre les jetons
+numéro $3$, $4$, $5$ et $7$. On écrit alors :
+
+\[
+  M = \{3 \ ; \ 4 \ ; \ 5 \ ; \ 7\} , \qquad |M| = 4 .
+\]
+
+Les quatre jetons restants, ceux numéro $1$, $2$, $6$ et $8$, forment le
+contexte. Nous leur donnerons leur propre lettre au chapitre~10 ; pour
+l'instant, ils n'ont pas de nom dans la formule, et c'est justement là que
+tout se joue.
+\end{exemple}
+
+\begin{exemple}[Le masque de notre clip habituel]
+Reprenons les chiffres du chapitre~\ref{chap:idee-jepa}. Notre clip contient
+$2\,048$ jetons, et le masque en recouvre $1\,200$. On a donc :
+
+\[
+  |M| = 1\,200 .
+\]
+
+L'ensemble $M$ contient donc mille deux cents numéros. On ne les écrit
+évidemment jamais à la main : c'est le programme qui les garde en mémoire.
+Les $848$ jetons restants sont le contexte.
+\end{exemple}
+
+La figure~\ref{fig:ensemble-m} met cette petite vidéo sous vos yeux, pour
+que vous voyiez d'un coup ce que la lettre $M$ contient et ce qu'elle laisse
+de côté.
+
+\begin{schema}{Ce que contient la lettre $M$. Notre petite vidéo n'a que
+huit jetons, numérotés de $1$ à $8$. Quatre d'entre eux sont cachés : ce sont
+les gris, et leurs quatre numéros forment l'ensemble $M$. Les quatre autres,
+les bleus, restent visibles : ce sont les jetons de contexte, et aucun de
+leurs numéros n'entre dans $M$.}[ensemble-m]
+
+% ---- la file des huit jetons ----
+\foreach \k in {1,...,8}{
+  \node[font=\sffamily\scriptsize, text=mbSlate] at ({(\k-1)*1.15+0.4},1.05)
+       {\k};
+}
+\foreach \k in {1,2,6,8}{
+  \fill[mbAzure!25, draw=mbAzure!70, line width=0.7pt]
+        ({(\k-1)*1.15},0) rectangle ++(0.8,0.8);
+}
+\foreach \k in {3,4,5,7}{
+  \fill[mbSlate!35, draw=mbSlate!80, line width=0.7pt, dashed]
+        ({(\k-1)*1.15},0) rectangle ++(0.8,0.8);
+}
+
+\node[font=\sffamily\scriptsize, text=mbSlate, anchor=east] at (-0.25,0.4)
+     {les huit jetons};
+
+% ---- on descend les numeros gris dans l'ensemble ----
+\foreach \k in {3,4,5,7}{
+  \draw[trait annotation] ({(\k-1)*1.15+0.4},-0.12) -- (4.0,-0.95);
+}
+\node[font=\small, text=mbInk] at (4.0,-1.35)
+     {$M = \{\,3 \ ; \ 4 \ ; \ 5 \ ; \ 7\,\}$};
+\node[font=\small, text=mbInk] at (4.0,-2.0)
+     {$|M| = 4$};
+\node[annotation, anchor=west, align=left] at (6.4,-1.35)
+     {les numéros\\des cases cachées};
+\node[annotation, anchor=west, align=left] at (6.4,-2.0)
+     {combien il y en a};
+
+\node[font=\sffamily\scriptsize, text=mbAzure!80!black, anchor=west]
+     at (-0.25,-2.75)
+     {les jetons $1$, $2$, $6$ et $8$ restent dehors : ils sont le contexte};
+\end{schema}
+
+Il nous reste à comprendre ce que fait le grand signe $\sum$, celui qui est
+posé juste devant $M$ dans la formule.
+
+\begin{notation}[Le signe somme, revu][somme-revue]
+Nous avions déjà croisé ce signe au chapitre~\ref{chap:apprendre}. Écrire
+$\sum_{i \in M}$ veut dire : « fais prendre à $i$ chacune des valeurs de
+l'ensemble $M$, calcule à chaque fois ce qui suit, et additionne tous les
+résultats ».
+
+Avec notre masque minuscule $M = \{3 \ ; \ 4 \ ; \ 5 \ ; \ 7\}$, cela veut
+donc dire : calcule pour le jeton~$3$, puis pour le jeton~$4$, puis pour le
+jeton~$5$, puis pour le jeton~$7$, et additionne les quatre résultats.
+Et surtout : \textbf{ne calcule rien du tout pour les jetons $1$, $2$, $6$
+et $8$}. Ils ne sont pas dans la liste, donc on ne les regarde pas.
+\end{notation}
+
+Cette dernière phrase, en gras, a l'air d'un détail d'écriture. Retenez-la :
+c'est elle qui va tout faire basculer dans quelques pages.
+
+\begin{notation}[Le petit $i$ en bas à droite][indice-i]
+Vous avez sans doute remarqué le petit $i$ posé en bas à droite, dans
+$P_{\varphi}(\ldots)_i$ et dans $E_{\bar{\theta}}(y)_i$. Il veut dire
+« prends seulement le jeton numéro $i$ dans tout ce qui sort ».
+
+Souvenez-vous du chapitre~\ref{chap:vit} : l'encodeur ne rend pas un seul
+paquet de nombres, mais un paquet \emph{par jeton}. Le prédicteur non plus.
+Le petit $i$ est donc l'instruction qui dit : « dans ces deux mille
+quarante-huit paquets, va me chercher celui qui porte le numéro $i$ ».
+\end{notation}
+
+\begin{exemple}[Le petit $i$ au travail]
+C'est le même geste que lorsque vous cherchez un appartement dans un
+immeuble. Le prédicteur, c'est l'immeuble entier : il contient $2\,048$
+appartements, un par jeton. L'écriture
+$P_{\varphi}\bigl(E_{\theta}(x), \Delta_y\bigr)_{17}$ veut simplement dire :
+« va sonner à la porte numéro $17$ ».
+
+Si l'on remplace $17$ par $500$, on obtient un autre paquet de nombres,
+celui d'un tout autre endroit de la vidéo. Le calcul qui a fabriqué
+l'immeuble est le même ; seul le numéro de la porte a changé.
+\end{exemple}
+
+Nous avons maintenant tous les symboles. Mettons-les au travail sur de vrais
+nombres.
+
+\section{Le calcul complet, du début à la fin}
+\label{sec:calcul-complet}
+
+\begin{enclair}
+Nous allons calculer une perte entière, sans rien sauter. Pour que tout
+tienne sur une ligne, nos jetons n'auront que trois nombres au lieu de mille,
+et notre masque ne recouvrira que deux endroits au lieu de mille deux cents.
+L'idée est exactement la même ; seules les tailles changent.
+\end{enclair}
+
+Voici la situation. Notre masque recouvre deux jetons, disons ceux qui
+portent les numéros $3$ et $7$. On écrit donc :
+
+\[
+  M = \{3 \ ; \ 7\} , \qquad |M| = 2 .
+\]
+
+Nous allons traiter ces deux endroits l'un après l'autre, puis rassembler
+les deux résultats. Commençons par le premier.
+
+\subsection*{Étape 1 : le jeton numéro 3}
+
+Le prédicteur a répondu, pour cet endroit :
+\[
+  P_{\varphi}\bigl(E_{\theta}(x), \Delta_y\bigr)_3
+  = (0{,}5 \ ; \ -0{,}2 \ ; \ 1{,}0) .
+\]
+
+Et le professeur, qui voyait la vidéo complète, avait produit comme cible :
+\[
+  \mathrm{sg}\bigl(E_{\bar{\theta}}(y)_3\bigr)
+  = (0{,}4 \ ; \ 0{,}1 \ ; \ 0{,}8) .
+\]
+
+On soustrait terme à terme :
+\[
+  (0{,}5 - 0{,}4 \ ; \ -0{,}2 - 0{,}1 \ ; \ 1{,}0 - 0{,}8)
+  = (0{,}1 \ ; \ -0{,}3 \ ; \ 0{,}2) .
+\]
+
+On efface les signes et on additionne :
+\[
+  0{,}1 + 0{,}3 + 0{,}2 = 0{,}6 .
+\]
+
+L'erreur sur le jeton numéro $3$ vaut donc $\bm{0{,}6}$. Un endroit caché
+est réglé ; passons au second, en refaisant exactement les mêmes gestes.
+
+\subsection*{Étape 2 : le jeton numéro 7}
+
+Cette fois, le prédicteur a répondu, et le professeur avait produit sa
+cible :
+\[
+  P_{\varphi}\bigl(E_{\theta}(x), \Delta_y\bigr)_7 = (0{,}0 \ ; \ 0{,}0 \ ; \ 0{,}0) ,
+  \qquad
+  \mathrm{sg}\bigl(E_{\bar{\theta}}(y)_7\bigr) = (0{,}1 \ ; \ -0{,}2 \ ; \ 0{,}1) .
+\]
+
+On soustrait :
+\[
+  (0{,}0 - 0{,}1 \ ; \ 0{,}0 + 0{,}2 \ ; \ 0{,}0 - 0{,}1)
+  = (-0{,}1 \ ; \ 0{,}2 \ ; \ -0{,}1) .
+\]
+
+On efface les signes et on additionne :
+\[
+  0{,}1 + 0{,}2 + 0{,}1 = 0{,}4 .
+\]
+
+L'erreur sur le jeton numéro $7$ vaut donc $\bm{0{,}4}$. Nous avons nos deux
+erreurs : il ne reste plus qu'à les rassembler en un seul nombre.
+
+\subsection*{Étape 3 : la moyenne}
+
+Le signe $\sum$ nous dit d'additionner les deux résultats :
+\[
+  0{,}6 + 0{,}4 = 1{,}0 .
+\]
+
+Et la fraction $\frac{1}{|M|}$ nous dit de diviser par le nombre d'endroits
+cachés, c'est-à-dire par deux :
+\[
+  \mathcal{L}_{\text{predict}} = \frac{1{,}0}{2} = \bm{0{,}5} .
+\]
+
+\begin{exemple}[Le calcul rassemblé dans un tableau]
+Voici les mêmes calculs, rangés d'un coup d'œil :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{cccc}
+\toprule
+\textbf{Jeton} & \textbf{Réponse} & \textbf{Cible} & \textbf{Écart, norme L1} \\
+\midrule
+$3$ & $(0{,}5 \ ; \ -0{,}2 \ ; \ 1{,}0)$ & $(0{,}4 \ ; \ 0{,}1 \ ; \ 0{,}8)$ & $0{,}6$ \\
+$7$ & $(0{,}0 \ ; \ 0{,}0 \ ; \ 0{,}0)$ & $(0{,}1 \ ; \ -0{,}2 \ ; \ 0{,}1)$ & $0{,}4$ \\
+\midrule
+\multicolumn{3}{r}{\textbf{somme}} & $1{,}0$ \\
+\multicolumn{3}{r}{\textbf{divisée par } $|M| = 2$} & $\bm{0{,}5}$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+\end{exemple}
+
+\begin{aretenir}
+Vous venez de calculer, à la main et en entier, la perte de V-JEPA~2. Dans
+l'article, les jetons contiennent mille nombres au lieu de trois, et le
+masque couvre mille deux cents endroits au lieu de deux. Mais le calcul ne
+fait strictement rien d'autre que ce que vous venez de faire. Si vous savez
+refaire ce tableau, vous savez lire l'équation~1 de l'article.
+\end{aretenir}
+
+Nous avons fini de lire la formule. Il est temps de regarder ce qu'elle ne
+dit pas.
+
+\section{Le détail qui change tout : où la perte regarde-t-elle ?}
+
+\begin{enclair}
+Le prédicteur produit une réponse pour \emph{tous} les jetons, y compris
+ceux qui étaient déjà visibles. Mais la perte, elle, ne regarde que les
+jetons masqués. Toutes les autres réponses sont jetées à la poubelle, sans
+être notées. Ce détail est le sujet de tout le reste de ce livre.
+\end{enclair}
+
+Revenons une dernière fois sur le signe $\sum_{i \in M}$. Nous avons dit
+qu'il fait prendre à $i$ toutes les valeurs de l'ensemble $M$. Posons-nous
+donc la question qui fâche : \emph{que se passe-t-il pour les jetons qui ne
+sont pas dans $M$ ?}
+
+La réponse est brutale : rien. Absolument rien. Ils ne sont pas dans la
+liste, donc on ne les calcule pas, donc ils ne comptent pas dans la perte.
+
+Or, rappelez-vous ce que nous avions compté au chapitre~\ref{chap:idee-jepa}.
+Le prédicteur reçoit les jetons de contexte \emph{et} les jetons de masque,
+et il ressort une réponse pour chaque jeton reçu. Il travaille donc pour
+tout le monde. Mais on ne le note que sur une partie de sa copie.
+
+\begin{exemple}[Combien de réponses partent à la poubelle]
+Reprenons nos chiffres habituels.
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lr}
+\toprule
+\textbf{Ce que l'on compte} & \textbf{Combien} \\
+\midrule
+Réponses produites par le prédicteur & $2\,048$ \\
+Réponses regardées par la perte (les masquées) & $1\,200$ \\
+Réponses jetées sans être regardées (le contexte) & $848$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+La part jetée vaut
+\[
+  \frac{848}{2\,048} \approx 0{,}414 ,
+\]
+c'est-à-dire un peu plus de \textbf{quarante et un pour cent}. Plus de
+quatre réponses sur dix sont donc fabriquées, puis jetées sans que personne
+ne les regarde.
+\end{exemple}
+
+La figure~\ref{fig:perte-regarde} est le dessin le plus important de cette
+partie du livre. Regardez-le longuement, et surtout retenez ses couleurs :
+nous le retrouverons au chapitre~10, presque identique, avec un seul
+changement — et ce changement sera toute la nouveauté de V-JEPA~2.1.
+
+\begin{schema}{Où la perte de V-JEPA~2 regarde-t-elle. Chaque petit carré
+est un jeton, et le prédicteur a produit une réponse pour les quarante. Mais
+l'accolade de droite ne ramasse que les vingt-quatre carrés gris, ceux qui
+étaient cachés : eux seuls entrent dans la perte. Les seize carrés bleus
+étaient visibles, et leurs réponses partent à la poubelle sans avoir été
+regardées.}[perte-regarde]
+
+% ================== la grille : 8 colonnes x 5 lignes ==================
+% cellule de 0,70 ; la grille occupe donc 5,60 de large et 3,50 de haut.
+\foreach \c in {0,...,7}{
+  \foreach \r in {0,...,4}{
+    \fill[mbAzure!28, draw=mbAzure!70, line width=0.5pt]
+          (\c*0.70, -\r*0.70) rectangle ++(0.66,-0.66);
+  }
+}
+% ---- le bloc masqué : colonnes 1 à 6, lignes 1 à 4 (24 carrés) ----
+\foreach \c in {1,...,6}{
+  \foreach \r in {1,...,4}{
+    \fill[mbSlate!38, draw=mbSlate!75, line width=0.5pt]
+          (\c*0.70, -\r*0.70) rectangle ++(0.66,-0.66);
+  }
+}
+
+% ================== l'accolade : elle ne prend QUE le gris ==================
+% le bloc gris va de y = -0,70 à y = -3,50 ; la grille s'arrête à x = 5,26.
+\draw[accolade, line width=0.9pt, draw=mbRose!85!black]
+      (5.95,-3.50) -- (5.95,-0.70);
+\node[font=\sffamily\small\bfseries, text=mbRose!85!black, anchor=west,
+      align=left, text width=4.6cm] at (6.50,-1.60)
+     {les 24 réponses\\que la perte regarde};
+\node[font=\sffamily\scriptsize, text=mbSlate, anchor=west,
+      align=left, text width=4.6cm] at (6.50,-2.55)
+     {ce sont elles, et elles seules,\\que désigne l'ensemble $M$};
+
+% ================== l'accolade du bas : les 40 réponses ==================
+\draw[accolade bas] (0,-3.72) -- (5.56,-3.72);
+\node[font=\sffamily\small\bfseries, text=mbSlate] at (2.78,-4.32)
+     {40 réponses produites par le prédicteur};
+
+% ================== la légende, sous le dessin ==================
+\fill[mbSlate!38, draw=mbSlate!75, line width=0.5pt]
+      (0,-5.15) rectangle ++(0.42,-0.42);
+\node[font=\sffamily\scriptsize, text=mbInk, anchor=west] at (0.60,-5.36)
+     {\textbf{24 jetons masqués} — ils étaient cachés, et leurs réponses
+      sont notées};
+
+\fill[mbAzure!28, draw=mbAzure!70, line width=0.5pt]
+      (0,-5.85) rectangle ++(0.42,-0.42);
+\node[font=\sffamily\scriptsize, text=mbInk, anchor=west] at (0.60,-6.06)
+     {\textbf{16 jetons de contexte} — ils étaient visibles, et leurs
+      réponses sont jetées};
+\end{schema}
+
+\begin{intuition}
+Imaginez un professeur qui donne un devoir de dix questions. L'élève répond
+aux dix. Le professeur, lui, ne corrige que six questions et arrache la page
+des quatre autres sans même la lire.
+
+Que va faire l'élève, au bout de quelques devoirs ? Il va comprendre que
+quatre questions ne rapportent rien. Il cessera d'y répondre sérieusement.
+Il s'en servira peut-être comme brouillon pour préparer les six autres.
+
+Et si un jour on lui demande ce qu'il avait écrit sur ces pages-là, il n'y
+aura rien d'utile. Non pas parce qu'il est mauvais, mais parce que personne
+ne le lui a jamais demandé.
+\end{intuition}
+
+\begin{piege}
+Attention à ne pas se tromper de reproche. Ce que nous venons de décrire
+n'est pas un bug, ni un oubli des auteurs de V-JEPA~2. C'est un choix, et un
+choix qui se défend très bien.
+
+Souvenez-vous du chapitre~\ref{chap:idee-jepa} : le but du jeu est de forcer
+l'élève à comprendre la scène pour deviner ce qu'il ne voit pas. Noter les
+endroits qu'il voyait déjà semble idiot, puisqu'il lui suffirait de recopier
+ce qu'il a sous les yeux. C'est un raisonnement parfaitement logique.
+
+Et pourtant, ce raisonnement a une conséquence que personne n'avait mesurée
+avant l'article de V-JEPA~2.1. Nous la découvrirons au chapitre~8, et nous y
+mettrons des chiffres. Pour l'instant, contentez-vous de retenir le fait :
+\textbf{les jetons de contexte ne reçoivent aucune consigne}.
+\end{piege}
+
+\begin{aretenir}
+La formule de V-JEPA~2 dit trois choses, et il faut les retenir toutes les
+trois :
+
+\begin{enumerate}
+  \item on compare des \emph{représentations}, jamais des pixels ;
+  \item on mesure l'écart avec la norme L1, c'est-à-dire en effaçant les
+        signes et en additionnant ;
+  \item et l'on ne regarde que les endroits \emph{masqués}.
+\end{enumerate}
+
+Les deux premières sont l'idée JEPA. La troisième est un détail d'écriture
+qui tient dans trois symboles, $i \in M$. C'est pourtant elle, et elle
+seule, qui va occuper toute la suite de ce livre.
+\end{aretenir}
+
+\begin{enia}
+Ce petit $i \in M$ n'est pas un détail de mathématicien : c'est une ligne de
+programme, et vous l'écrirez vous-même au chapitre~24.
+
+Dans le code, la perte de V-JEPA~2 se calcule en deux temps. On demande
+d'abord au prédicteur ses réponses pour tous les jetons, les $2\,048$. Puis
+on met de côté celles des endroits masqués, et l'on ne compare que
+celles-là. Ce tri, c'est exactement ce que dit $i \in M$.
+
+Deux conséquences, que vous rencontrerez pour de vrai. La première est un
+gaspillage : quatre réponses sur dix sont calculées puis jetées, et ce
+travail-là, votre machine le paie quand même. La seconde est bien plus
+intéressante : \textbf{le premier changement qui mène de V-JEPA~2 à
+V-JEPA~2.1 consiste précisément à toucher à ce tri}. On cessera de jeter les
+réponses des endroits visibles, et l'on s'en servira au contraire pour
+donner une consigne à chaque jeton. Tout le chapitre~10 tient dans cette
+seule idée — et il faudra ensuite quelques autres ingrédients, que les
+chapitres~11 à~15 vous feront découvrir un par un.
+\end{enia}
+
+Il reste une question que nous avons repoussée depuis le début du chapitre.
+Cet ensemble $M$, ces trous, ces zones cachées : comment sont-ils choisis ?
+
+\section{Comment on tire le masque au sort}
+
+\begin{enclair}
+À chaque pas d'entraînement, on tire un nouveau masque au hasard. Mais pas
+n'importe comment : on tire des rectangles, dont on choisit la surface et la
+forme dans des plages fixées à l'avance. Et ces rectangles traversent toute
+la durée du clip, de la première image à la dernière.
+\end{enclair}
+
+Il serait tentant de cacher les jetons un par un, complètement au hasard,
+comme on tire des numéros de loto. Ce serait une mauvaise idée, et il faut
+comprendre pourquoi.
+
+\begin{intuition}
+Si l'on cache un jeton sur deux, en damier, deviner le contenu d'un trou
+devient trop facile : il suffit de regarder les quatre voisins, qui sont
+tous visibles, et de faire une moyenne. La machine n'a alors besoin de rien
+comprendre à la scène : elle apprend seulement à boucher chaque trou avec la
+couleur d'à côté.
+
+Pour que le jeu ait un intérêt, il faut cacher des \emph{morceaux entiers},
+assez grands pour qu'aucun voisin immédiat ne donne la réponse. La machine
+est alors obligée d'aller chercher des indices loin de là, et donc de
+comprendre la scène dans son ensemble.
+\end{intuition}
+
+Sur ce point, V-JEPA~2.1 n'invente rien : il reprend telle quelle la façon
+de faire des modèles V-JEPA qui l'ont précédé. Cette façon de faire repose
+sur trois réglages, et nous allons les prendre un par un.
+
+\subsection*{Premier réglage : l'échelle spatiale}
+
+\begin{definition}[L'échelle spatiale du masque][echelle-spatiale]
+L'\emph{échelle spatiale} est la part de la surface de l'image que le trou
+doit recouvrir. C'est un nombre entre $0$ et $1$ : une échelle de $0{,}3$
+veut dire que le trou couvre trente pour cent de la surface.
+
+Dans l'article, cette échelle est tirée au hasard, à chaque pas, entre
+$0{,}15$ et $0{,}7$. Autrement dit, le trou recouvre au minimum quinze pour
+cent de l'image, et au maximum soixante-dix pour cent.
+\end{definition}
+
+\begin{exemple}[De l'échelle à un nombre de cases]
+Prenons une image découpée en $16 \times 16 = 256$ cases, ce qui est le
+découpage d'une tranche de notre clip habituel.
+
+Avec une échelle de $0{,}15$, le trou doit recouvrir
+$0{,}15 \times 256 = 38{,}4$ cases, donc environ trente-huit.
+
+Avec une échelle de $0{,}7$, il doit en recouvrir
+$0{,}7 \times 256 = 179{,}2$, donc environ cent soixante-dix-neuf.
+\end{exemple}
+
+Nous savons maintenant quelle \emph{surface} le trou doit couvrir. Mais une
+même surface peut se ranger de bien des façons : en carré, en rectangle
+couché, en rectangle debout. C'est le deuxième réglage qui décide.
+
+\subsection*{Deuxième réglage : le rapport d'aspect}
+
+\begin{definition}[Le rapport d'aspect][rapport-aspect]
+Le \emph{rapport d'aspect} d'un rectangle est sa hauteur divisée par sa
+largeur. Un rapport de $1$ donne un carré. Un rapport plus petit que $1$
+donne un rectangle couché, plus large que haut. Un rapport plus grand que
+$1$ donne un rectangle debout, plus haut que large.
+
+Dans l'article, ce rapport est tiré au hasard entre $0{,}75$ et $1{,}5$. Les
+trous ne sont donc jamais de longues bandes très fines : ils restent
+toujours des rectangles à peu près aussi hauts que larges.
+\end{definition}
+
+La figure~\ref{fig:rapport-aspect} montre les trois formes que ce réglage
+peut donner, avec les deux valeurs extrêmes que l'article autorise.
+
+\begin{schema}{Ce que le rapport d'aspect change. À gauche, un rapport plus
+petit que $1$ : le rectangle est couché, plus large que haut. Au milieu, un
+rapport de $1$ : c'est un carré. À droite, un rapport plus grand que $1$ :
+le rectangle est debout, plus haut que large. Les trois trous ont pourtant
+la même surface : seule leur forme
+change.}[rapport-aspect]
+
+% --- couche : rapport 0,75 ---
+\fill[mbSlate!35, draw=mbSlate!80, line width=0.7pt] (0,0) rectangle (2.0,1.5);
+\draw[<->, draw=mbSlate!70, line width=0.5pt] (0,-0.25) -- (2.0,-0.25);
+\node[font=\sffamily\scriptsize, text=mbSlate] at (1.0,-0.55) {largeur};
+\draw[<->, draw=mbSlate!70, line width=0.5pt] (-0.25,0) -- (-0.25,1.5);
+\node[font=\sffamily\scriptsize, text=mbSlate, rotate=90] at (-0.55,0.75)
+     {hauteur};
+\node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (1.0,2.0)
+     {rapport $0{,}75$};
+\node[font=\sffamily\scriptsize, text=mbAzure!80!black] at (1.0,-1.0)
+     {couché};
+
+% --- carre : rapport 1 ---
+\begin{scope}[shift={(4.0cm,0cm)}]
+  \fill[mbSlate!35, draw=mbSlate!80, line width=0.7pt] (0,0) rectangle (1.73,1.73);
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (0.87,2.0)
+       {rapport $1$};
+  \node[font=\sffamily\scriptsize, text=mbAzure!80!black] at (0.87,-1.0)
+       {carré};
+\end{scope}
+
+% --- debout : rapport 1,5 ---
+\begin{scope}[shift={(7.6cm,0cm)}]
+  \fill[mbSlate!35, draw=mbSlate!80, line width=0.7pt] (0,0) rectangle (1.41,2.12);
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (0.7,2.4)
+       {rapport $1{,}5$};
+  \node[font=\sffamily\scriptsize, text=mbAzure!80!black] at (0.7,-1.0)
+       {debout};
+\end{scope}
+\end{schema}
+
+\begin{exemple}[Lire un rapport d'aspect]
+Un trou fait $12$ cases de haut et $16$ cases de large. Son rapport d'aspect
+vaut $12 \div 16 = 0{,}75$ : il est plus petit que $1$, donc le trou est
+couché. C'est bien ce que disent les deux nombres, puisque $12$ est plus
+petit que $16$.
+
+Un autre trou fait $18$ cases de haut et $12$ de large. Son rapport vaut
+$18 \div 12 = 1{,}5$ : il est plus grand que $1$, donc le trou est debout.
+
+Et un trou de $14$ cases sur $14$ a pour rapport $14 \div 14 = 1$ : c'est un
+carré.
+\end{exemple}
+
+Comment passe-t-on de ces deux réglages aux deux côtés du rectangle ? Par
+deux petits calculs, toujours les mêmes, et il faut d'abord se rappeler ce
+qu'est une racine carrée. Nous l'avions rencontrée au
+chapitre~\ref{chap:vit} : la racine carrée d'un nombre, c'est celui qui,
+multiplié par lui-même, redonne ce nombre. Ainsi $\sqrt{121} = 11$, puisque
+$11 \times 11 = 121$.
+
+Voici les deux calculs. Pour la hauteur, on multiplie la surface par le
+rapport, et on prend la racine carrée du résultat. Pour la largeur, on
+divise la surface par le rapport, et on prend là aussi la racine carrée.
+Ces deux calculs tombent rarement juste : ils donnent des nombres à virgule,
+comme $16{,}4$. Or on ne peut pas cacher $16{,}4$ cases : une case est cachée
+ou elle ne l'est pas. Il faut donc \emph{arrondir}, c'est-à-dire remplacer le
+nombre à virgule par le nombre sans virgule le plus proche. Ainsi $5{,}2$
+devient $5$, parce qu'il est plus près de $5$ que de $6$ ; et $7{,}8$ devient
+$8$, parce qu'il est plus près de $8$ que de $7$.
+
+\begin{exemple}[Trouver les côtés du rectangle]
+Prenons d'abord une surface de $121$ cases avec un rapport de $1$.
+
+\[
+  \begin{aligned}
+    \text{hauteur} &= \sqrt{121 \times 1} = \sqrt{121} = 11 , \\
+    \text{largeur} &= \sqrt{121 \div 1} = \sqrt{121} = 11 .
+  \end{aligned}
+\]
+
+Le trou fait donc $11$ cases sur $11$. C'est bien un carré, comme le
+promettait un rapport de $1$.
+
+Prenons maintenant une surface de $179$ cases avec un rapport de $1{,}5$.
+
+\[
+  \begin{aligned}
+    \text{hauteur} &= \sqrt{179 \times 1{,}5} = \sqrt{268{,}5} \approx 16{,}4 , \\
+    \text{largeur} &= \sqrt{179 \div 1{,}5} = \sqrt{119{,}3} \approx 10{,}9 .
+  \end{aligned}
+\]
+
+On arrondit : $16{,}4$ devient $16$, et $10{,}9$ devient $11$.
+
+Le trou fait donc $16$ cases de haut sur $11$ de large. Il est bien plus
+haut que large, comme le promettait un rapport supérieur à $1$.
+\end{exemple}
+
+\begin{piege}
+Vérifions la surface obtenue : $16 \times 11 = 176$ cases, alors que nous en
+visions $179$. Les deux nombres ne sont pas tout à fait égaux, et c'est
+normal : en arrondissant les deux côtés à des nombres entiers, on s'écarte
+forcément un peu de la surface visée.
+
+Ne cherchez donc pas à retomber pile sur l'échelle demandée. Elle indique une
+taille souhaitée, pas une taille exacte. C'est aussi pourquoi, dans la
+figure et dans le programme qui suivent, vous verrez $35$ cases là où
+l'échelle $0{,}15$ en demandait $38$ : rien n'est cassé, ce sont seulement
+deux arrondis.
+\end{piege}
+
+Nos deux premiers réglages dessinent le trou sur \emph{une} image. Reste à
+savoir ce qu'il devient quand la vidéo avance. C'est le troisième réglage,
+et c'est le plus surprenant des trois.
+
+\subsection*{Troisième réglage : l'échelle temporelle}
+
+\begin{definition}[L'échelle temporelle du masque][echelle-temporelle]
+L'\emph{échelle temporelle} est la part de la durée du clip que le trou
+recouvre. Dans l'article, elle vaut toujours exactement $1{,}0$ : le trou
+traverse donc \emph{toute} la durée du clip, de la première image à la
+dernière.
+\end{definition}
+
+Ce qui surprend, ici, c'est que ce réglage ne varie jamais. Ce n'est pas un
+oubli : c'est un choix, et il est très malin.
+
+\begin{exemple}[Ce que « toujours $1$ » veut dire en nombre d'images]
+Un clip de la phase principale contient $16$ images, ce qui fait $8$
+tranches de temps une fois les images collées deux par deux.
+
+Une échelle temporelle de $0{,}5$ voudrait dire que le trou ne couvre que
+$0{,}5 \times 8 = 4$ tranches, donc la moitié du clip. Avec l'échelle de $1$
+retenue par l'article, il en couvre $1 \times 8 = 8$, c'est-à-dire toutes.
+
+Autrement dit, un trou de $150$ cases sur une tranche ne cache pas $150$
+jetons, mais $8 \times 150 = 1\,200$ jetons : le même trou est creusé huit
+fois, une fois par tranche.
+\end{exemple}
+
+\begin{intuition}
+Supposons que le trou ne couvre que la moitié du temps. Alors, pour deviner
+ce qui est caché à un endroit, la machine n'aurait qu'à regarder le même
+endroit un instant plus tôt, quand il était encore visible. Comme les choses
+bougent lentement d'une image à l'autre, elle aurait la réponse presque
+gratuitement, et sans rien comprendre.
+
+En faisant traverser le trou d'un bout à l'autre du clip, on lui coupe cette
+issue de secours. Cet endroit-là n'a \emph{jamais} été visible, à aucun
+moment. La machine est donc obligée de raisonner sur ce qui se passe
+\emph{autour}, et sur la façon dont la scène évolue. C'est exactement ce
+qu'on veut lui apprendre.
+\end{intuition}
+
+La figure~\ref{fig:masque-tube} montre cette idée : le trou est une sorte de
+tunnel creusé à travers toute la pile d'images.
+
+\begin{schema}{L'échelle temporelle vaut toujours $1$. Les quatre images du
+clip sont posées côte à côte, dans l'ordre du temps. Le trou gris tombe
+exactement à la même place sur chacune : les traits pointillés le montrent.
+Cet endroit de la scène n'est donc visible à aucun moment, et la machine ne
+peut pas se contenter de regarder l'image d'avant pour deviner ce qui s'y
+cache.}[masque-tube]
+
+% ================== les quatre images, bien séparées ==================
+% Chaque image fait 2,1 de large sur 1,6 de haut, et l'on en pose une
+% toutes les 2,6 unités. Le trou occupe toujours le même rectangle.
+\foreach \k/\nom in {0/{image 1}, 1/{image 2}, 2/{image 3}, 3/{image 4}}{
+  \begin{scope}[shift={(\k*2.6,0)}]
+    \fill[mbAzure!20, draw=mbAzure!70, line width=0.7pt]
+          (0,0) rectangle (2.1,1.6);
+    \fill[mbSlate!42, draw=mbSlate!80, line width=0.7pt]
+          (0.6,0.45) rectangle (1.5,1.15);
+    \node[font=\sffamily\scriptsize, text=mbSlate] at (1.05,-0.32) {\nom};
+  \end{scope}
+}
+
+% ---- les pointillés : c'est bien le même endroit d'une image à l'autre ----
+\draw[draw=mbRose!75, line width=0.7pt, dashed] (0.6,1.15) -- (9.9,1.15);
+\draw[draw=mbRose!75, line width=0.7pt, dashed] (0.6,0.45) -- (9.9,0.45);
+
+% ---- la flèche du temps ----
+\draw[-{Stealth[round,length=2.6mm,width=2mm]}, draw=mbAmber!85!black,
+      line width=1pt] (0,-0.72) -- (9.9,-0.72);
+\node[font=\sffamily\scriptsize, text=mbAmber!80!black, anchor=north]
+      at (4.95,-0.82) {le temps passe : les images du clip};
+
+% ---- l'annotation, posée au-dessus, sans croiser le dessin ----
+\node[font=\sffamily\small\bfseries, text=mbRose!85!black, anchor=west]
+      at (0,2.32) {le même trou, à la même place, sur toutes les images};
+\node[font=\sffamily\scriptsize, text=mbSlate, anchor=west]
+      at (0,1.95) {cet endroit n'est jamais visible, pas une seule fois};
+\end{schema}
+
+\begin{surlesdonnees}
+Les trois réglages, tels qu'ils sont écrits dans l'annexe de l'article, et
+tels que vous les retrouverez au chapitre~24 quand nous coderons :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lll}
+\toprule
+\textbf{Réglage} & \textbf{Valeur} & \textbf{Ce que cela veut dire} \\
+\midrule
+Échelle spatiale  & de $0{,}15$ à $0{,}7$ &
+  le trou couvre de 15 à 70 \% de l'image \\
+Échelle temporelle & $1{,}0$ toujours &
+  il traverse tout le clip \\
+Rapport d'aspect  & de $0{,}75$ à $1{,}5$ &
+  ni trop couché, ni trop debout \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Ces mêmes valeurs sont employées pendant la phase principale et pendant la
+phase de refroidissement, sans le moindre changement.
+\end{surlesdonnees}
+
+Nous tenons nos trois réglages. Voyons maintenant, de nos yeux, à quoi
+ressemblent les trous qu'ils fabriquent.
+
+\subsection*{Trois masques tirés au sort}
+
+Ces trois réglages restent un peu flous tant qu'on n'a pas vu ce qu'ils
+donnent. Tirons-en donc trois au hasard, et dessinons les trous obtenus.
+
+La figure~\ref{fig:trois-masques} montre le résultat sur une tranche de
+notre clip habituel, c'est-à-dire sur une grille de $16 \times 16$ cases.
+Les trois tirages sont ceux que nous ferons calculer par le programme, tout
+à l'heure : vous retrouverez donc exactement les mêmes nombres.
+
+\begin{schema}{Trois masques tirés au sort, dessinés sur une tranche de
+$16 \times 16$ cases. À gauche, le plus petit trou que l'article autorise ;
+au milieu, un trou de taille moyenne, ici carré ; à droite, le plus gros,
+un rectangle debout si haut qu'il touche les deux bords de la grille. Les
+trois viennent des mêmes deux réglages, tirés au hasard dans leurs plages :
+seuls les nombres tirés changent.}[trois-masques]
+
+% ================= panneau 1 : petit trou, 5 x 7 =================
+\begin{scope}[shift={(0cm,0cm)}]
+  \begin{scope}[x=0.15cm, y=0.15cm]
+    \fill[mbAzure!18] (0,0) rectangle (16,-16);
+    \foreach \k in {1,...,15}{
+      \draw[draw=mbAzure!40, line width=0.2pt] (\k,0) -- (\k,-16);
+      \draw[draw=mbAzure!40, line width=0.2pt] (0,-\k) -- (16,-\k);
+    }
+    \fill[mbSlate!45] (5,-4) rectangle (12,-9);
+    \draw[draw=mbSlate!85, line width=0.6pt, dashed] (5,-4) rectangle (12,-9);
+    \draw[draw=mbAzure!70, line width=0.7pt] (0,0) rectangle (16,-16);
+  \end{scope}
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (1.2,-2.85)
+       {petit trou};
+  \node[font=\sffamily\scriptsize, text=mbSlate, align=center] at (1.2,-3.5)
+       {échelle $0{,}15$\\rapport $0{,}75$};
+  \node[font=\sffamily\scriptsize, text=mbAzure!80!black] at (1.2,-4.2)
+       {$5 \times 7 = 35$ cases};
+\end{scope}
+
+% ================= panneau 2 : trou moyen, 11 x 11 =================
+\begin{scope}[shift={(3.3cm,0cm)}]
+  \begin{scope}[x=0.15cm, y=0.15cm]
+    \fill[mbAzure!18] (0,0) rectangle (16,-16);
+    \foreach \k in {1,...,15}{
+      \draw[draw=mbAzure!40, line width=0.2pt] (\k,0) -- (\k,-16);
+      \draw[draw=mbAzure!40, line width=0.2pt] (0,-\k) -- (16,-\k);
+    }
+    \fill[mbSlate!45] (2,-2) rectangle (13,-13);
+    \draw[draw=mbSlate!85, line width=0.6pt, dashed] (2,-2) rectangle (13,-13);
+    \draw[draw=mbAzure!70, line width=0.7pt] (0,0) rectangle (16,-16);
+  \end{scope}
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (1.2,-2.85)
+       {trou moyen};
+  \node[font=\sffamily\scriptsize, text=mbSlate, align=center] at (1.2,-3.5)
+       {échelle $0{,}47$\\rapport $1{,}00$};
+  \node[font=\sffamily\scriptsize, text=mbAzure!80!black] at (1.2,-4.2)
+       {$11 \times 11 = 121$ cases};
+\end{scope}
+
+% ================= panneau 3 : gros trou, 16 x 11 =================
+\begin{scope}[shift={(6.6cm,0cm)}]
+  \begin{scope}[x=0.15cm, y=0.15cm]
+    \fill[mbAzure!18] (0,0) rectangle (16,-16);
+    \foreach \k in {1,...,15}{
+      \draw[draw=mbAzure!40, line width=0.2pt] (\k,0) -- (\k,-16);
+      \draw[draw=mbAzure!40, line width=0.2pt] (0,-\k) -- (16,-\k);
+    }
+    \fill[mbSlate!45] (3,0) rectangle (14,-16);
+    \draw[draw=mbSlate!85, line width=0.6pt, dashed] (3,0) rectangle (14,-16);
+    \draw[draw=mbAzure!70, line width=0.7pt] (0,0) rectangle (16,-16);
+  \end{scope}
+  \node[font=\sffamily\scriptsize\bfseries, text=mbSlate] at (1.2,-2.85)
+       {gros trou};
+  \node[font=\sffamily\scriptsize, text=mbSlate, align=center] at (1.2,-3.5)
+       {échelle $0{,}70$\\rapport $1{,}50$};
+  \node[font=\sffamily\scriptsize, text=mbAzure!80!black] at (1.2,-4.2)
+       {$16 \times 11 = 176$ cases};
+\end{scope}
+\end{schema}
+
+\begin{exemple}[Les trois masques, en jetons]
+Chacun de ces trois trous traverse les $8$ tranches de temps du clip,
+puisque l'échelle temporelle vaut toujours $1$. Il suffit donc de
+multiplier le nombre de cases par $8$ pour obtenir le nombre de jetons
+cachés :
+
+\begin{center}
+\footnotesize
+\begin{tabular}{lrrr}
+\toprule
+\textbf{Tirage} & \textbf{Cases} & \textbf{Jetons masqués} &
+\textbf{Jetons de contexte} \\
+\midrule
+petit trou  & $35$  & $280$   & $1\,768$ \\
+trou moyen  & $121$ & $968$   & $1\,080$ \\
+gros trou   & $176$ & $1\,408$ & $640$ \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+D'un tirage à l'autre, le nombre de jetons cachés passe donc de $280$ à
+$1\,408$, soit cinq fois plus. La difficulté du jeu change beaucoup d'un pas
+d'entraînement au suivant, et c'est voulu : la machine doit savoir se
+débrouiller aussi bien avec quelques indices qu'avec beaucoup.
+\end{exemple}
+
+\begin{surlesdonnees}
+Regardez bien le panneau de droite. Le calcul demandait une hauteur de
+$16{,}4$ cases, qui une fois arrondie donne $16$ : c'est exactement la
+hauteur de la grille. Le trou touche donc le bord du haut et le bord du bas.
+
+Il s'en est fallu de peu que le rectangle ne dépasse. C'est pour ce cas-là
+que notre programme contiendra un \co{python}{min} : si jamais le calcul
+réclame plus de cases que la grille n'en possède, on ramène simplement le
+rectangle à la taille de la grille. Ce n'est ni une erreur ni un cas rare,
+et le programme continue sans se plaindre.
+\end{surlesdonnees}
+
+\begin{remarque}
+Dans la pratique, on ne se contente pas d'un seul rectangle. On en tire
+plusieurs, et l'on cache tout ce qui est recouvert par au moins l'un d'eux.
+Quand deux rectangles se chevauchent, la partie commune n'est évidemment
+comptée qu'une seule fois : c'est ce qu'on appelle prendre leur
+\emph{réunion}. Le résultat est un trou de forme moins régulière, ce qui
+rend le jeu plus intéressant. Nous le ferons tourner dans la section de code,
+et vous verrez apparaître les nombres qui nous accompagnent depuis le
+chapitre~\ref{chap:idee-jepa}.
+\end{remarque}
+
+Nous avons la formule et nous avons le masque. Vérifions tout cela sur une
+machine.
+
+\section{Passons au code}
+
+Nous allons écrire quatre petits programmes. Le premier refait, ligne par
+ligne, le calcul de perte que nous venons de mener à la main : vous devez
+retrouver le $0{,}6$, le $0{,}4$ et le $0{,}5$. Le deuxième compare la norme
+L1 aux carrés du chapitre~\ref{chap:apprendre}. Les deux derniers s'occupent
+du masque : l'un calcule la taille d'un trou à partir de ses réglages,
+l'autre pose deux trous sur une grille et compte les jetons cachés.
+
+Commençons par la perte.
+
+\begin{code}{python}[La perte de V-JEPA~2, sur nos deux jetons]
+import torch
+
+# Deux jetons masques, de trois nombres chacun.
+# Ligne 0 : le jeton numero 3. Ligne 1 : le jeton numero 7.
+prediction = torch.tensor([[0.5, -0.2, 1.0],
+                           [0.0,  0.0, 0.0]])
+cible      = torch.tensor([[0.4,  0.1, 0.8],
+                           [0.1, -0.2, 0.1]])
+
+# 1. l'ecart, terme a terme, puis on efface les signes
+ecarts = (prediction - cible).abs()
+print(ecarts)
+
+# 2. la norme L1 : on additionne les nombres de chaque jeton
+par_jeton = ecarts.sum(dim=1)
+print(par_jeton)
+
+# 3. la moyenne sur les jetons masques : c'est la perte
+perte = par_jeton.mean()
+print(perte)
+\end{code}
+
+Voici ce que le programme affiche :
+
+\begin{code}{text}[Ce que le programme écrit à l'écran]
+tensor([[0.1000, 0.3000, 0.2000],
+        [0.1000, 0.2000, 0.1000]])
+tensor([0.6000, 0.4000])
+tensor(0.5000)
+\end{code}
+
+Reprenez le tableau de la section~\ref{sec:calcul-complet} et comparez. Le premier affichage donne
+les écarts, une fois les signes effacés, exactement comme nous les avions
+calculés. Le deuxième donne les deux normes L1, soit $0{,}6$ puis $0{,}4$.
+Le troisième donne la perte, $0{,}5$. La machine n'a rien fait de plus que
+ce que nous venons de faire au crayon.
+
+\begin{piege}
+Regardez bien la ligne \co{python}{ecarts.sum(dim=1)}. Le réglage
+\co{python}{dim=1} dit : « additionne le long du deuxième axe », c'est-à-dire
+à l'intérieur de chaque jeton. Si vous écriviez \co{python}{dim=0}, vous
+additionneriez d'un jeton à l'autre, ce qui n'a aucun sens ici. Le
+programme ne se plaindrait pas : il rendrait trois nombres au lieu de deux,
+et la perte serait fausse en silence. Reprenez le réflexe du
+chapitre~\ref{chap:image-video} : affichez la forme, et demandez-vous si
+elle est celle que vous attendiez.
+\end{piege}
+
+Passons à la comparaison entre la norme L1 et les carrés. C'est le calcul de
+l'encadré « pour aller plus loin », vérifié sur machine.
+
+\begin{code}{python}[Norme L1 contre carrés : qui punit le plus les gros écarts ?]
+import torch
+
+ecarts = torch.tensor([0.1, 1.0])     # un petit ecart, et un gros
+
+total_l1     = ecarts.abs().sum()
+total_carres = (ecarts ** 2).sum()
+
+print(f"norme L1 : total = {total_l1:.2f}")
+print(f"   le petit ecart compte pour {100 * 0.1 / total_l1:.0f} %")
+print(f"   le gros  ecart compte pour {100 * 1.0 / total_l1:.0f} %")
+
+print(f"carres   : total = {total_carres:.2f}")
+print(f"   le petit ecart compte pour {100 * 0.01 / total_carres:.0f} %")
+print(f"   le gros  ecart compte pour {100 * 1.00 / total_carres:.0f} %")
+\end{code}
+
+Et le résultat :
+
+\begin{code}{text}[Ce que le programme écrit à l'écran]
+norme L1 : total = 1.10
+   le petit ecart compte pour 9 %
+   le gros  ecart compte pour 91 %
+carres   : total = 1.01
+   le petit ecart compte pour 1 %
+   le gros  ecart compte pour 99 %
+\end{code}
+
+Avec les carrés, le petit écart ne pèse plus qu'un pour cent : autant dire
+qu'il a disparu. Avec la norme L1, il pèse encore neuf fois plus. C'est
+précisément ce que V-JEPA~2 cherche : continuer d'écouter les petits écarts,
+au lieu de ne s'occuper que des grosses surprises imprévisibles.
+
+Terminons par le masque. Nous allons d'abord calculer la taille d'un
+rectangle à partir de ses deux réglages, puis en poser deux sur une grille
+et compter.
+
+\begin{code}{python}[Calculer la taille d'un trou à partir de ses réglages]
+def taille_du_trou(echelle, rapport, H=16, W=16):
+    """Rend la hauteur et la largeur du rectangle, en cases."""
+    aire = echelle * H * W                       # la surface visee
+    hauteur = round((aire * rapport) ** 0.5)
+    largeur = round((aire / rapport) ** 0.5)
+    return min(hauteur, H), min(largeur, W)      # on ne sort pas de la grille
+
+for echelle, rapport in [(0.15, 0.75), (0.473, 1.0), (0.70, 1.5)]:
+    h, w = taille_du_trou(echelle, rapport)
+    print(f"echelle {echelle:.3f}, rapport {rapport:.2f} -> "
+          f"{h:2d} x {w:2d} = {h * w:3d} cases, soit {8 * h * w:4d} jetons")
+\end{code}
+
+Le programme affiche :
+
+\begin{code}{text}[Trois trous, du plus petit au plus grand]
+echelle 0.150, rapport 0.75 ->  5 x  7 =  35 cases, soit  280 jetons
+echelle 0.473, rapport 1.00 -> 11 x 11 = 121 cases, soit  968 jetons
+echelle 0.700, rapport 1.50 -> 16 x 11 = 176 cases, soit 1408 jetons
+\end{code}
+
+Le facteur $8$ de la dernière colonne, c'est le nombre de tranches de temps
+d'un clip de la phase principale, que nous avions calculé au
+chapitre~\ref{chap:vit} : $16$ images divisées par des tubelets de $2$ font
+bien $8$ tranches. Comme le trou traverse tout le clip, on multiplie le
+nombre de cases par ce $8$.
+
+Remarquez la dernière ligne : la hauteur voulue dépassait la grille, et le
+\co{python}{min} l'a ramenée à $16$. C'est normal, et le programme continue
+sans se plaindre.
+
+Posons enfin deux rectangles sur la grille, et comptons.
+
+\begin{code}{python}[Fabriquer un masque et compter les jetons cachés]
+import torch
+
+T, H, W = 8, 16, 16          # tranches de temps, lignes, colonnes
+
+masque = torch.zeros(H, W, dtype=torch.bool)   # au depart, rien n'est cache
+masque[2:13, 2:13] = True                      # premier bloc : 11 x 11
+masque[9:16, 10:16] = True                     # second bloc  :  7 x  6
+
+par_tranche = int(masque.sum())      # la reunion des deux blocs
+total = par_tranche * T              # le trou traverse tout le clip
+
+print(f"cases cachees sur une tranche : {par_tranche}")
+print(f"jetons masques  (|M|)         : {total}")
+print(f"jetons visibles (le contexte) : {T * H * W - total}")
+print(f"part jetee par la perte       : "
+      f"{100 * (T * H * W - total) / (T * H * W):.1f} %")
+\end{code}
+
+Le résultat :
+
+\begin{code}{text}[Le compte final]
+cases cachees sur une tranche : 151
+jetons masques  (|M|)         : 1208
+jetons visibles (le contexte) : 840
+part jetee par la perte       : 41.0 %
+\end{code}
+
+Arrêtons-nous sur ces quatre lignes, car elles bouclent le chapitre.
+
+Le premier bloc couvre $11 \times 11 = 121$ cases, le second $7 \times 6 =
+42$. Cela ferait $163$ si on les additionnait bêtement. Mais ils se
+chevauchent sur $12$ cases, et ces cases-là ne doivent être comptées qu'une
+fois : le total est donc $121 + 42 - 12 = 151$. C'est bien ce qu'affiche le
+programme, et c'est ce que veut dire « prendre la réunion ».
+
+Ces $151$ cases, multipliées par les $8$ tranches de temps, donnent $1\,208$
+jetons masqués et $840$ jetons de contexte. Ce sont, à quelques unités près,
+les $1\,200$ et $848$ qui nous accompagnent depuis le
+chapitre~\ref{chap:idee-jepa} — et nous continuerons d'employer ces
+chiffres ronds, plus faciles à retenir.
+
+Et la dernière ligne dit tout : \textbf{quarante et un pour cent des réponses
+du prédicteur sont fabriquées, puis jetées}.
+
+\begin{aretenir}
+L'équation~1 de V-JEPA~2, en une phrase de français : \emph{on mesure, aux
+seuls endroits masqués, l'écart entre ce que le prédicteur a répondu et ce
+que le professeur avait produit, on efface les signes, on additionne, et on
+divise par le nombre d'endroits masqués}.
+
+Et le mot qui compte dans cette phrase est le mot « seuls ».
+\end{aretenir}
+
+\vspace{0.5em}
+
+Nous voici au bout de la partie~II. Nous savons comment la machine est
+bâtie, pourquoi elle ne s'écroule pas, et ce qu'elle cherche exactement à
+faire baisser. Toutes les pièces de V-JEPA~2 sont maintenant entre vos
+mains.
+
+Cette formule marche d'ailleurs très bien pour reconnaître une action dans
+une vidéo, et l'article de V-JEPA~2 l'a prouvé sur des dizaines de mesures.
+Mais que se passe-t-il si on lui demande autre chose ? Si, au lieu de
+demander « que se passe-t-il dans cette vidéo ? », on demande « à quelle
+distance se trouve ce pixel-là ? », ou bien « à quel objet appartient ce
+pixel-là ? »
+
+Ces questions-là ne réclament pas une seule réponse pour toute l'image :
+elles en réclament une \emph{par endroit}. Pour y répondre, il faudrait que
+chaque jeton décrive bien sa propre place — y compris les jetons de
+contexte, ceux dont personne, nous venons de le voir, ne demande jamais
+rien.
+
+Vous devinez déjà où cela nous mène : sur ces questions-là, la formule que
+nous venons d'écrire échoue. Et c'est précisément cet échec qui a donné
+naissance à V-JEPA~2.1. Avant de le constater nous-mêmes, il faut apprendre
+à poser ces nouvelles questions et à noter les réponses : c'est le sujet du
+chapitre suivant, qui ouvre la partie~III.
+
+\phantomsection
+\section*{Exercices}
+\addcontentsline{toc}{section}{Exercices}
+
+\begin{exercice}[Calculer une norme L1]
+Un prédicteur répond $(1{,}2 \ ; \ -0{,}5 \ ; \ 0{,}3 \ ; \ 0{,}0)$ alors
+que la cible valait $(1{,}0 \ ; \ -0{,}1 \ ; \ 0{,}3 \ ; \ -0{,}2)$. Quelle
+est la norme L1 de l'écart ?
+\end{exercice}
+
+\begin{solution}
+On soustrait terme à terme :
+\[
+  1{,}2 - 1{,}0 = 0{,}2 , \quad
+  -0{,}5 + 0{,}1 = -0{,}4 , \quad
+  0{,}3 - 0{,}3 = 0 , \quad
+  0{,}0 + 0{,}2 = 0{,}2 .
+\]
+
+On efface les signes, ce qui donne $(0{,}2 \ ; \ 0{,}4 \ ; \ 0 \ ; \
+0{,}2)$, puis on additionne :
+\[
+  0{,}2 + 0{,}4 + 0 + 0{,}2 = 0{,}8 .
+\]
+
+La norme L1 vaut donc $0{,}8$. Remarquez le troisième nombre : la machine
+était tombée parfaitement juste dessus, et il ne coûte donc rien du tout.
+\end{solution}
+
+\begin{exercice}[Une perte complète sur trois jetons]
+Le masque recouvre trois jetons. Les normes L1 de leurs écarts valent
+$1{,}2$, $0{,}9$ et $0{,}3$. Que vaut la perte ? Et si un quatrième jeton
+était masqué, avec un écart de $0{,}0$, que deviendrait-elle ?
+\end{exercice}
+
+\begin{solution}
+Avec trois jetons, $|M| = 3$ et la somme vaut $1{,}2 + 0{,}9 + 0{,}3 =
+2{,}4$. La perte vaut donc
+\[
+  \frac{2{,}4}{3} = 0{,}8 .
+\]
+
+Avec un quatrième jeton d'écart nul, la somme ne bouge pas — elle vaut
+toujours $2{,}4$ — mais $|M|$ passe à $4$. La perte devient
+\[
+  \frac{2{,}4}{4} = 0{,}6 .
+\]
+
+Elle a baissé, alors que la machine ne s'est pas améliorée d'un pouce sur
+les trois premiers jetons. C'est l'effet de la division : la perte est une
+\emph{moyenne}, et ajouter une bonne réponse tire la moyenne vers le bas.
+C'est aussi pourquoi on ne compare jamais deux pertes calculées sur des
+masques de tailles différentes.
+\end{solution}
+
+\begin{exercice}[Compter les réponses jetées]
+Un clip de la phase de refroidissement contient $18\,432$ jetons. Le masque
+en recouvre $11\,000$. Combien de réponses le prédicteur produit-il ?
+Combien la perte en regarde-t-elle ? Combien sont jetées, et quelle part
+cela représente-t-il ?
+\end{exercice}
+
+\begin{solution}
+Le prédicteur produit une réponse par jeton reçu, et il reçoit le contexte
+plus les masques, c'est-à-dire tout le clip : il produit donc $18\,432$
+réponses.
+
+La perte ne regarde que les jetons masqués, soit $11\,000$ réponses.
+
+Il en reste donc $18\,432 - 11\,000 = 7\,432$ qui sont jetées, ce qui
+représente
+\[
+  \frac{7\,432}{18\,432} \approx 0{,}403 ,
+\]
+soit un peu plus de quarante pour cent. On retrouve, à très peu de chose
+près, la même proportion que sur un clip de la phase principale : ce n'est
+pas la taille du clip qui décide de cette part, mais la taille du masque.
+\end{solution}
+
+\begin{exercice}[Retrouver la taille d'un trou]
+Sur une grille de $16 \times 16$ cases, on tire une échelle spatiale de
+$0{,}25$ et un rapport d'aspect de $1{,}0$. Combien de cases le trou
+couvre-t-il, et quelles sont ses dimensions ? Et comme le clip compte $8$
+tranches de temps, combien de jetons cela fait-il en tout ?
+\end{exercice}
+
+\begin{solution}
+La surface visée vaut $0{,}25 \times 256 = 64$ cases. On applique ensuite
+les deux calculs habituels. Hauteur : $\sqrt{64 \times 1} = 8$. Largeur :
+$\sqrt{64 \div 1} = 8$. Le trou fait donc $8$ cases sur $8$, et c'est bien
+un carré, comme le voulait un rapport de $1$.
+
+Comme l'échelle temporelle vaut toujours $1$, ce même carré est creusé sur
+les huit tranches de temps. Cela fait
+\[
+  8 \times 64 = 512 \text{ jetons masqués,}
+\]
+et il reste donc $2\,048 - 512 = 1\,536$ jetons de contexte.
+\end{solution}
+
+\begin{exercice}[Pourquoi le trou traverse tout le clip]
+Un collègue propose de ne masquer que la moitié des images du clip, pour
+« laisser un peu d'aide à la machine ». Pourquoi est-ce une mauvaise idée ?
+\end{exercice}
+
+\begin{solution}
+Parce que cette « aide » est bien trop grande, et qu'elle vide le jeu de son
+intérêt.
+
+Si un endroit est visible sur la première moitié du clip et caché sur la
+seconde, la machine n'a plus besoin de comprendre quoi que ce soit : il lui
+suffit de recopier ce qu'elle a vu au même endroit un instant plus tôt.
+Comme les choses bougent peu d'une image à l'autre, elle aura presque juste
+à tous les coups, et la perte descendra très bas sans qu'elle ait rien
+appris.
+
+C'est exactement pour fermer cette porte que l'article fixe l'échelle
+temporelle à $1{,}0$ et ne la fait jamais varier. L'endroit caché ne doit
+avoir été visible à aucun moment.
+\end{solution}
+
+\begin{exercice}[Le mot qui compte]
+Résumez en une phrase ce que la formule de V-JEPA~2 fait des réponses que le
+prédicteur produit pour les jetons de contexte. Puis dites, en une phrase,
+pourquoi ce choix pouvait sembler raisonnable à ses auteurs.
+\end{exercice}
+
+\begin{solution}
+Elle les jette : le signe $\sum_{i \in M}$ ne fait prendre à $i$ que les
+numéros des jetons masqués, si bien que les réponses produites aux endroits
+visibles ne sont jamais comparées à quoi que ce soit, et ne comptent donc
+pour rien dans la perte.
+
+Ce choix semblait raisonnable parce que noter la machine là où elle voit
+déjà tout paraît sans intérêt : il lui suffirait de recopier son entrée pour
+avoir juste, et l'on n'apprendrait rien. Le raisonnement est logique — mais
+nous verrons au chapitre~8 qu'il a une conséquence que personne n'avait
+mesurée, et au chapitre~10 comment V-JEPA~2.1 la corrige.
+\end{solution}
