@@ -159,6 +159,69 @@
   \end{tcolorbox}}
 
 %----------------------------------------------------------------------
+% SORTIE DE PROGRAMME : une vraie fenêtre de console
+%
+% Un bloc de code et ce que ce code affiche ne sont pas la même chose, et
+% le lecteur doit les distinguer d'un coup d'œil, sans lire le titre. Le
+% code reste sur fond clair ; la réponse de la machine, elle, s'affiche
+% blanc sur noir, dans une fenêtre de terminal munie de ses trois
+% pastilles. C'est l'image que tout le monde reconnaît.
+%
+%   \begin{sortie} ... \end{sortie}
+%   \begin{sortie}[Le verdict] ... \end{sortie}
+%
+% Le libellé passe en capitales tout seul : on l'écrit normalement.
+%----------------------------------------------------------------------
+\definecolor{mbTermFond}{HTML}{14171B}    % le noir de la console
+\definecolor{mbTermBarre}{HTML}{2B3138}   % la barre de titre de la fenêtre
+\definecolor{mbTermTexte}{HTML}{F2F4F6}   % le texte, blanc cassé
+\definecolor{mbTermLabel}{HTML}{9AA5AE}   % le libellé de la barre
+\definecolor{mbTermRouge}{HTML}{FF5F57}
+\definecolor{mbTermJaune}{HTML}{FEBC2E}
+\definecolor{mbTermVert}{HTML}{28C840}
+
+\newcommand{\mb@pastille}[1]{%
+  \tikz[baseline=-0.55ex]{\fill[#1] (0,0) circle (2.5pt);}}
+
+% La barre de titre : trois pastilles, puis le libellé en petites capitales.
+% Les pastilles sont décoratives : on les rend non sélectionnables, comme
+% les numéros de ligne, pour qu'elles ne polluent pas le copier-coller.
+\newcommand{\mbBarreTerminal}[1]{%
+  \mbSansCopie{%
+    \mb@pastille{mbTermRouge}\hspace{3.5pt}%
+    \mb@pastille{mbTermJaune}\hspace{3.5pt}%
+    \mb@pastille{mbTermVert}\hspace{9pt}}%
+  {\sffamily\bfseries\fontsize{7.2}{8.5}\selectfont\color{mbTermLabel}%
+   \MakeUppercase{#1}}}
+
+\NewTCBListing{sortie}{ O{Ce que ça affiche} }{%
+  listing engine=minted,
+  minted language=text,
+  minted options={fontsize=\footnotesize, breaklines=true,
+                  breakanywhere=true, autogobble=true,
+                  formatcom=\color{mbTermTexte},
+                  breaksymbolleft={\mbSansCopie{\footnotesize
+                    \textcolor{mbTermLabel}{\ensuremath{\hookrightarrow}}}}},
+  listing only,
+  enhanced, breakable,
+  colback=mbTermFond, colframe=mbTermFond, coltext=mbTermTexte,
+  boxrule=0pt, arc=4pt, outer arc=4pt,
+  % La classe donne à \parskip une valeur non nulle, qui vient s'ajouter
+  % sous le verbatim et creuse un vide au bas de la fenêtre. On l'annule
+  % ici, sans toucher au réglage général du livre.
+  before upper={\setlength{\parskip}{0pt}\setlength{\partopsep}{0pt}},
+  % minted laisse une ligne vide derrière la dernière ligne affichée ;
+  % on la reprend, sinon la fenêtre paraît creuse par le bas.
+  after upper={\vspace*{-\baselineskip}},
+  left=12pt, right=10pt, top=10pt, bottom=11pt,
+  before skip=10pt, after skip=10pt,
+  title={\mbBarreTerminal{#1}},
+  colbacktitle=mbTermBarre, coltitle=mbTermLabel,
+  fonttitle=\normalfont, titlerule=0pt,
+  lefttitle=11pt, righttitle=10pt, toptitle=5pt, bottomtitle=5pt,
+}
+
+%----------------------------------------------------------------------
 % Code en ligne coloré :  \co{python}{np.linalg.solve(A, b)}
 % et une commande courte pour du texte monospace neutre : \term{...}
 %----------------------------------------------------------------------

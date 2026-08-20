@@ -1524,12 +1524,12 @@ print(perte)
 
 Voici ce que le programme affiche :
 
-\begin{code}{text}[Ce que le programme écrit à l'écran]
+\begin{sortie}
 tensor([[0.1000, 0.3000, 0.2000],
         [0.1000, 0.2000, 0.1000]])
 tensor([0.6000, 0.4000])
 tensor(0.5000)
-\end{code}
+\end{sortie}
 
 Reprenez le tableau de la section~\ref{sec:calcul-complet} et comparez. Le premier affichage donne
 les écarts, une fois les signes effacés, exactement comme nous les avions
@@ -1570,14 +1570,14 @@ print(f"   le gros  ecart compte pour {100 * 1.00 / total_carres:.0f} %")
 
 Et le résultat :
 
-\begin{code}{text}[Ce que le programme écrit à l'écran]
+\begin{sortie}
 norme L1 : total = 1.10
    le petit ecart compte pour 9 %
    le gros  ecart compte pour 91 %
 carres   : total = 1.01
    le petit ecart compte pour 1 %
    le gros  ecart compte pour 99 %
-\end{code}
+\end{sortie}
 
 Avec les carrés, le petit écart ne pèse plus qu'un pour cent : autant dire
 qu'il a disparu. Avec la norme L1, il pèse encore neuf fois plus. C'est
@@ -1604,11 +1604,11 @@ for echelle, rapport in [(0.15, 0.75), (0.473, 1.0), (0.70, 1.5)]:
 
 Le programme affiche :
 
-\begin{code}{text}[Trois trous, du plus petit au plus grand]
+\begin{sortie}[Trois trous, du plus petit au plus grand]
 echelle 0.150, rapport 0.75 ->  5 x  7 =  35 cases, soit  280 jetons
 echelle 0.473, rapport 1.00 -> 11 x 11 = 121 cases, soit  968 jetons
 echelle 0.700, rapport 1.50 -> 16 x 11 = 176 cases, soit 1408 jetons
-\end{code}
+\end{sortie}
 
 Le facteur $8$ de la dernière colonne, c'est le nombre de tranches de temps
 d'un clip de la phase principale, que nous avions calculé au
@@ -1643,12 +1643,12 @@ print(f"part jetee par la perte       : "
 
 Le résultat :
 
-\begin{code}{text}[Le compte final]
+\begin{sortie}[Le compte final]
 cases cachees sur une tranche : 151
 jetons masques  (|M|)         : 1208
 jetons visibles (le contexte) : 840
 part jetee par la perte       : 41.0 %
-\end{code}
+\end{sortie}
 
 Arrêtons-nous sur ces quatre lignes, car elles bouclent le chapitre.
 

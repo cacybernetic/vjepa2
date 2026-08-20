@@ -128,9 +128,10 @@ petit paquet de nombres.}[jepa-deux-voies]
 }
 \node[font=\sffamily\scriptsize, text=mbSlate] at (5,-0.35) {chaque brin inventé};
 
-\node[annotation bulle, align=center, anchor=west] at (7.05,0.8)
+\node[annotation bulle, align=center, anchor=west] (bulhaut) at (7.15,0.8)
      {il faudrait deviner\\ce qui ne se devine pas};
-\draw[trait annotation] (6.3,0.8) -- (6.95,0.8);
+\draw[trait annotation, line width=0.7pt, draw=mbAmber!80]
+      (6.25,0.8) -- (bulhaut.west);
 
 % ---------- Ligne du bas : la voie JEPA ----------
 \begin{scope}[yshift=-3.3cm]
@@ -144,24 +145,26 @@ petit paquet de nombres.}[jepa-deux-voies]
 \draw[mbSlate, dashed, line width=0.7pt] (0.75,0.4) rectangle (1.45,1.1);
 \node[font=\sffamily\scriptsize, text=mbSlate] at (1.1,-0.35) {la photo trouée};
 
-\draw[fleche accent] (2.45,0.8) -- (4.25,0.8);
-\node[etiquette] at (3.05,1.1) {on décrit};
-
-\draw[fill=mbAmber!12, draw=mbAmber!80!black, line width=0.6pt]
-      (3.95,0.35) circle (2pt);
-\draw[fill=mbAmber!12, draw=mbAmber!80!black, line width=0.6pt]
-      (4.2,0.6) circle (3.5pt);
+% Le nuage est posé AVANT les flèches : celles-ci s'accrochent ensuite à
+% ses ancrages (nuage.west, nuage.east) au lieu de viser des coordonnées
+% devinées à la main. Sans cela, leurs pointes se retrouvent cachées sous
+% le nuage, qui déborde largement de sa largeur annoncée.
 \node[cloud, cloud puffs=13, cloud puff arc=110, aspect=1.9,
       draw=mbAmber!80!black, fill=mbAmber!12, line width=0.7pt,
-      minimum width=3cm, minimum height=1.7cm,
-      font=\sffamily\scriptsize, text=mbInk] (nuage) at (5.2,1.05)
+      minimum width=2.7cm, minimum height=1.6cm,
+      font=\sffamily\scriptsize, text=mbInk] (nuage) at (5.05,0.8)
      {$0{,}8$ \ $-0{,}3$ \ $1{,}2$};
-\node[font=\sffamily\scriptsize, text=mbSlate] at (5.2,-0.35)
+
+\draw[fleche accent, shorten >=2pt] (2.45,0.8) -- (nuage.west);
+\node[etiquette] at (3.05,1.1) {on décrit};
+
+\node[font=\sffamily\scriptsize, text=mbSlate] at (5.05,-0.35)
      {un petit paquet de nombres};
 
-\node[annotation bulle, align=center, anchor=west] at (7.05,0.95)
+\node[annotation bulle, align=center, anchor=west] (bulbas) at (7.15,0.8)
      {« de l'herbe verte,\\en pleine lumière » :\\c'est faisable};
-\draw[trait annotation] (6.6,0.95) -- (6.95,0.95);
+\draw[trait annotation, line width=0.7pt, draw=mbAmber!80, shorten <=2pt]
+      (nuage.east) -- (bulbas.west);
 \end{scope}
 \end{schema}
 
@@ -1067,11 +1070,11 @@ for pas in range(1, 4):
 À l'exécution, on obtient exactement les nombres du tableau de tout à
 l'heure~:
 
-\begin{code}{text}[Ce que le programme affiche]
+\begin{sortie}
 pas 1 : professeur = 1.0007500   ecart = 0.9992500
 pas 2 : professeur = 1.0014994   ecart = 0.9985006
 pas 3 : professeur = 1.0022483   ecart = 0.9977517
-\end{code}
+\end{sortie}
 
 Si l'on laisse tourner la boucle plus longtemps, on retrouve aussi nos deux
 repères~: au pas $924$, le professeur vaut $1{,}5001$, soit presque exactement
@@ -1142,12 +1145,12 @@ for pas in range(1, 301):
 
 Voici ce que cela donne~:
 
-\begin{code}{text}[Le modèle s'effondre]
+\begin{sortie}[Le modèle s'effondre]
 pas    1 : perte = 0.273260   diversite = 0.219396
 pas  100 : perte = 0.039338   diversite = 0.066842
 pas  200 : perte = 0.007948   diversite = 0.017721
 pas  300 : perte = 0.002699   diversite = 0.007204
-\end{code}
+\end{sortie}
 
 Lisons ces quatre lignes ensemble, car elles racontent toute l'histoire de
 ce chapitre. La colonne de la perte descend vers zéro~: du point de vue de
@@ -1203,12 +1206,12 @@ for pas in range(1, 301):
 
 Et le résultat~:
 
-\begin{code}{text}[Le modèle tient debout]
+\begin{sortie}[Le modèle tient debout]
 pas    1 : perte = 0.247933   diversite = 0.171066
 pas  100 : perte = 0.069328   diversite = 0.188252
 pas  200 : perte = 0.048201   diversite = 0.232273
 pas  300 : perte = 0.038985   diversite = 0.275197
-\end{code}
+\end{sortie}
 
 Comparons les deux tableaux, colonne par colonne. La perte descend dans les
 deux cas — c'est bien la preuve qu'elle ne nous apprend rien à elle seule.
