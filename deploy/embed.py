@@ -6,8 +6,9 @@ What is this program for?
 =========================
 
 This program reads image and video files and computes their V-JEPA 2.1
-embeddings with the ONNX models made by quantize.py. It does not use
-PyTorch: only ONNX Runtime, NumPy and OpenCV.
+embeddings with the ONNX models made by quantization.py, in any of its
+formats (--precision): q4_k_m (INT4 Q4_K_M weights), fp16 or fp32. It does
+not use PyTorch: only ONNX Runtime, NumPy and OpenCV.
 
     image  photo.jpg  -> <output-dir>/photo.pkl
     video  clip.mp4   -> <output-dir>/clip/frame_000000.pkl ... frame_001289.pkl
@@ -19,18 +20,39 @@ A video gives one file per decoded frame: a video of 1290 frames gives 1290
     "patch_tokens"   float16 [h, w, D]  dense features, one vector per 16x16 patch (not saved with --no-patch-tokens)
     "source", "modality", "frame_index", "timestamp_sec", "encoder", "arch", "precision", "image_size", ...
 
+"precision" tells which model format computed the embedding (q4_k_m, fp16 or fp32).
+
 D is 768 (ViT-B), 1024 (ViT-L), 1408 (ViT-g) or 1664 (ViT-G); h = H/16 and w = W/16 for a model input of
 H x W pixels (24 x 24 at 384 x 384).
 
 The two programs of step 1
 --------------------------
 
-    1. quantize.py  checkpoint -> <model-dir>/{*.onnx, config.json}
-    2. embed.py     (this program) image/video files -> one .pkl per image/frame
+    1. quantization.py  checkpoint -> <model-dir>/{*.onnx, config.json}
+    2. embed.py         (this program) image/video files -> one .pkl per image/frame
 
 The programs never import each other: embed.py only reads the files of
-<model-dir> (config.json gives the model files, input shapes and
-normalization).
+<model-dir> (config.json gives the model files of each format, input shapes
+and normalization).
+
+Model formats (--precision)
+===========================
+
+All are ONNX models read by ONNX Runtime, with float32 input and output:
+
+q4_k_m
+    The weights of the linear layers in 4 bits (6 bits for the most
+    sensitive ones), quantized with the Q4_K_M recipe of llama.cpp and stored
+    in ONNX Runtime's MatMulNBits operator. 3 to 4 times smaller than
+    float32; the embeddings lose a little precision (ViT-B: cosine similarity
+    about 0.998 with those of PyTorch).
+fp16
+    All the weights and computations in float16: half the size of float32,
+    the same embeddings to about 1e-5.
+fp32
+    No compression (quantization.py --precision fp32).
+auto (default)
+    The first of q4_k_m, fp16, fp32 found in config.json.
 
 Video modes (--video-mode)
 ==========================
@@ -68,13 +90,15 @@ Preprocessing
 Execution provider
     The ONNX Runtime backend: CUDA if onnxruntime-gpu and a GPU are there
     (float16 is fast), else CPU. On CPU, ONNX Runtime computes the float16
-    model in float32 with extra casts: the model made with
-    quantize.py --keep-fp32 and --precision fp32 is faster.
+    model in float32 with extra casts, and expands the 4-bit weights of the
+    q4_k_m model to float32 before each product: q4_k_m runs at about the
+    speed of fp32, fp16 is slower.
 
 Usage
 =====
 
     python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 photo.jpg clip.mp4
+    python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 --precision fp16 photo.jpg
     python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 --video-mode clip --output-dir embeddings clip.mp4
 
     # read a result
@@ -99,6 +123,9 @@ from tqdm import tqdm
 
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".bmp", ".webp", ".tif", ".tiff"}
 
+# Model formats of quantization.py, in the order --precision auto looks for them.
+PRECISIONS = ("q4_k_m", "fp16", "fp32")
+
 # Official evaluation transform: resize to int(size * 256 / 224), then center crop to size.
 EVAL_CROP_RATIO = 224 / 256
 
@@ -117,10 +144,15 @@ def parse_args():
     )
     parser.add_argument("inputs", nargs="+", type=Path, help="image and/or video files")
     parser.add_argument(
-        "--model-dir", type=Path, required=True, help="output folder of quantize.py (config.json + .onnx files)"
+        "--model-dir", type=Path, required=True, help="output folder of quantization.py (config.json + .onnx files)"
     )
     parser.add_argument("--output-dir", type=Path, default=Path("embeddings"), help="where to write the .pkl files")
-    parser.add_argument("--precision", choices=("fp16", "fp32"), default="fp16", help="which ONNX model to run")
+    parser.add_argument(
+        "--precision",
+        choices=("auto", *PRECISIONS),
+        default="auto",
+        help=f"model format to run (auto: the first of {', '.join(PRECISIONS)} found in config.json)",
+    )
     parser.add_argument(
         "--video-mode",
         choices=("frame", "clip"),
@@ -153,10 +185,10 @@ def parse_args():
 def load_config(model_dir):
     path = model_dir / "config.json"
     if not path.is_file():
-        sys.exit(f"{path} not found: --model-dir must be an output folder of quantize.py")
+        sys.exit(f"{path} not found: --model-dir must be an output folder of quantization.py")
     config = json.loads(path.read_text())
     if config.get("format") != "vjepa2.1-onnx":
-        sys.exit(f"{path} was not written by quantize.py")
+        sys.exit(f"{path} was not written by quantization.py")
     return config
 
 
@@ -170,24 +202,31 @@ def choose_providers(device):
 
 
 class Encoder:
-    """One ONNX model of quantize.py (image or video) in an ONNX Runtime session."""
+    """One ONNX model of quantization.py (image or video, in one format) in an ONNX Runtime session."""
 
     def __init__(self, model_dir, config, modality, precision, providers, threads):
         spec = config["models"].get(modality)
         if spec is None:
-            sys.exit(f"{model_dir} has no {modality} model: run quantize.py with --modalities {modality}")
-        file = spec["files"].get(precision)
-        if file is None:
-            sys.exit(f"{model_dir} has no {precision} {modality} model (float32 needs quantize.py --keep-fp32)")
+            sys.exit(f"{model_dir} has no {modality} model: run quantization.py with --modalities {modality}")
+        available = [p for p in PRECISIONS if p in spec["files"]]
+        if precision == "auto" and available:
+            precision = available[0]
+        if precision not in available:
+            sys.exit(
+                f"{model_dir} has no {precision} {modality} model (available: {', '.join(available) or 'none'}): "
+                f"run quantization.py with --precision {precision}"
+            )
+        file = spec["files"][precision]
         options = ort.SessionOptions()
         if threads:
             options.intra_op_num_threads = threads
-        logger.info(f"Loading {model_dir / file} ({', '.join(providers)})")
+        logger.info(f"Loading {model_dir / file} ({precision}, {', '.join(providers)})")
         self.session = ort.InferenceSession(str(model_dir / file), options, providers=providers)
         self.input = spec["input"]
         self.output = spec["output"]
         self.token_grid = spec["token_grid"]  # [t, h, w]
         self.name = modality
+        self.precision = precision
 
     def __call__(self, batch):
         """float32 [B, 3, H, W] or [B, 3, T, H, W] -> float32 patch tokens [B, t, h, w, D]."""
@@ -270,12 +309,12 @@ def run_batches(items, encoder, batch_size):
 class Writer:
     """Write one .pkl per image/frame."""
 
-    def __init__(self, config, encoder, precision, keep_patch_tokens):
+    def __init__(self, config, encoder, keep_patch_tokens):
         self.keep_patch_tokens = keep_patch_tokens
         self.model_info = {
             "encoder": encoder.name,
             "arch": config["arch"],
-            "precision": precision,
+            "precision": encoder.precision,
             "image_size": config["image_size"],
         }
         self.count = 0
@@ -368,7 +407,7 @@ def main():
     # Images and videos in frame mode use the image model; videos in clip mode use the video model.
     if images or (videos and args.video_mode == "frame"):
         encoder = Encoder(args.model_dir, config, "image", args.precision, providers, args.threads)
-        writer = Writer(config, encoder, args.precision, not args.no_patch_tokens)
+        writer = Writer(config, encoder, not args.no_patch_tokens)
         batch_size = args.batch_size or 8
         if images:
             embed_images(images, encoder, preprocess, writer, args.output_dir, batch_size)
@@ -380,7 +419,7 @@ def main():
         total += writer.count
     if videos and args.video_mode == "clip":
         encoder = Encoder(args.model_dir, config, "video", args.precision, providers, args.threads)
-        writer = Writer(config, encoder, args.precision, not args.no_patch_tokens)
+        writer = Writer(config, encoder, not args.no_patch_tokens)
         for path in videos:
             embed_video(
                 path, encoder, preprocess, writer, args.output_dir, args.batch_size or 1, "clip", config["tubelet_size"]
