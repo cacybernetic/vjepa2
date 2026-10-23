@@ -46,10 +46,10 @@ uv pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pyt
 
 The two programs need different packages:
 
-- **`quantization.py`**: torch, timm, einops (for the official V-JEPA code),
-  onnx, onnxscript, onnxconverter-common, onnxruntime, numpy, loguru, tqdm.
-  It imports the official model code from `resources/vjepa2-main` (see
-  `--vjepa-root`).
+- **`quantization.py`**: torch, onnx, onnxscript, onnxconverter-common,
+  onnxruntime, numpy, loguru, tqdm. The encoder is written inside the script
+  itself (a copy of the official model code), so the folder
+  `resources/vjepa2-main` is not needed to run it.
 - **`embed.py`**: onnxruntime (or onnxruntime-gpu), numpy, opencv-python,
   loguru, tqdm. **No PyTorch.** On a machine that only computes embeddings,
   this is enough:
@@ -124,8 +124,8 @@ What it does:
 1. Loads the checkpoint (memory-mapped, low RAM). It finds the encoder
    weights and detects the architecture (ViT-B/L/g/G, patch size, tubelet
    size).
-2. Builds the encoder with the official code (`app/vjepa_2_1`) and loads the
-   weights strictly.
+2. Builds the encoder with its own copy of the official model code
+   (`app/vjepa_2_1`) and loads the weights strictly.
 3. If `q4_k_m` is asked: quantizes all linear layers once (about 50 s for
    ViT-B).
 4. For each modality (image, then video):
@@ -148,7 +148,6 @@ What it does:
 | `--arch NAME` | auto | force the architecture: `vit_base`, `vit_large`, `vit_giant_xformers`, `vit_gigantic_xformers` |
 | `--opset N` | `18` | ONNX opset |
 | `--no-validate` | off | skip the PyTorch vs ONNX Runtime comparison (faster, less memory) |
-| `--vjepa-root DIR` | `resources/vjepa2-main` | root of the official vjepa2 code |
 | `--unsafe-load` | off | allow arbitrary Python objects in the checkpoint (**only for files you trust**) |
 
 ### Use cases
@@ -566,7 +565,8 @@ identical. The model needs ONNX Runtime; other ONNX runtimes do not know the
 | `Unknown encoder (embed_dim=…, depth=…)` | Give the architecture with `--arch`. |
 | `--img-size … must be a multiple of the patch size` | Use sizes divisible by 16. |
 | `--num-frames must be an even number` | The video tokenizer reads frames by pairs. |
-| `Official V-JEPA code not found` | Point `--vjepa-root` to the `vjepa2-main` folder. |
+| `--img-size … must hold at least 2 patches per side` | Use sizes of at least 32 pixels. |
+| `Segmentation fault` or `Killed` during the video export | The machine ran out of memory (a ViT-B run needs 5 to 6 GB). Close other programs, or export one modality per run into the same `--output-dir`: `--modalities image`, then `--modalities video`. |
 | `… has no q4_k_m image model (available: fp16)` | Run `quantization.py --precision q4_k_m` into the same `--output-dir`. |
 | `… has no video model` with `--video-mode clip` | Export with `--modalities video` (or both). |
 | `--device cuda, but ONNX Runtime has no CUDA backend` | Install `onnxruntime-gpu` instead of `onnxruntime`. |

@@ -112,11 +112,14 @@ Usage
 
 Requirements (PyTorch is only needed by this program):
 
-    torch, timm, einops (for the official V-JEPA code), onnx, onnxscript,
-    onnxconverter-common, onnxruntime, numpy, loguru
+    torch, onnx, onnxscript, onnxconverter-common, onnxruntime, numpy, loguru, tqdm
+
+The encoder itself is defined in this file (a port of app/vjepa_2_1/models of the official
+vjepa2 code): the official code is not needed to run it.
 """
 
 import argparse
+import ctypes
 import gc
 import hashlib
 import json
@@ -140,13 +143,12 @@ from onnxconverter_common import float16
 from tqdm import tqdm
 
 PROJECT_DIR = Path(__file__).resolve().parent
-DEFAULT_VJEPA_ROOT = PROJECT_DIR / "resources" / "vjepa2-main"
 
 # Same preference as src/hub/backbones.py: the distilled ViT-B/L release their EMA student
 # as "ema_encoder" (their "target_encoder", if any, may be the ViT-G teacher).
 CHECKPOINT_KEYS = ("ema_encoder", "target_encoder", "encoder")
 
-# (embed_dim, depth) -> constructor of app/vjepa_2_1/models/vision_transformer.py.
+# (embed_dim, depth) -> architecture name (see ARCHITECTURE_SIZES).
 # Names and head counts follow ARCH_NAME_MAP of src/hub/backbones.py.
 ARCHITECTURES = {
     (768, 12): "vit_base",
@@ -219,9 +221,6 @@ def parse_args():
     parser.add_argument("--opset", type=int, default=18, help="ONNX opset")
     parser.add_argument("--no-validate", action="store_true", help="skip the PyTorch vs ONNX Runtime comparison")
     parser.add_argument(
-        "--vjepa-root", type=Path, default=DEFAULT_VJEPA_ROOT, help="root of the official vjepa2 code"
-    )
-    parser.add_argument(
         "--unsafe-load",
         action="store_true",
         help="allow arbitrary pickled objects in the checkpoint (only for files you trust)",
@@ -236,8 +235,6 @@ def check_args(args):
         sys.exit("--img-size takes one value (square) or two values (H W)")
     if args.num_frames < 2 or args.num_frames % 2:
         sys.exit("--num-frames must be an even number >= 2 (the video tokenizer reads frames by pairs)")
-    if not (args.vjepa_root / "app" / "vjepa_2_1").is_dir():
-        sys.exit(f"Official V-JEPA code not found in {args.vjepa_root} (see --vjepa-root)")
     if args.output_dir is None:
         args.output_dir = PROJECT_DIR / "models" / args.checkpoint.stem
     args.img_size = (args.img_size[0], args.img_size[-1])
@@ -245,12 +242,26 @@ def check_args(args):
 
 
 def quiet_libraries():
-    """Hide the deprecation warnings of the official code and the exporter (they are not about our model)."""
+    """Hide the deprecation warnings of the exporter (they are not about our model)."""
     warnings.filterwarnings("ignore", category=FutureWarning)
     warnings.filterwarnings("ignore", category=UserWarning)
     warnings.filterwarnings("ignore", category=DeprecationWarning)
     for name in ("torch.onnx", "torch.export", "torch._dynamo", "onnxscript"):
         logging.getLogger(name).setLevel(logging.ERROR)
+
+
+def release_memory():
+    """Free the unused Python objects and give the freed memory back to the system.
+
+    glibc keeps the memory freed by the exporter and ONNX for later use (about 400 MB after the image
+    export of a ViT-B), so the next export would start with that much less free RAM. malloc_trim
+    returns it. On a system without glibc only the garbage collector runs.
+    """
+    gc.collect()
+    try:
+        ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except (OSError, AttributeError):
+        pass
 
 
 # ---------------------------------------------------------------------------
@@ -304,27 +315,180 @@ def detect_architecture(state_dict):
     return int(embed_dim), depth, int(patch_size), int(tubelet_size)
 
 
-def build_encoder(state_dict, arch, img_size, patch_size, tubelet_size, vjepa_root):
-    sys.path.insert(0, str(vjepa_root))
-    from app.vjepa_2_1.models import vision_transformer
-
-    # Same settings as src/hub/backbones.py::_make_vjepa2_1_model. num_frames only has to be > 1
-    # so that the video tokenizer is a Conv3d; the real number of frames comes from the input.
-    encoder = vision_transformer.__dict__[arch](
-        img_size=img_size,
-        patch_size=patch_size,
-        num_frames=64,
-        tubelet_size=tubelet_size,
-        use_sdpa=True,
-        use_silu=False,
-        wide_silu=True,
-        uniform_power=False,
-        use_rope=True,
-        img_temporal_dim_size=1,
-        interpolate_rope=True,
-    )
+def build_encoder(state_dict, arch, patch_size, tubelet_size):
+    embed_dim, depth, num_heads, mlp_ratio = ARCHITECTURE_SIZES[arch]
+    # Same settings as src/hub/backbones.py::_make_vjepa2_1_model (GELU MLP: the hub passes use_SiLU,
+    # which the official constructor ignores, so its default use_silu=False applies).
+    use_swiglu = any(".mlp.fc3." in k for k in state_dict)
+    encoder = VisionTransformer(embed_dim, depth, num_heads, mlp_ratio, patch_size, tubelet_size, use_swiglu)
     encoder.load_state_dict(state_dict, strict=True)
     return encoder.eval().requires_grad_(False)
+
+
+# ---------------------------------------------------------------------------
+# V-JEPA 2.1 encoder (port of app/vjepa_2_1/models of the official vjepa2 code)
+# ---------------------------------------------------------------------------
+#
+# Only the evaluation path of the official VisionTransformer is kept: RoPE attention, no masks, no registers,
+# no class token, interpolate_rope=True, img_temporal_dim_size=1, modality embeddings, output of the last block
+# after its LayerNorm. The parameter names are those of the official model, so a checkpoint loads with
+# strict=True, and the operations are done in the same order, so the outputs are the same.
+
+# arch -> (embed_dim, depth, num_heads, mlp_ratio), as in app/vjepa_2_1/models/vision_transformer.py.
+ARCHITECTURE_SIZES = {
+    "vit_base": (768, 12, 12, 4.0),
+    "vit_large": (1024, 24, 16, 4.0),
+    "vit_giant_xformers": (1408, 40, 22, 48 / 11),
+    "vit_gigantic_xformers": (1664, 48, 26, 64 / 13),
+}
+
+# Grid size of the pre-training images (256 px / 16): interpolate_rope maps every grid onto this one.
+PRETRAINED_GRID_SIZE = 16
+
+
+class PatchEmbed3D(torch.nn.Module):
+    """[B, 3, T, H, W] -> [B, T/tubelet * H/patch * W/patch, D] with a Conv3d (tubelet 1: the image tokenizer)."""
+
+    def __init__(self, patch_size, tubelet_size, embed_dim, in_chans=3):
+        super().__init__()
+        self.proj = torch.nn.Conv3d(
+            in_chans,
+            embed_dim,
+            kernel_size=(tubelet_size, patch_size, patch_size),
+            stride=(tubelet_size, patch_size, patch_size),
+        )
+
+    def forward(self, x):
+        return self.proj(x).flatten(2).transpose(1, 2)
+
+
+class MLP(torch.nn.Module):
+    def __init__(self, dim, hidden_dim):
+        super().__init__()
+        self.fc1 = torch.nn.Linear(dim, hidden_dim)
+        self.act = torch.nn.GELU()
+        self.fc2 = torch.nn.Linear(hidden_dim, dim)
+
+    def forward(self, x):
+        return self.fc2(self.act(self.fc1(x)))
+
+
+class SwiGLUFFN(torch.nn.Module):
+    """The use_silu=True variant of the official code (wide_silu=True): fc3(silu(fc1(x)) * fc2(x))."""
+
+    def __init__(self, dim, hidden_dim):
+        super().__init__()
+        hidden_dim = (int(2 * hidden_dim / 3) + 7) // 8 * 8
+        self.fc1 = torch.nn.Linear(dim, hidden_dim)
+        self.fc2 = torch.nn.Linear(dim, hidden_dim)
+        self.fc3 = torch.nn.Linear(hidden_dim, dim)
+
+    def forward(self, x):
+        return self.fc3(torch.nn.functional.silu(self.fc1(x)) * self.fc2(x))
+
+
+def rotate_queries_or_keys(x, pos):
+    """Rotary position embedding of x [B, heads, N, D] at the positions pos [N] (D even)."""
+    D = x.size(-1)
+    omega = torch.arange(D // 2, dtype=x.dtype, device=x.device)
+    omega /= D / 2.0
+    omega = 1.0 / 10000**omega
+    freq = torch.einsum("..., f -> ... f", pos, omega)
+    emb_sin = freq.sin().repeat_interleave(2, dim=-1)
+    emb_cos = freq.cos().repeat_interleave(2, dim=-1)
+    y1, y2 = x.unflatten(-1, (-1, 2)).unbind(dim=-1)
+    y = torch.stack((-y2, y1), dim=-1).flatten(-2)
+    return (x * emb_cos) + (y * emb_sin)
+
+
+class RoPEAttention(torch.nn.Module):
+    """Multi-head self-attention whose queries and keys are rotated along the time, height and width axes."""
+
+    def __init__(self, dim, num_heads):
+        super().__init__()
+        self.num_heads = num_heads
+        self.head_dim = dim // num_heads
+        self.qkv = torch.nn.Linear(dim, dim * 3)
+        self.proj = torch.nn.Linear(dim, dim)
+        # Each axis rotates the same even number of channels; the remaining ones are not rotated.
+        self.axis_dim = 2 * ((self.head_dim // 3) // 2)
+
+    def forward(self, x, T, H_patches, W_patches):
+        B, N, C = x.size()
+        qkv = self.qkv(x).unflatten(-1, (3, self.num_heads, -1)).permute(2, 0, 3, 1, 4)
+        q, k, v = qkv[0], qkv[1], qkv[2]
+
+        # Token index -> (frame, row, column), in float, as separate_positions() of the official code.
+        ids = torch.arange(int(T * H_patches * W_patches), device=x.device)
+        tokens_per_frame = int(H_patches * W_patches)
+        frame_ids = ids // tokens_per_frame
+        height_ids = (ids - tokens_per_frame * frame_ids) // W_patches
+        width_ids = (ids - tokens_per_frame * frame_ids) - W_patches * height_ids
+        d_pos = 1.0 * frame_ids
+        # interpolate_rope: the rows and columns are spread over the pre-training grid.
+        h_pos = 1.0 * height_ids * (PRETRAINED_GRID_SIZE - 1) / (H_patches - 1)
+        w_pos = 1.0 * width_ids * (PRETRAINED_GRID_SIZE - 1) / (W_patches - 1)
+
+        q_parts, k_parts, s = [], [], 0
+        for pos in (d_pos, h_pos, w_pos):
+            q_parts.append(rotate_queries_or_keys(q[..., s : s + self.axis_dim], pos))
+            k_parts.append(rotate_queries_or_keys(k[..., s : s + self.axis_dim], pos))
+            s += self.axis_dim
+        if s < self.head_dim:
+            q_parts.append(q[..., s:])
+            k_parts.append(k[..., s:])
+        q = torch.cat(q_parts, dim=-1)
+        k = torch.cat(k_parts, dim=-1)
+
+        x = torch.nn.functional.scaled_dot_product_attention(q, k, v)
+        return self.proj(x.transpose(1, 2).reshape(B, N, C))
+
+
+class Block(torch.nn.Module):
+    def __init__(self, dim, num_heads, mlp_ratio, use_swiglu):
+        super().__init__()
+        self.norm1 = torch.nn.LayerNorm(dim, eps=1e-6)
+        self.attn = RoPEAttention(dim, num_heads)
+        self.norm2 = torch.nn.LayerNorm(dim, eps=1e-6)
+        self.mlp = (SwiGLUFFN if use_swiglu else MLP)(dim, int(dim * mlp_ratio))
+
+    def forward(self, x, T, H_patches, W_patches):
+        x = x + self.attn(self.norm1(x), T, H_patches, W_patches)
+        return x + self.mlp(self.norm2(x))
+
+
+class VisionTransformer(torch.nn.Module):
+    """V-JEPA 2.1 encoder: [B, 3, 1, H, W] (image) or [B, 3, T, H, W] (video) -> patch tokens [B, N, D]."""
+
+    def __init__(self, embed_dim, depth, num_heads, mlp_ratio, patch_size, tubelet_size, use_swiglu):
+        super().__init__()
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.patch_size = patch_size
+        self.tubelet_size = tubelet_size
+        self.patch_embed = PatchEmbed3D(patch_size, tubelet_size, embed_dim)
+        self.patch_embed_img = PatchEmbed3D(patch_size, 1, embed_dim)
+        self.blocks = torch.nn.ModuleList(
+            [Block(embed_dim, num_heads, mlp_ratio, use_swiglu) for _ in range(depth)]
+        )
+        # One LayerNorm per hierarchical output (used for distillation); evaluation only uses the last one.
+        self.norms_block = torch.nn.ModuleList([torch.nn.LayerNorm(embed_dim, eps=1e-6) for _ in range(4)])
+        self.img_mod_embed = torch.nn.Parameter(torch.zeros(1, 1, embed_dim))
+        self.video_mod_embed = torch.nn.Parameter(torch.zeros(1, 1, embed_dim))
+
+    def forward(self, x):
+        _, _, T, H, W = x.shape
+        H_patches = H // self.patch_size
+        W_patches = W // self.patch_size
+        # A temporal size of 1 selects the image tokenizer and the image modality embedding.
+        if T == 1:
+            x = self.patch_embed_img(x) + self.img_mod_embed.repeat(x.shape[0], 1, 1)
+        else:
+            T = T // self.tubelet_size
+            x = self.patch_embed(x) + self.video_mod_embed.repeat(x.shape[0], 1, 1)
+        for block in self.blocks:
+            x = block(x, T, H_patches, W_patches)
+        return self.norms_block[-1](x)
 
 
 class ImageEncoder(torch.nn.Module):
@@ -401,7 +565,7 @@ def convert_fp16(src, dst, num_params):
     model = float16.convert_float_to_float16(model, keep_io_types=True, disable_shape_infer=True)
     save_model(model, dst, num_params * 2)
     del model
-    gc.collect()
+    release_memory()
 
 
 # ---------------------------------------------------------------------------
@@ -675,7 +839,7 @@ def convert_q4_k_m(src, dst, quantized):
     model.opset_import.append(helper.make_opsetid("com.microsoft", 1))
     save_model(model, dst, sum(len(tensor.raw_data) for tensor in graph.initializer))
     del model
-    gc.collect()
+    release_memory()
     return len(inputs_of)
 
 
@@ -738,6 +902,7 @@ def export_modality(modality, encoder, args, info, quantized):
             reference = module(check).float().numpy()
         logger.info(f"[{modality}] PyTorch float32 reference {list(reference.shape)} in {time.time() - start:.1f} s")
 
+    release_memory()
     start = time.time()
     logger.info(f"[{modality}] Export to ONNX float32, input [batch, {', '.join(map(str, sample_shape))}] ...")
     export_fp32(module, example, fp32_path, args.opset, int(np.prod(token_grid)))
@@ -758,7 +923,7 @@ def export_modality(modality, encoder, args, info, quantized):
         size = sum(p.stat().st_size for p in out_dir.glob(path.name + "*"))
         logger.info(f"[{modality}] {precision} model: {path} ({size / 1e6:,.0f} MB, {time.time() - start:.1f} s)")
     shutil.rmtree(tmp_dir, ignore_errors=True)
-    gc.collect()
+    release_memory()
 
     validation = {}
     if reference is not None:
@@ -825,10 +990,12 @@ def main():
         sys.exit(f"Unknown encoder (embed_dim={embed_dim}, depth={depth}); give it with --arch")
     if any(s % patch_size for s in args.img_size):
         sys.exit(f"--img-size {args.img_size} must be a multiple of the patch size {patch_size}")
+    if any(s < 2 * patch_size for s in args.img_size):
+        sys.exit(f"--img-size {args.img_size} must hold at least 2 patches per side (RoPE interpolation)")
 
-    encoder = build_encoder(state_dict, arch, args.img_size, patch_size, tubelet_size, args.vjepa_root)
+    encoder = build_encoder(state_dict, arch, patch_size, tubelet_size)
     del checkpoint, state_dict
-    gc.collect()
+    release_memory()
     num_params = sum(p.numel() for p in encoder.parameters())
     logger.info(
         f"Encoder {arch}: {num_params / 1e6:,.1f} M parameters, embed_dim {embed_dim}, depth {depth}, "
@@ -865,6 +1032,7 @@ def main():
     for modality in args.modalities:
         models[modality] = export_modality(modality, encoder, args, info, quantized)
         models[modality]["quantization"] = dict(quantization)
+        release_memory()
 
     config = {
         "format": "vjepa2.1-onnx",
