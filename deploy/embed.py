@@ -1,39 +1,57 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""embed.py - step 1, program 2 of 2: images / videos -> V-JEPA 2.1 embeddings (.pkl), ONNX Runtime only.
+"""embed.py - step 1, program 2 of 2: a folder of images -> V-JEPA 2.1 embeddings (.pkl), ONNX Runtime only.
 
 What is this program for?
 =========================
 
-This program reads image and video files and computes their V-JEPA 2.1
-embeddings with the ONNX models made by quantization.py, in any of its
-formats (--precision): q4_k_m (INT4 Q4_K_M weights), fp16 or fp32. It does
-not use PyTorch: only ONNX Runtime, NumPy and OpenCV.
+This program looks for every image file inside a folder (and inside all of
+its sub-folders), and computes the V-JEPA 2.1 embedding of each image with
+the ONNX models made by quantization.py, in any of its formats
+(--precision): q4_k_m (INT4 Q4_K_M weights), fp16 or fp32. It does not use
+PyTorch: only ONNX Runtime, NumPy and OpenCV.
 
-    image  photo.jpg  -> <output-dir>/photo.pkl
-    video  clip.mp4   -> <output-dir>/clip/frame_000000.pkl ... frame_001289.pkl
+Each embedding is saved next to its image, with the same name and the
+.pkl extension. The image file itself is kept:
 
-A video gives one file per decoded frame: a video of 1290 frames gives 1290
-.pkl files. Each .pkl holds a dict, readable with pickle and NumPy only:
+    /path/to/photos/myimage.png        ->  /path/to/photos/myimage.pkl
+    /path/to/photos/cats/cat_01.jpg    ->  /path/to/photos/cats/cat_01.pkl
 
-    "embedding"      float32 [D]        mean of the patch tokens: one global vector for the image/frame
+Only images are read (.jpg .jpeg .png .bmp .webp .tif .tiff); other files,
+videos included, are ignored. Each .pkl holds a dict, readable with pickle
+and NumPy only:
+
+    "embedding"      float32 [D]        mean of the patch tokens: one global vector for the image
     "patch_tokens"   float16 [h, w, D]  dense features, one vector per 16x16 patch (not saved with --no-patch-tokens)
-    "source", "modality", "frame_index", "timestamp_sec", "encoder", "arch", "precision", "image_size", ...
+    "source", "modality", "encoder", "arch", "precision", "image_size"
 
 "precision" tells which model format computed the embedding (q4_k_m, fp16 or fp32).
 
 D is 768 (ViT-B), 1024 (ViT-L), 1408 (ViT-g) or 1664 (ViT-G); h = H/16 and w = W/16 for a model input of
 H x W pixels (24 x 24 at 384 x 384).
 
+An image that already has its .pkl is not computed again when this file
+loads fine with pickle and holds an "embedding" of shape [D] (D = embed_dim
+of config.json). Otherwise (missing, broken or truncated file, wrong shape,
+for example made by another model size), the embedding is computed again
+and the .pkl is replaced. This check is always done before any computation,
+so an interrupted run can simply be started again.
+
+Two images of the same folder with the same name and different extensions
+(photo.jpg and photo.png) would both give photo.pkl. In that case only the
+first one, in alphabetical order, is embedded, and the others are skipped
+with a warning.
+
 The two programs of step 1
 --------------------------
 
     1. quantization.py  checkpoint -> <model-dir>/{*.onnx, config.json}
-    2. embed.py         (this program) image/video files -> one .pkl per image/frame
+    2. embed.py         (this program) folder of images -> one .pkl next to each image
 
 The programs never import each other: embed.py only reads the files of
 <model-dir> (config.json gives the model files of each format, input shapes
-and normalization).
+and normalization). Only the image model is needed (quantization.py
+--modalities image).
 
 Model formats (--precision)
 ===========================
@@ -53,22 +71,6 @@ fp32
     No compression (quantization.py --precision fp32).
 auto (default)
     The first of q4_k_m, fp16, fp32 found in config.json.
-
-Video modes (--video-mode)
-==========================
-
-frame (default)
-    Every frame is encoded alone by the image model (2D tokenizer), like a
-    photo. N frames give N different embeddings.
-
-clip
-    The frames are grouped in clips of T frames (T = num_frames of
-    config.json, 16 by default), read by the video model (3D tokenizer). The
-    features of a frame then see the other frames of its clip (motion,
-    temporal consistency). The video tokenizer reads "tubelets" of 2 frames,
-    so frames 2k and 2k+1 of a clip share the same features: they get the
-    same embedding. The last clip is completed by repeating its last frame.
-    This mode needs more memory: attention over T/2 * h * w tokens.
 
 Important words
 ===============
@@ -97,13 +99,12 @@ Execution provider
 Usage
 =====
 
-    python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 photo.jpg clip.mp4
-    python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 --precision fp16 photo.jpg
-    python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 --video-mode clip --output-dir embeddings clip.mp4
+    python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 /path/to/photos
+    python embed.py --model-dir models/vjepa2_1_vitl_dist_vitG_384 --precision fp16 /path/to/photos
 
     # read a result
     import pickle
-    record = pickle.load(open("embeddings/clip/frame_000017.pkl", "rb"))
+    record = pickle.load(open("/path/to/photos/myimage.pkl", "rb"))
     record["embedding"].shape, record["patch_tokens"].shape   # (1024,), (24, 24, 1024)
 
 Requirements (no PyTorch): onnxruntime (or onnxruntime-gpu), numpy, opencv-python, loguru, tqdm
@@ -139,32 +140,23 @@ class HelpFormatter(argparse.ArgumentDefaultsHelpFormatter):
 
 def parse_args():
     parser = argparse.ArgumentParser(
-        description="Compute V-JEPA 2.1 embeddings of images and videos with ONNX Runtime (no PyTorch).",
+        description="Compute the V-JEPA 2.1 embedding of every image of a folder with ONNX Runtime (no PyTorch). "
+        "Each embedding is saved next to its image: /path/to/myimage.png -> /path/to/myimage.pkl.",
         formatter_class=HelpFormatter,
     )
-    parser.add_argument("inputs", nargs="+", type=Path, help="image and/or video files")
+    parser.add_argument(
+        "image_dir", type=Path, help="folder of images, searched with all its sub-folders (the images are kept)"
+    )
     parser.add_argument(
         "--model-dir", type=Path, required=True, help="output folder of quantization.py (config.json + .onnx files)"
     )
-    parser.add_argument("--output-dir", type=Path, default=Path("embeddings"), help="where to write the .pkl files")
     parser.add_argument(
         "--precision",
         choices=("auto", *PRECISIONS),
         default="auto",
         help=f"model format to run (auto: the first of {', '.join(PRECISIONS)} found in config.json)",
     )
-    parser.add_argument(
-        "--video-mode",
-        choices=("frame", "clip"),
-        default="frame",
-        help="frame: each frame alone (image model); clip: clips of frames (video model)",
-    )
-    parser.add_argument(
-        "--batch-size",
-        type=int,
-        default=None,
-        help="images or frames per run (default 8); in clip mode, clips per run (default 1)",
-    )
+    parser.add_argument("--batch-size", type=int, default=8, help="images per run")
     parser.add_argument(
         "--crop-ratio",
         type=float,
@@ -177,7 +169,7 @@ def parse_args():
     args = parser.parse_args()
     if not 0 < args.crop_ratio <= 1:
         parser.error("--crop-ratio must be in ]0, 1]")
-    if args.batch_size is not None and args.batch_size < 1:
+    if args.batch_size < 1:
         parser.error("--batch-size must be >= 1")
     return args
 
@@ -268,31 +260,6 @@ def read_image(path):
     return cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
 
 
-def iter_frames(capture):
-    """Yield (frame index, uint8 RGB frame) for every frame of an opened cv2.VideoCapture."""
-    index = 0
-    while True:
-        ok, bgr = capture.read()
-        if not ok:
-            return
-        yield index, cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB)
-        index += 1
-
-
-def iter_clips(frames, num_frames):
-    """Group ([3, H, W] frame, index) items into ([3, T, H, W] clip, frame indices); the last clip is padded."""
-    clip, indices = [], []
-    for frame, index in frames:
-        clip.append(frame)
-        indices.append(index)
-        if len(clip) == num_frames:
-            yield np.stack(clip, axis=1), indices
-            clip, indices = [], []
-    if clip:
-        clip += [clip[-1]] * (num_frames - len(clip))
-        yield np.stack(clip, axis=1), indices
-
-
 def run_batches(items, encoder, batch_size):
     """Encode (array, meta) items by batches; yield (patch tokens [t, h, w, D], meta) in input order."""
     arrays, metas = [], []
@@ -307,7 +274,7 @@ def run_batches(items, encoder, batch_size):
 
 
 class Writer:
-    """Write one .pkl per image/frame."""
+    """Write one .pkl per image."""
 
     def __init__(self, config, encoder, keep_patch_tokens):
         self.keep_patch_tokens = keep_patch_tokens
@@ -320,7 +287,7 @@ class Writer:
         self.count = 0
 
     def __call__(self, path, tokens, info):
-        """tokens: float32 patch tokens [h, w, D] of one image/frame."""
+        """tokens: float32 patch tokens [h, w, D] of one image."""
         record = {**info, "embedding": tokens.mean(axis=(0, 1), dtype=np.float32)}
         if self.keep_patch_tokens:
             record["patch_tokens"] = tokens.astype(np.float16)
@@ -330,7 +297,43 @@ class Writer:
         self.count += 1
 
 
-def embed_images(paths, encoder, preprocess, writer, output_dir, batch_size):
+def find_images(image_dir):
+    """Full paths of the image files of image_dir and of all its sub-folders, sorted."""
+    paths = sorted(
+        path.resolve()
+        for path in image_dir.rglob("*")
+        if path.suffix.lower() in IMAGE_EXTENSIONS and path.is_file()
+    )
+    # photo.jpg and photo.png of one folder would both write photo.pkl: keep the first one.
+    kept, outputs = [], {}
+    for path in paths:
+        output = path.with_suffix(".pkl")
+        if output in outputs:
+            logger.warning(f"{path} skipped: {outputs[output].name} already gives {output.name}")
+            continue
+        outputs[output] = path
+        kept.append(path)
+    return kept
+
+
+def has_embedding(path, embed_dim):
+    """True if path is a .pkl that loads fine and holds an "embedding" of shape [embed_dim]."""
+    if not path.is_file():
+        return False
+    try:
+        with open(path, "rb") as file:
+            record = pickle.load(file)
+    except Exception as error:  # truncated or broken file: any unpickling error means "compute it again"
+        logger.warning(f"{path} does not load ({type(error).__name__}): computed again")
+        return False
+    shape = getattr(record.get("embedding") if isinstance(record, dict) else None, "shape", None)
+    if shape != (embed_dim,):
+        logger.warning(f"{path} has an embedding of shape {shape}, not ({embed_dim},): computed again")
+        return False
+    return True
+
+
+def embed_images(paths, encoder, preprocess, writer, batch_size):
     def items():
         for path in paths:
             try:
@@ -339,48 +342,9 @@ def embed_images(paths, encoder, preprocess, writer, output_dir, batch_size):
                 logger.warning(f"{error}: skipped")
 
     for tokens, path in tqdm(run_batches(items(), encoder, batch_size), total=len(paths), unit="image"):
-        info = {"source": str(path.resolve()), "modality": "image"}
-        writer(output_dir / f"{path.stem}.pkl", tokens[0], info)
-
-
-def embed_video(path, encoder, preprocess, writer, output_dir, batch_size, mode, tubelet_size):
-    capture = cv2.VideoCapture(str(path))
-    if not capture.isOpened():
-        logger.warning(f"cannot open {path} as a video: skipped")
-        return
-    fps = capture.get(cv2.CAP_PROP_FPS) or 0.0
-    total = int(capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    video_dir = output_dir / path.stem
-    video_dir.mkdir(parents=True, exist_ok=True)
-    logger.info(f"{path}: ~{total} frames at {fps:.2f} fps -> {video_dir}/ ({mode} mode)")
-
-    progress = tqdm(total=total if total > 0 else None, unit="frame")
-    frames = ((preprocess(rgb), index) for index, rgb in iter_frames(capture))
-
-    def save(index, tokens, extra):
-        info = {
-            "source": str(path.resolve()),
-            "modality": "video",
-            "frame_index": index,
-            "timestamp_sec": index / fps if fps > 0 else None,
-            "fps": fps,
-            **extra,
-        }
-        writer(video_dir / f"frame_{index:06d}.pkl", tokens, info)
-        progress.update(1)
-
-    if mode == "frame":
-        for tokens, index in run_batches(frames, encoder, batch_size):
-            save(index, tokens[0], {"video_mode": "frame"})
-    else:
-        clips = iter_clips(frames, encoder.token_grid[0] * tubelet_size)
-        for tokens, indices in run_batches(clips, encoder, batch_size):
-            for position, index in enumerate(indices):
-                tubelet = position // tubelet_size
-                extra = {"video_mode": "clip", "clip_start_frame": indices[0], "tubelet_index": tubelet}
-                save(index, tokens[tubelet], extra)
-    progress.close()
-    capture.release()
+        info = {"source": str(path), "modality": "image"}
+        # The embedding goes next to the image, with the same name: /path/to/myimage.png -> /path/to/myimage.pkl.
+        writer(path.with_suffix(".pkl"), tokens[0], info)
 
 
 def main():
@@ -391,41 +355,30 @@ def main():
         format="<green>{time:HH:mm:ss}</green> | <level>{level: <7}</level> | {message}",
     )
 
-    missing = [str(path) for path in args.inputs if not path.is_file()]
-    if missing:
-        sys.exit(f"Input file(s) not found: {', '.join(missing)}")
-    images = [path for path in args.inputs if path.suffix.lower() in IMAGE_EXTENSIONS]
-    videos = [path for path in args.inputs if path.suffix.lower() not in IMAGE_EXTENSIONS]
+    if not args.image_dir.is_dir():
+        sys.exit(f"Image folder not found: {args.image_dir}")
+    images = find_images(args.image_dir)
+    if not images:
+        sys.exit(f"No image file ({' '.join(sorted(IMAGE_EXTENSIONS))}) in {args.image_dir}")
+    logger.info(f"{len(images)} image(s) found in {args.image_dir.resolve()}")
 
     config = load_config(args.model_dir)
+    # An image whose .pkl already loads fine with an embedding of the good shape is not computed again.
+    todo = [path for path in images if not has_embedding(path.with_suffix(".pkl"), config["embed_dim"])]
+    logger.info(f"{len(images) - len(todo)} image(s) already have a valid embedding, {len(todo)} to compute")
+    if not todo:
+        logger.info("Done: nothing to compute")
+        return
+    images = todo
+
     providers = choose_providers(args.device)
     norm = config["normalization"]
     preprocess = Preprocessor(config["image_size"], args.crop_ratio, norm["mean"], norm["std"])
-    args.output_dir.mkdir(parents=True, exist_ok=True)
 
-    total = 0
-    # Images and videos in frame mode use the image model; videos in clip mode use the video model.
-    if images or (videos and args.video_mode == "frame"):
-        encoder = Encoder(args.model_dir, config, "image", args.precision, providers, args.threads)
-        writer = Writer(config, encoder, not args.no_patch_tokens)
-        batch_size = args.batch_size or 8
-        if images:
-            embed_images(images, encoder, preprocess, writer, args.output_dir, batch_size)
-        if args.video_mode == "frame":
-            for path in videos:
-                embed_video(
-                    path, encoder, preprocess, writer, args.output_dir, batch_size, "frame", config["tubelet_size"]
-                )
-        total += writer.count
-    if videos and args.video_mode == "clip":
-        encoder = Encoder(args.model_dir, config, "video", args.precision, providers, args.threads)
-        writer = Writer(config, encoder, not args.no_patch_tokens)
-        for path in videos:
-            embed_video(
-                path, encoder, preprocess, writer, args.output_dir, args.batch_size or 1, "clip", config["tubelet_size"]
-            )
-        total += writer.count
-    logger.info(f"Done: {total} embedding file(s) in {args.output_dir}")
+    encoder = Encoder(args.model_dir, config, "image", args.precision, providers, args.threads)
+    writer = Writer(config, encoder, not args.no_patch_tokens)
+    embed_images(images, encoder, preprocess, writer, args.batch_size)
+    logger.info(f"Done: {writer.count} embedding file(s), each next to its image in {args.image_dir.resolve()}")
 
 
 if __name__ == "__main__":
